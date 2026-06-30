@@ -1,0 +1,197 @@
+@page "/analytics"
+@layout MainLayout
+
+<PageHeader Title="Analytics" Subtitle="Attendance breakdown, trends, and classroom insights">
+    <div class="header-actions">
+        <select class="analytics-period">
+            <option>This Month</option>
+            <option>This Week</option>
+            <option>Last Month</option>
+            <option>This Semester</option>
+        </select>
+    </div>
+</PageHeader>
+
+<div class="analytics-grid">
+
+    <div class="ring-card">
+        <div class="ring-label">Overall Attendance</div>
+        <svg class="ring-svg" viewBox="0 0 120 120">
+            <circle class="ring-bg" cx="60" cy="60" r="52" />
+            <circle class="ring-fill" cx="60" cy="60" r="52"
+                    stroke-dasharray="326.7"
+                    stroke-dashoffset="49"
+                    transform="rotate(-90 60 60)" />
+            <text x="60" y="56" text-anchor="middle" class="ring-value">85%</text>
+            <text x="60" y="72" text-anchor="middle" class="ring-sub">+2.3%</text>
+        </svg>
+    </div>
+
+    <div class="ring-card">
+        <div class="ring-label">Present Today</div>
+        <svg class="ring-svg" viewBox="0 0 120 120">
+            <circle class="ring-bg" cx="60" cy="60" r="52" />
+            <circle class="ring-fill ring-fill--green" cx="60" cy="60" r="52"
+                    stroke-dasharray="326.7"
+                    stroke-dashoffset="32.7"
+                    transform="rotate(-90 60 60)" />
+            <text x="60" y="56" text-anchor="middle" class="ring-value">90%</text>
+            <text x="60" y="72" text-anchor="middle" class="ring-sub">142 / 156</text>
+        </svg>
+    </div>
+
+    <div class="ring-card">
+        <div class="ring-label">Late Rate</div>
+        <svg class="ring-svg" viewBox="0 0 120 120">
+            <circle class="ring-bg" cx="60" cy="60" r="52" />
+            <circle class="ring-fill ring-fill--yellow" cx="60" cy="60" r="52"
+                    stroke-dasharray="326.7"
+                    stroke-dashoffset="294"
+                    transform="rotate(-90 60 60)" />
+            <text x="60" y="56" text-anchor="middle" class="ring-value">5.1%</text>
+            <text x="60" y="72" text-anchor="middle" class="ring-sub">8 late</text>
+        </svg>
+    </div>
+
+    <div class="ring-card">
+        <div class="ring-label">Absent Rate</div>
+        <svg class="ring-svg" viewBox="0 0 120 120">
+            <circle class="ring-bg" cx="60" cy="60" r="52" />
+            <circle class="ring-fill ring-fill--red" cx="60" cy="60" r="52"
+                    stroke-dasharray="326.7"
+                    stroke-dashoffset="310.4"
+                    transform="rotate(-90 60 60)" />
+            <text x="60" y="56" text-anchor="middle" class="ring-value">3.8%</text>
+            <text x="60" y="72" text-anchor="middle" class="ring-sub">6 absent</text>
+        </svg>
+    </div>
+
+</div>
+
+<div class="analytics-content">
+
+    <div class="chart-card chart-card--wide">
+        <h2 class="card-heading">Attendance by Day of Week</h2>
+        <div class="bar-chart">
+            <div class="bar-row">
+                <span class="bar-label">Mon</span>
+                <div class="bar-track">
+                    <div class="bar-fill" style="width: 92%;"></div>
+                </div>
+                <span class="bar-value">92%</span>
+            </div>
+            <div class="bar-row">
+                <span class="bar-label">Tue</span>
+                <div class="bar-track">
+                    <div class="bar-fill bar-fill--green" style="width: 88%;"></div>
+                </div>
+                <span class="bar-value">88%</span>
+            </div>
+            <div class="bar-row">
+                <span class="bar-label">Wed</span>
+                <div class="bar-track">
+                    <div class="bar-fill bar-fill--indigo" style="width: 95%;"></div>
+                </div>
+                <span class="bar-value">95%</span>
+            </div>
+            <div class="bar-row">
+                <span class="bar-label">Thu</span>
+                <div class="bar-track">
+                    <div class="bar-fill bar-fill--purple" style="width: 84%;"></div>
+                </div>
+                <span class="bar-value">84%</span>
+            </div>
+            <div class="bar-row">
+                <span class="bar-label">Fri</span>
+                <div class="bar-track">
+                    <div class="bar-fill bar-fill--yellow" style="width: 76%;"></div>
+                </div>
+                <span class="bar-value">76%</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="chart-card">
+        <h2 class="card-heading">Attendance by Class</h2>
+        <div class="bar-chart">
+            <div class="bar-row">
+                <span class="bar-label">10-A</span>
+                <div class="bar-track">
+                    <div class="bar-fill" style="width: 94%;"></div>
+                </div>
+                <span class="bar-value">94%</span>
+            </div>
+            <div class="bar-row">
+                <span class="bar-label">10-B</span>
+                <div class="bar-track">
+                    <div class="bar-fill bar-fill--green" style="width: 87%;"></div>
+                </div>
+                <span class="bar-value">87%</span>
+            </div>
+            <div class="bar-row">
+                <span class="bar-label">9-A</span>
+                <div class="bar-track">
+                    <div class="bar-fill bar-fill--indigo" style="width: 91%;"></div>
+                </div>
+                <span class="bar-value">91%</span>
+            </div>
+            <div class="bar-row">
+                <span class="bar-label">9-B</span>
+                <div class="bar-track">
+                    <div class="bar-fill bar-fill--purple" style="width: 79%;"></div>
+                </div>
+                <span class="bar-value">79%</span>
+            </div>
+            <div class="bar-row">
+                <span class="bar-label">8-A</span>
+                <div class="bar-track">
+                    <div class="bar-fill bar-fill--yellow" style="width: 96%;"></div>
+                </div>
+                <span class="bar-value">96%</span>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<div class="analytics-footer">
+    <div class="chart-card">
+        <h2 class="card-heading">Monthly Trend</h2>
+        <div class="trend-chart">
+            <svg viewBox="0 0 400 120" class="trend-svg">
+                <polyline class="trend-line"
+                          fill="none"
+                          stroke="#6366f1"
+                          stroke-width="2.5"
+                          points="0,80 40,90 80,70 120,60 160,50 200,55 240,30 280,35 320,20 360,25 400,15" />
+                <polyline class="trend-fill"
+                          points="0,80 40,90 80,70 120,60 160,50 200,55 240,30 280,35 320,20 360,25 400,15 400,120 0,120" />
+                <circle cx="400" cy="15" r="4" fill="#6366f1" stroke="#fff" stroke-width="2" />
+            </svg>
+            <div class="trend-labels">
+                <span>Jan</span>
+                <span>Feb</span>
+                <span>Mar</span>
+                <span>Apr</span>
+                <span>May</span>
+                <span>Jun</span>
+            </div>
+        </div>
+        <div class="trend-summary">
+            <div class="trend-stat">
+                <span class="trend-stat-value">91.2%</span>
+                <span class="trend-stat-label">Average</span>
+            </div>
+            <div class="trend-stat">
+                <span class="trend-stat-value trend-stat-value--up">+4.7%</span>
+                <span class="trend-stat-label">vs Last Month</span>
+            </div>
+            <div class="trend-stat">
+                <span class="trend-stat-value">156</span>
+                <span class="trend-stat-label">Total Students</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+
