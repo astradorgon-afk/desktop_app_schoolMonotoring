@@ -39,4 +39,7 @@
   <data name="User_StatusChanged" xml:space="preserve">
     <value>User '{Username}' status changed to '{Status}'.</value>
   </data>
+  <data name="QR_Generated" xml:space="preserve">
+    <value>QR code generated for student ID {StudentId}.</value>
+  </data>
 </root>
