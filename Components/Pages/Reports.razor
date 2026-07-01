@@ -1,8 +1,264 @@
 @page "/reports"
 @layout MainLayout
+@using AttendanceUI.Services
+@inject IReportService ReportService
 
-<PageHeader Title="Reports" Subtitle="Export attendance reports to Excel and other formats" />
+<PageHeader Title="Reports" Subtitle="Attendance analytics and section breakdowns">
+    <div class="header-actions">
+        <button class="btn btn-primary" @onclick="ExportCsvAsync">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            <span>Export CSV</span>
+        </button>
+    </div>
+</PageHeader>
 
-<div class="page-card">
-    <p class="text-muted">Reports module — coming soon.</p>
+@* ── Date Range ── *@
+<div class="reports-toolbar">
+    <div class="report-date-group">
+        <label class="report-date-label">From</label>
+        <input type="date" class="report-date-input" @bind="_fromDate" @bind:after="LoadAsync" />
+    </div>
+    <div class="report-date-group">
+        <label class="report-date-label">To</label>
+        <input type="date" class="report-date-input" @bind="_toDate" @bind:after="LoadAsync" />
+    </div>
+    <button class="btn btn-ghost" @onclick="ResetDatesAsync">
+        <span>Reset</span>
+    </button>
 </div>
+
+@if (_loading)
+{
+    <div class="loading-state">
+        <span class="spinner"></span>
+        <p>Generating report…</p>
+    </div>
+}
+else if (_data is not null)
+{
+    @* ── Summary Cards ── *@
+    <div class="stats-grid" style="margin-bottom:20px;">
+        <div class="stat-card">
+            <div class="stat-icon stat-icon--purple">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+            </div>
+            <div class="stat-info">
+                <span class="stat-value">@_data.Summary.AttendanceRate%</span>
+                <span class="stat-label">Attendance Rate</span>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon stat-icon--green">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+            </div>
+            <div class="stat-info">
+                <span class="stat-value">@_data.Summary.PresentCount</span>
+                <span class="stat-label">Present (@_data.Summary.PresentPercent%)</span>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon stat-icon--yellow">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            </div>
+            <div class="stat-info">
+                <span class="stat-value">@_data.Summary.LateCount</span>
+                <span class="stat-label">Late (@_data.Summary.LatePercent%)</span>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon stat-icon--red">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+            </div>
+            <div class="stat-info">
+                <span class="stat-value">@_data.Summary.AbsentCount</span>
+                <span class="stat-label">Absent (@_data.Summary.AbsentPercent%)</span>
+            </div>
+        </div>
+    </div>
+
+    @* ── Attendance Rate Bar ── *@
+    <div class="page-card" style="margin:0 32px 20px;">
+        <div class="report-rate-row">
+            <span class="report-rate-label">Overall Attendance</span>
+            <span class="report-rate-value">@_data.Summary.AttendanceRate%</span>
+        </div>
+        <div class="report-rate-bar">
+            <div class="report-rate-bar-track">
+                <div class="report-rate-bar-fill" style="width: @_data.Summary.AttendanceRate%;"></div>
+            </div>
+            <div class="report-rate-legend">
+                <span class="report-rate-legend-item"><span class="report-rate-dot report-rate-dot--green"></span> Present @_data.Summary.PresentPercent%</span>
+                <span class="report-rate-legend-item"><span class="report-rate-dot report-rate-dot--yellow"></span> Late @_data.Summary.LatePercent%</span>
+                <span class="report-rate-legend-item"><span class="report-rate-dot report-rate-dot--red"></span> Absent @_data.Summary.AbsentPercent%</span>
+            </div>
+        </div>
+        <div class="report-records-count">
+            Based on <strong>@_data.Summary.TotalRecords</strong> attendance records across <strong>@_data.Summary.TotalSessions</strong> sessions
+        </div>
+    </div>
+
+    @* ── Section Breakdown ── *@
+    <div class="page-card report-table-section">
+        <h2 class="card-heading" style="margin-bottom:12px;">Attendance by Section</h2>
+        <div class="table-scroll">
+            <table class="students-table">
+                <thead>
+                    <tr>
+                        <th>Section</th>
+                        <th style="text-align:center;">Enrolled</th>
+                        <th style="text-align:center;">Records</th>
+                        <th style="text-align:center;">Present</th>
+                        <th style="text-align:center;">Late</th>
+                        <th style="text-align:center;">Absent</th>
+                        <th style="text-align:center;">Rate</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var sec in _data.SectionReports)
+                    {
+                        <tr>
+                            <td><span class="report-section-name">@sec.SectionName</span></td>
+                            <td style="text-align:center;">@sec.EnrolledStudents</td>
+                            <td style="text-align:center;color:#64748b;">@sec.TotalRecords</td>
+                            <td style="text-align:center;"><span class="att-badge att-badge--present">@sec.PresentCount</span></td>
+                            <td style="text-align:center;"><span class="att-badge att-badge--late">@sec.LateCount</span></td>
+                            <td style="text-align:center;"><span class="att-badge att-badge--absent">@sec.AbsentCount</span></td>
+                            <td style="text-align:center;">
+                                <span class="report-rate-indicator @(sec.AttendanceRate >= 90 ? "rate--good" : sec.AttendanceRate >= 75 ? "rate--ok" : "rate--bad")">
+                                    @sec.AttendanceRate%
+                                </span>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    @* ── Daily Trend ── *@
+    <div class="page-card report-table-section">
+        <h2 class="card-heading" style="margin-bottom:12px;">Daily Trend</h2>
+        @if (_data.DailyTrend.Count == 0)
+        {
+            <p class="text-muted">No daily data available for the selected range.</p>
+        }
+        else
+        {
+            <div class="table-scroll">
+                <table class="students-table">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th style="text-align:center;">Sessions</th>
+                            <th style="text-align:center;">Present</th>
+                            <th style="text-align:center;">Late</th>
+                            <th style="text-align:center;">Absent</th>
+                            <th style="text-align:center;">Present %</th>
+                            <th>Trend</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var day in _data.DailyTrend)
+                        {
+                            <tr>
+                                <td style="font-weight:600;color:#1e293b;">@day.Date.ToString("MMM dd, yyyy")</td>
+                                <td style="text-align:center;">@day.Sessions</td>
+                                <td style="text-align:center;"><span class="att-badge att-badge--present">@day.PresentCount</span></td>
+                                <td style="text-align:center;"><span class="att-badge att-badge--late">@day.LateCount</span></td>
+                                <td style="text-align:center;"><span class="att-badge att-badge--absent">@day.AbsentCount</span></td>
+                                <td style="text-align:center;font-weight:600;">@day.PresentPercent%</td>
+                                <td style="width:160px;">
+                                    <div class="report-micro-bar">
+                                        @{
+                                            var total = day.TotalRecords > 0 ? day.TotalRecords : 1;
+                                            var pct = (double)day.PresentCount / total * 100;
+                                            var lct = (double)day.LateCount / total * 100;
+                                            var act = (double)day.AbsentCount / total * 100;
+                                        }
+                                        <div class="report-micro-track">
+                                            <div class="report-micro-fill report-micro-present" style="width:@(pct)%"></div>
+                                            <div class="report-micro-fill report-micro-late" style="width:@(lct)%"></div>
+                                            <div class="report-micro-fill report-micro-absent" style="width:@(act)%"></div>
+                                        </div>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    private ReportData? _data;
+    private bool _loading = true;
+    private DateTime? _fromDate;
+    private DateTime? _toDate;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        try
+        {
+            DateOnly? from = _fromDate.HasValue ? DateOnly.FromDateTime(_fromDate.Value) : null;
+            DateOnly? to = _toDate.HasValue ? DateOnly.FromDateTime(_toDate.Value) : null;
+
+            var result = await ReportService.GetReportAsync(from, to);
+
+            // Set date inputs to the actual data range if empty
+            if (!_fromDate.HasValue)
+                _fromDate = result.MinDate.ToDateTime(TimeOnly.MinValue);
+            if (!_toDate.HasValue)
+                _toDate = result.MaxDate.ToDateTime(TimeOnly.MinValue);
+
+            _data = result;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task ResetDatesAsync()
+    {
+        _fromDate = null;
+        _toDate = null;
+        await LoadAsync();
+    }
+
+    private async Task ExportCsvAsync()
+    {
+        if (_data is null) return;
+
+        var lines = new List<string>
+        {
+            "Section,Enrolled,Records,Present,Late,Absent,Rate"
+        };
+
+        foreach (var sec in _data.SectionReports)
+        {
+            lines.Add($"{sec.SectionName},{sec.EnrolledStudents},{sec.TotalRecords},{sec.PresentCount},{sec.LateCount},{sec.AbsentCount},{sec.AttendanceRate}%");
+        }
+
+        lines.Add("");
+        lines.Add("Date,Sessions,Present,Late,Absent,Present%");
+        foreach (var day in _data.DailyTrend)
+        {
+            lines.Add($"{day.Date:yyyy-MM-dd},{day.Sessions},{day.PresentCount},{day.LateCount},{day.AbsentCount},{day.PresentPercent}%");
+        }
+
+        var csv = string.Join(Environment.NewLine, lines);
+        var bytes = System.Text.Encoding.UTF8.GetPreamble().Concat(System.Text.Encoding.UTF8.GetBytes(csv)).ToArray();
+
+        // Trigger download via file save
+        var path = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Desktop), $"attendance-report-{DateTime.Now:yyyyMMdd-HHmmss}.csv");
+        await File.WriteAllBytesAsync(path, bytes);
+    }
+}

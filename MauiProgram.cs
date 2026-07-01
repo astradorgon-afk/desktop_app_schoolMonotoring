@@ -28,7 +28,9 @@ public static class MauiProgram
 		builder.Services.AddSingleton<IAuthService, AuthService>();
 		builder.Services.AddSingleton<IStudentService, StudentService>();
 		builder.Services.AddSingleton<ITeacherService, TeacherService>();
-builder.Services.AddSingleton<IScheduleService, ScheduleService>();
+		builder.Services.AddSingleton<IScheduleService, ScheduleService>();
+		builder.Services.AddSingleton<ILiveMonitoringService, LiveMonitoringService>();
+		builder.Services.AddSingleton<IReportService, ReportService>();
 
 #if DEBUG
 		builder.Services.AddBlazorWebViewDeveloperTools();

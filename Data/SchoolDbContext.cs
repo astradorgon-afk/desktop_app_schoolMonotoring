@@ -18,6 +18,8 @@ public DbSet<GradeLevel> GradeLevels => Set<GradeLevel>();
 public DbSet<Enrollment> Enrollments => Set<Enrollment>();
 public DbSet<Room> Rooms => Set<Room>();
 public DbSet<SchoolYear> SchoolYears => Set<SchoolYear>();
+public DbSet<AttendanceSession> AttendanceSessions => Set<AttendanceSession>();
+public DbSet<AttendanceRecord> AttendanceRecords => Set<AttendanceRecord>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -231,6 +233,34 @@ public DbSet<SchoolYear> SchoolYears => Set<SchoolYear>();
             entity.Property(e => e.Status).HasColumnName("status").IsRequired();
             entity.Property(e => e.CreatedAt).HasColumnName("created_at");
             entity.Property(e => e.UpdatedAt).HasColumnName("updated_at");
+        });
+
+        modelBuilder.Entity<AttendanceSession>(entity =>
+        {
+            entity.ToTable("attendance_sessions");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("Id");
+            entity.Property(e => e.ClassOfferingId).HasColumnName("class_offering_id");
+            entity.Property(e => e.SessionDate).HasColumnName("session_date");
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at");
+            entity.Property(e => e.UpdatedAt).HasColumnName("updated_at");
+            entity.HasOne(e => e.ClassOffering).WithMany().HasForeignKey(e => e.ClassOfferingId);
+            entity.HasMany(e => e.Records).WithOne(r => r.Session).HasForeignKey(r => r.AttendanceSessionId);
+        });
+
+        modelBuilder.Entity<AttendanceRecord>(entity =>
+        {
+            entity.ToTable("attendance_records");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("Id");
+            entity.Property(e => e.AttendanceSessionId).HasColumnName("attendance_session_id");
+            entity.Property(e => e.StudentId).HasColumnName("student_id");
+            entity.Property(e => e.MarkedByUserId).HasColumnName("marked_by_user_id");
+            entity.Property(e => e.Status).HasColumnName("status").IsRequired();
+            entity.Property(e => e.Reason).HasColumnName("reason");
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at");
+            entity.Property(e => e.UpdatedAt).HasColumnName("updated_at");
+            entity.HasOne(e => e.Student).WithMany().HasForeignKey(e => e.StudentId);
         });
     }
 }
