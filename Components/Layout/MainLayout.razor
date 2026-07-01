@@ -1,40 +1,63 @@
-﻿@inherits LayoutComponentBase
+﻿@using AttendanceUI.Data.Entities
+@using AttendanceUI.Models.Auth
+@using AttendanceUI.Services
+@inject IAuthService AuthService
+@inject NavigationManager Navigation
 
-<div class="admin-shell">
-    <aside class="admin-sidebar @(_collapsed ? "collapsed" : "")">
-        <NavMenu Collapsed="@_collapsed" OnToggle="ToggleSidebar" />
-    </aside>
+@inherits LayoutComponentBase
 
-    <div class="admin-main">
-        <header class="admin-topbar">
-            <div class="topbar-left">
-                <span class="topbar-breadcrumb">Attendance & Classroom Monitor</span>
-            </div>
-            <div class="topbar-right">
-                <span class="topbar-user">admin@example.com</span>
-                <button class="topbar-logout" @onclick="Logout">Logout</button>
-            </div>
-        </header>
+@if (_isReady)
+{
+    <div class="admin-shell">
+        <aside class="admin-sidebar @(_collapsed ? "collapsed" : "")">
+            <NavMenu Collapsed="@_collapsed" OnToggle="ToggleSidebar" Role="@_currentSession?.Role" />
+        </aside>
 
-        <main class="admin-content">
-            @Body
-        </main>
+        <div class="admin-main">
+            <header class="admin-topbar">
+                <div class="topbar-left">
+                    <span class="topbar-breadcrumb">Attendance & Classroom Monitor</span>
+                </div>
+                <div class="topbar-right">
+                    <span class="topbar-user">@_currentSession?.DisplayName</span>
+                    <span class="topbar-role">@_currentSession?.Role.ToString()</span>
+                    <button class="topbar-logout" @onclick="Logout">Logout</button>
+                </div>
+            </header>
+
+            <main class="admin-content">
+                @Body
+            </main>
+        </div>
     </div>
-</div>
+}
 
 @code {
     private bool _collapsed;
+    private UserSession? _currentSession;
+    private bool _isReady;
 
-    [Inject]
-    private NavigationManager Navigation { get; set; } = null!;
+    protected override async Task OnInitializedAsync()
+    {
+        _currentSession = await AuthService.GetCurrentSessionAsync();
+
+        if (_currentSession is null)
+        {
+            Navigation.NavigateTo("/login");
+            return;
+        }
+
+        _isReady = true;
+    }
 
     private void ToggleSidebar()
     {
         _collapsed = !_collapsed;
     }
 
-    private void Logout()
+    private async Task Logout()
     {
+        await AuthService.LogoutAsync();
         Navigation.NavigateTo("/login");
     }
 }

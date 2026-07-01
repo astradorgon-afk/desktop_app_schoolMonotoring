@@ -35,10 +35,13 @@
         <span>Schedules</span>
     </NavLink>
 
-    <NavLink class="nav-item" href="accounts" title="Accounts">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="12" cy="10" r="3"/><path d="M16 21v-1a4 4 0 0 0-4-4h0a4 4 0 0 0-4 4v1"/></svg>
-        <span>Accounts</span>
-    </NavLink>
+    @if (IsAdmin)
+    {
+        <NavLink class="nav-item" href="accounts" title="Accounts">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="12" cy="10" r="3"/><path d="M16 21v-1a4 4 0 0 0-4-4h0a4 4 0 0 0-4 4v1"/></svg>
+            <span>Accounts</span>
+        </NavLink>
+    }
 
     <div class="nav-label">Monitoring</div>
 
@@ -54,10 +57,13 @@
 
     <div class="nav-label">Tools</div>
 
-    <NavLink class="nav-item" href="audit-log" title="Audit Log">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
-        <span>Audit Log</span>
-    </NavLink>
+    @if (IsAdmin)
+    {
+        <NavLink class="nav-item" href="audit-log" title="Audit Log">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+            <span>Audit Log</span>
+        </NavLink>
+    }
 
     <NavLink class="nav-item" href="qr-codes" title="QR Codes">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="4" height="4"/><rect x="3" y="14" width="4" height="4"/><rect x="19" y="14" width="2" height="2"/><rect x="19" y="19" width="2" height="2"/><rect x="22" y="17" width="2" height="2"/></svg>
@@ -87,4 +93,9 @@
 
     [Parameter]
     public EventCallback OnToggle { get; set; }
+
+    [Parameter]
+    public AttendanceUI.Data.Entities.UserRole? Role { get; set; }
+
+    private bool IsAdmin => Role is AttendanceUI.Data.Entities.UserRole.SUPERADMIN;
 }

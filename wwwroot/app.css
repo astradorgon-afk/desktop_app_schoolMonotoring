@@ -345,6 +345,17 @@ html, body {
     color: #64748b;
 }
 
+.topbar-role {
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 4px;
+    background: #eef2ff;
+    color: #6366f1;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
 .topbar-logout {
     padding: 6px 16px;
     background: #fef2f2;

@@ -1,34 +1,32 @@
-using System.Text.RegularExpressions;
+using AttendanceUI.Models.Auth;
+using AttendanceUI.Services;
 using Microsoft.AspNetCore.Components;
 
 namespace AttendanceUI.Components.Pages;
 
 public partial class Login : ComponentBase
 {
-    private LoginModel loginModel = new();
+    private LoginRequest loginModel = new();
     private bool isLoading;
     private string? errorMessage;
-    private string? emailError;
+    private string? usernameError;
     private string? passwordError;
+
+    [Inject]
+    private IAuthService AuthService { get; set; } = null!;
 
     [Inject]
     private NavigationManager Navigation { get; set; } = null!;
 
     private async Task HandleLogin()
     {
-        emailError = null;
+        usernameError = null;
         passwordError = null;
         errorMessage = null;
 
-        if (string.IsNullOrWhiteSpace(loginModel.Email))
+        if (string.IsNullOrWhiteSpace(loginModel.Username))
         {
-            emailError = "Email is required.";
-            return;
-        }
-
-        if (!Regex.IsMatch(loginModel.Email, @"^[^@\s]+@[^@\s]+\.[^@\s]+$"))
-        {
-            emailError = "Enter a valid email address.";
+            usernameError = "Username is required.";
             return;
         }
 
@@ -38,37 +36,28 @@ public partial class Login : ComponentBase
             return;
         }
 
-        if (loginModel.Password.Length < 6)
-        {
-            passwordError = "Password must be at least 6 characters.";
-            return;
-        }
-
         isLoading = true;
 
         try
         {
-            await Task.Delay(1500);
+            var result = await AuthService.LoginAsync(loginModel);
 
-            if (loginModel.Email == "admin@example.com" && loginModel.Password == "admin123")
+            if (result.Success)
             {
                 Navigation.NavigateTo("/dashboard");
             }
             else
             {
-                errorMessage = "Invalid email or password. Please try again.";
+                errorMessage = result.Message ?? "Invalid username or password.";
             }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"An unexpected error occurred: {ex.Message}";
         }
         finally
         {
             isLoading = false;
         }
-    }
-
-    public class LoginModel
-    {
-        public string Email { get; set; } = string.Empty;
-        public string Password { get; set; } = string.Empty;
-        public bool RememberMe { get; set; }
     }
 }

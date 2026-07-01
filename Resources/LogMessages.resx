@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter</value>
+  </resheader>
+  <data name="Auth_LoginAttempt" xml:space="preserve">
+    <value>Login attempt for user '{Username}'.</value>
+  </data>
+  <data name="Auth_LoginSuccess" xml:space="preserve">
+    <value>User '{Username}' logged in successfully with role '{Role}'.</value>
+  </data>
+  <data name="Auth_LoginFailed" xml:space="preserve">
+    <value>Login failed for user '{Username}'. Reason: {Reason}.</value>
+  </data>
+  <data name="Auth_Logout" xml:space="preserve">
+    <value>User '{Username}' logged out.</value>
+  </data>
+  <data name="Auth_SessionExpired" xml:space="preserve">
+    <value>Session expired for user '{Username}'.</value>
+  </data>
+  <data name="Auth_PasswordChanged" xml:space="preserve">
+    <value>Password changed for user '{Username}'.</value>
+  </data>
+  <data name="User_Created" xml:space="preserve">
+    <value>User '{Username}' created with role '{Role}'.</value>
+  </data>
+  <data name="User_Updated" xml:space="preserve">
+    <value>User '{Username}' updated.</value>
+  </data>
+  <data name="User_Deleted" xml:space="preserve">
+    <value>User '{Username}' deleted.</value>
+  </data>
+  <data name="User_StatusChanged" xml:space="preserve">
+    <value>User '{Username}' status changed to '{Status}'.</value>
+  </data>
+</root>
