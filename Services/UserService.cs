@@ -144,4 +144,44 @@ public class UserService : IUserService
 
         return PasswordHelper.Verify(plainPassword, user.PasswordHash);
     }
+
+    public async Task<bool> ResetPasswordAsync(long userId, string newPassword, CancellationToken cancellationToken = default)
+    {
+        await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
+
+        var user = await context.Users.FindAsync([userId], cancellationToken);
+        if (user is null)
+            return false;
+
+        user.PasswordHash = PasswordHelper.Hash(newPassword);
+        user.UpdatedAt = DateTime.UtcNow;
+
+        await context.SaveChangesAsync(cancellationToken);
+
+        _logger.LogInformation(
+            _logMessages.GetString("Auth_PasswordChanged") ?? "Password reset for user '{Username}' by admin.",
+            user.Username);
+
+        return true;
+    }
+
+    public async Task<bool> ToggleLockAsync(long userId, CancellationToken cancellationToken = default)
+    {
+        await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
+
+        var user = await context.Users.FindAsync([userId], cancellationToken);
+        if (user is null)
+            return false;
+
+        user.Status = user.Status == UserStatus.LOCKED ? UserStatus.ACTIVE : UserStatus.LOCKED;
+        user.UpdatedAt = DateTime.UtcNow;
+
+        await context.SaveChangesAsync(cancellationToken);
+
+        _logger.LogInformation(
+            _logMessages.GetString("User_Updated") ?? "User '{Username}' lock status toggled.",
+            user.Username);
+
+        return true;
+    }
 }

@@ -1,8 +1,747 @@
 @page "/accounts"
 @layout MainLayout
+@using AttendanceUI.Data.Entities
+@using AttendanceUI.Services
+@inject IUserService UserService
+@inject NavigationManager Navigation
 
-<PageHeader Title="Accounts" Subtitle="Manage user accounts and access permissions" />
+<PageHeader Title="Accounts" Subtitle="Manage user accounts and access permissions">
+    <div class="header-actions">
+        <button class="btn btn-primary" @onclick="OpenAddModal">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            <span>Add Account</span>
+        </button>
+    </div>
+</PageHeader>
 
-<div class="page-card">
-    <p class="text-muted">Account management module — coming soon.</p>
-</div>
+@if (_loading)
+{
+    <div class="loading-state">
+        <span class="spinner"></span>
+        <p>Loading accounts…</p>
+    </div>
+}
+else
+{
+    @* ── Stats Row ── *@
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-icon stat-icon--purple">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            </div>
+            <div class="stat-info">
+                <span class="stat-value">@_users.Count</span>
+                <span class="stat-label">Total Accounts</span>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon stat-icon--green">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+            </div>
+            <div class="stat-info">
+                <span class="stat-value">@_users.Count(u => u.Status == UserStatus.ACTIVE)</span>
+                <span class="stat-label">Active</span>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon stat-icon--yellow">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            </div>
+            <div class="stat-info">
+                <span class="stat-value">@_users.Count(u => u.Status == UserStatus.INACTIVE)</span>
+                <span class="stat-label">Inactive</span>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon stat-icon--red">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            </div>
+            <div class="stat-info">
+                <span class="stat-value">@_users.Count(u => u.Status == UserStatus.LOCKED)</span>
+                <span class="stat-label">Locked</span>
+            </div>
+        </div>
+    </div>
+
+    @* ── Toolbar ── *@
+    <div class="students-toolbar">
+        <div class="search-wrapper">
+            <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input class="search-input" placeholder="Search by username…" @bind="_searchQuery" @bind:after="ApplyFilters" />
+        </div>
+        <select class="filter-select" @bind="_roleFilter" @bind:after="ApplyFilters">
+            <option value="">All Roles</option>
+            <option value="SUPERADMIN">Super Admin</option>
+            <option value="TEACHER">Teacher</option>
+            <option value="STUDENT">Student</option>
+        </select>
+        <select class="filter-select" @bind="_statusFilter" @bind:after="ApplyFilters">
+            <option value="">All Statuses</option>
+            <option value="ACTIVE">Active</option>
+            <option value="INACTIVE">Inactive</option>
+            <option value="LOCKED">Locked</option>
+        </select>
+        <button class="btn btn-ghost" @onclick="RefreshAsync" title="Refresh">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+            <span>Refresh</span>
+        </button>
+    </div>
+
+    @* ── Accounts Table ── *@
+    <div class="students-table-wrapper">
+        <table class="students-table">
+            <thead>
+                <tr>
+                    <th>Username</th>
+                    <th>Role</th>
+                    <th>Status</th>
+                    <th>Login Access</th>
+                    <th>Created</th>
+                    <th style="text-align:right;padding-right:24px;">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (_filteredUsers.Count == 0)
+                {
+                    <tr><td colspan="6" class="empty-state">No accounts found.</td></tr>
+                }
+                else
+                {
+                    @foreach (var user in _filteredUsers)
+                    {
+                        <tr>
+                            <td>
+                                <div class="student-info-cell">
+                                    <div class="student-avatar">@user.Username[..1].ToUpper()</div>
+                                    <div>
+                                        <div class="student-name">@user.Username</div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>
+                                <span class="role-badge role-badge--@user.Role.ToString().ToLower()">@FormatRole(user.Role)</span>
+                            </td>
+                            <td>
+                                <span class="status-badge status-badge--@user.Status.ToString().ToLower()">@user.Status</span>
+                            </td>
+                            <td>
+                                @if (user.CanLogin)
+                                {
+                                    <span class="status-badge status-badge--active">Enabled</span>
+                                }
+                                else
+                                {
+                                    <span class="status-badge status-badge--inactive">Disabled</span>
+                                }
+                            </td>
+                            <td style="font-size:13px;color:#64748b;">@user.CreatedAt.ToString("MMM dd, yyyy")</td>
+                            <td class="col-actions">
+                                <button class="action-icon-btn" title="Edit account" @onclick="() => OpenEditModal(user)">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                                </button>
+                                <button class="action-icon-btn" title="Reset password" @onclick="() => OpenResetModal(user)">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                                </button>
+                                <button class="action-icon-btn" title="@(user.Status == UserStatus.LOCKED ? "Unlock account" : "Lock account")" @onclick="() => ToggleLockAsync(user)">
+                                    @if (user.Status == UserStatus.LOCKED)
+                                    {
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>
+                                    }
+                                    else
+                                    {
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0"/></svg>
+                                    }
+                                </button>
+                                <button class="action-icon-btn action-icon-btn--danger" title="Delete account" @onclick="() => OpenDeleteModal(user)">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+@* ── Add / Edit Modal ── *@
+@if (_showAddEditModal)
+{
+    <div class="modal-overlay" @onclick:stopPropagation @onclick="() => _showAddEditModal = false">
+        <div class="modal-content" @onclick:stopPropagation>
+            <div class="modal-header">
+                <h3>@(_editTarget is null ? "Add Account" : "Edit Account")</h3>
+                <button class="modal-close" @onclick="() => _showAddEditModal = false">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+            </div>
+            <div class="modal-body" style="gap:16px;align-items:stretch;">
+                @* Username *@
+                <div class="form-group">
+                    <label class="form-label">Username</label>
+                    <input class="form-input-inner @(_usernameError is not null ? "input-error" : "")"
+                           placeholder="Choose a username"
+                           @bind="_formUsername" disabled="@(_editTarget is not null)" />
+                    @if (_usernameError is not null)
+                    {
+                        <span class="validation-message">@_usernameError</span>
+                    }
+                </div>
+
+                @* Password (add only) *@
+                @if (_editTarget is null)
+                {
+                    <div class="form-group">
+                        <label class="form-label">Password</label>
+                        <div class="password-row">
+                            <input class="form-input-inner @(_passwordError is not null ? "input-error" : "")"
+                                   type="@(_showPassword ? "text" : "password")" placeholder="Min 6 characters"
+                                   @bind="_formPassword" />
+                            <button class="btn btn-xs btn-ghost" @onclick="ToggleShowPassword" title="@(_showPassword ? "Hide password" : "Show password")">
+                                @if (_showPassword)
+                                {
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                                }
+                                else
+                                {
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                                }
+                            </button>
+                            <button class="btn btn-xs btn-ghost" @onclick="GeneratePassword" title="Generate strong password">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>
+                            </button>
+                        </div>
+                        @if (_passwordError is not null)
+                        {
+                            <span class="validation-message">@_passwordError</span>
+                        }
+                    </div>
+                }
+
+                @* Role *@
+                <div class="form-group">
+                    <label class="form-label">Role</label>
+                    <select class="filter-select" style="width:100%;" @bind="_formRole">
+                        <option value="SUPERADMIN">Super Admin</option>
+                        <option value="TEACHER">Teacher</option>
+                        <option value="STUDENT">Student</option>
+                    </select>
+                </div>
+
+                @* Status *@
+                <div class="form-group">
+                    <label class="form-label">Status</label>
+                    <select class="filter-select" style="width:100%;" @bind="_formStatus">
+                        <option value="ACTIVE">Active</option>
+                        <option value="INACTIVE">Inactive</option>
+                        <option value="LOCKED">Locked</option>
+                    </select>
+                </div>
+
+                @* Can Login *@
+                <label class="toggle-row">
+                    <input type="checkbox" @bind="_formCanLogin" />
+                    <span>Allow login access</span>
+                </label>
+
+                @if (_formError is not null)
+                {
+                    <div class="error-banner" style="margin-top:0;">@_formError</div>
+                }
+            </div>
+            <div class="modal-footer" style="gap:8px;display:flex;">
+                <button class="btn btn-ghost" @onclick="() => _showAddEditModal = false">Cancel</button>
+                <button class="btn btn-primary" @onclick="SaveAccountAsync" disabled="@_saving">
+                    @if (_saving)
+                    {
+                        <span class="spinner-sm"></span>
+                    }
+                    @(_editTarget is null ? "Create Account" : "Save Changes")
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@* ── Reset Password Modal ── *@
+@if (_showResetModal && _resetTarget is not null)
+{
+    <div class="modal-overlay" @onclick:stopPropagation @onclick="() => _showResetModal = false">
+        <div class="modal-content" style="max-width:400px;" @onclick:stopPropagation>
+            <div class="modal-header">
+                <h3>Reset Password</h3>
+                <button class="modal-close" @onclick="() => _showResetModal = false">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+            </div>
+            <div class="modal-body" style="gap:16px;align-items:stretch;">
+                <p style="font-size:14px;color:#475569;">
+                    Set a new password for <strong>@_resetTarget.Username</strong>.
+                </p>
+
+                <div class="form-group">
+                    <label class="form-label">New Password</label>
+                    <div class="password-row">
+                        <input class="form-input-inner @(_resetPasswordError is not null ? "input-error" : "")"
+                               type="@(_showResetPassword ? "text" : "password")" placeholder="Min 6 characters"
+                               @bind="_resetPassword" />
+                        <button class="btn btn-xs btn-ghost" @onclick="ToggleShowResetPassword" title="@(_showResetPassword ? "Hide password" : "Show password")">
+                            @if (_showResetPassword)
+                            {
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                            }
+                            else
+                            {
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                            }
+                        </button>
+                        <button class="btn btn-xs btn-ghost" @onclick="GenerateResetPassword" title="Generate strong password">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>
+                        </button>
+                    </div>
+                    @if (_resetPasswordError is not null)
+                    {
+                        <span class="validation-message">@_resetPasswordError</span>
+                    }
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Confirm Password</label>
+                    <input class="form-input-inner @(_resetConfirmError is not null ? "input-error" : "")"
+                           type="@(_showResetPassword ? "text" : "password")" placeholder="Repeat the new password"
+                           @bind="_resetConfirm" />
+                    @if (_resetConfirmError is not null)
+                    {
+                        <span class="validation-message">@_resetConfirmError</span>
+                    }
+                </div>
+
+                @if (_resetError is not null)
+                {
+                    <div class="error-banner" style="margin-top:0;">@_resetError</div>
+                }
+                @if (_resetSuccess is not null)
+                {
+                    <div class="success-banner">@_resetSuccess</div>
+                }
+            </div>
+            <div class="modal-footer" style="gap:8px;display:flex;">
+                <button class="btn btn-ghost" @onclick="() => _showResetModal = false">Close</button>
+                <button class="btn btn-primary" @onclick="ResetPasswordAsync" disabled="@_saving">
+                    @if (_saving)
+                    {
+                        <span class="spinner-sm"></span>
+                    }
+                    Reset Password
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@* ── Delete Confirmation Modal ── *@
+@if (_showDeleteModal && _deleteTarget is not null)
+{
+    <div class="modal-overlay" @onclick:stopPropagation @onclick="() => _showDeleteModal = false">
+        <div class="modal-content" style="max-width:400px;" @onclick:stopPropagation>
+            <div class="modal-header">
+                <h3 style="color:#ef4444;">Delete Account</h3>
+                <button class="modal-close" @onclick="() => _showDeleteModal = false">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+            </div>
+            <div class="modal-body" style="gap:12px;align-items:stretch;">
+                <div style="display:flex;align-items:center;gap:12px;padding:12px;background:#fef2f2;border-radius:10px;border:1px solid #fecaca;">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                    <div>
+                        <p style="font-size:14px;font-weight:600;color:#991b1b;">Are you sure?</p>
+                        <p style="font-size:13px;color:#b91c1c;margin-top:2px;">
+                            This will permanently delete the account <strong>@_deleteTarget.Username</strong>. This action cannot be undone.
+                        </p>
+                    </div>
+                </div>
+                @if (_deleteError is not null)
+                {
+                    <div class="error-banner" style="margin-top:0;">@_deleteError</div>
+                }
+            </div>
+            <div class="modal-footer" style="gap:8px;display:flex;">
+                <button class="btn btn-ghost" @onclick="() => _showDeleteModal = false">Cancel</button>
+                <button class="btn btn-danger" @onclick="DeleteAccountAsync" disabled="@_saving">
+                    @if (_saving)
+                    {
+                        <span class="spinner-sm"></span>
+                    }
+                    Delete Account
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    // ── State ──
+    private List<User> _users = [];
+    private List<User> _filteredUsers = [];
+    private bool _loading = true;
+
+    // ── Filters ──
+    private string _searchQuery = "";
+    private string _roleFilter = "";
+    private string _statusFilter = "";
+
+    // ── Add/Edit ──
+    private bool _showAddEditModal;
+    private bool _saving;
+    private User? _editTarget;
+    private string _formUsername = "";
+    private string _formPassword = "";
+    private string _formRole = "TEACHER";
+    private string _formStatus = "ACTIVE";
+    private bool _formCanLogin = true;
+    private string? _usernameError;
+    private string? _passwordError;
+    private string? _formError;
+    private bool _showPassword;
+
+    // ── Reset Password ──
+    private bool _showResetModal;
+    private User? _resetTarget;
+    private string _resetPassword = "";
+    private string _resetConfirm = "";
+    private string? _resetPasswordError;
+    private string? _resetConfirmError;
+    private string? _resetError;
+    private string? _resetSuccess;
+    private bool _showResetPassword;
+
+    // ── Delete ──
+    private bool _showDeleteModal;
+    private User? _deleteTarget;
+    private string? _deleteError;
+
+    private static readonly Random _rng = new();
+
+    // ── Lifecycle ──
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        try
+        {
+            _users = (await UserService.GetAllAsync()).ToList();
+            ApplyFilters();
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task RefreshAsync()
+    {
+        _searchQuery = "";
+        _roleFilter = "";
+        _statusFilter = "";
+        await LoadAsync();
+    }
+
+    private void ApplyFilters()
+    {
+        var q = _searchQuery?.Trim().ToLowerInvariant() ?? "";
+        _filteredUsers = _users
+            .Where(u => string.IsNullOrEmpty(q) || u.Username.Contains(q, StringComparison.OrdinalIgnoreCase))
+            .Where(u => string.IsNullOrEmpty(_roleFilter) || u.Role.ToString() == _roleFilter)
+            .Where(u => string.IsNullOrEmpty(_statusFilter) || u.Status.ToString() == _statusFilter)
+            .OrderBy(u => u.Username)
+            .ToList();
+        StateHasChanged();
+    }
+
+    // ── Helpers ──
+    private static string FormatRole(UserRole role) => role switch
+    {
+        UserRole.SUPERADMIN => "Super Admin",
+        UserRole.TEACHER => "Teacher",
+        UserRole.STUDENT => "Student",
+        _ => role.ToString()
+    };
+
+    private static string GenerateRandomPassword()
+    {
+        const string upper = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+        const string lower = "abcdefghjkmnpqrstuvwxyz";
+        const string digits = "23456789";
+        const string special = "!@#$%&*";
+
+        var chars = new char[12];
+        chars[0] = upper[_rng.Next(upper.Length)];
+        chars[1] = lower[_rng.Next(lower.Length)];
+        chars[2] = digits[_rng.Next(digits.Length)];
+        chars[3] = special[_rng.Next(special.Length)];
+        var all = upper + lower + digits + special;
+        for (int i = 4; i < chars.Length; i++)
+            chars[i] = all[_rng.Next(all.Length)];
+
+        // Shuffle
+        for (int i = chars.Length - 1; i > 0; i--)
+        {
+            var j = _rng.Next(i + 1);
+            (chars[i], chars[j]) = (chars[j], chars[i]);
+        }
+
+        return new string(chars);
+    }
+
+    private void GeneratePassword()
+    {
+        _formPassword = GenerateRandomPassword();
+    }
+
+    private void GenerateResetPassword()
+    {
+        _resetPassword = GenerateRandomPassword();
+        _resetConfirm = _resetPassword;
+    }
+
+    private void ToggleShowPassword()
+    {
+        _showPassword = !_showPassword;
+    }
+
+    private void ToggleShowResetPassword()
+    {
+        _showResetPassword = !_showResetPassword;
+    }
+
+    // ── Add / Edit ──
+    private void OpenAddModal()
+    {
+        _editTarget = null;
+        _formUsername = "";
+        _formPassword = "";
+        _formRole = "TEACHER";
+        _formStatus = "ACTIVE";
+        _formCanLogin = true;
+        _usernameError = null;
+        _passwordError = null;
+        _formError = null;
+        _showPassword = false;
+        _showAddEditModal = true;
+    }
+
+    private void OpenEditModal(User user)
+    {
+        _editTarget = user;
+        _formUsername = user.Username;
+        _formPassword = "";
+        _formRole = user.Role.ToString();
+        _formStatus = user.Status.ToString();
+        _formCanLogin = user.CanLogin;
+        _usernameError = null;
+        _passwordError = null;
+        _formError = null;
+        _showAddEditModal = true;
+    }
+
+    private async Task SaveAccountAsync()
+    {
+        _usernameError = null;
+        _passwordError = null;
+        _formError = null;
+
+        // Validate username
+        if (string.IsNullOrWhiteSpace(_formUsername))
+        {
+            _usernameError = "Username is required.";
+            return;
+        }
+
+        if (_formUsername.Length < 3)
+        {
+            _usernameError = "Username must be at least 3 characters.";
+            return;
+        }
+
+        // Validate password on create
+        if (_editTarget is null)
+        {
+            if (string.IsNullOrWhiteSpace(_formPassword))
+            {
+                _passwordError = "Password is required.";
+                return;
+            }
+
+            if (_formPassword.Length < 6)
+            {
+                _passwordError = "Password must be at least 6 characters.";
+                return;
+            }
+        }
+
+        var role = Enum.Parse<UserRole>(_formRole);
+        var status = Enum.Parse<UserStatus>(_formStatus);
+
+        _saving = true;
+        try
+        {
+            if (_editTarget is not null)
+            {
+                // Update existing
+                _editTarget.Username = _formUsername;
+                _editTarget.Role = role;
+                _editTarget.Status = status;
+                _editTarget.CanLogin = _formCanLogin;
+
+                var ok = await UserService.UpdateAsync(_editTarget);
+                if (!ok)
+                {
+                    _formError = "Failed to update account. It may have been deleted.";
+                    return;
+                }
+
+                _showAddEditModal = false;
+                await LoadAsync();
+            }
+            else
+            {
+                // Create new
+                var user = new User
+                {
+                    Username = _formUsername.Trim(),
+                    Role = role,
+                    Status = status,
+                    CanLogin = _formCanLogin
+                };
+
+                var ok = await UserService.CreateAsync(user, _formPassword);
+                if (!ok)
+                {
+                    _formError = "Username already exists. Please choose another.";
+                    return;
+                }
+
+                _showAddEditModal = false;
+                await LoadAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            _formError = ex.InnerException?.Message ?? ex.Message;
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    // ── Lock / Unlock ──
+    private async Task ToggleLockAsync(User user)
+    {
+        try
+        {
+            await UserService.ToggleLockAsync(user.Id);
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            // Ignore — refresh will show current state
+            await LoadAsync();
+        }
+    }
+
+    // ── Reset Password ──
+    private void OpenResetModal(User user)
+    {
+        _resetTarget = user;
+        _resetPassword = "";
+        _resetConfirm = "";
+        _resetPasswordError = null;
+        _resetConfirmError = null;
+        _resetError = null;
+        _resetSuccess = null;
+        _showResetPassword = false;
+        _showResetModal = true;
+    }
+
+    private async Task ResetPasswordAsync()
+    {
+        _resetPasswordError = null;
+        _resetConfirmError = null;
+        _resetError = null;
+        _resetSuccess = null;
+
+        if (string.IsNullOrWhiteSpace(_resetPassword) || _resetPassword.Length < 6)
+        {
+            _resetPasswordError = "Password must be at least 6 characters.";
+            return;
+        }
+
+        if (_resetPassword != _resetConfirm)
+        {
+            _resetConfirmError = "Passwords do not match.";
+            return;
+        }
+
+        _saving = true;
+        try
+        {
+            var ok = await UserService.ResetPasswordAsync(_resetTarget!.Id, _resetPassword);
+            if (!ok)
+            {
+                _resetError = "Failed to reset password. Account may have been deleted.";
+                return;
+            }
+
+            _resetSuccess = "Password has been reset successfully.";
+            _resetPassword = "";
+            _resetConfirm = "";
+        }
+        catch (Exception ex)
+        {
+            _resetError = ex.InnerException?.Message ?? ex.Message;
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    // ── Delete ──
+    private void OpenDeleteModal(User user)
+    {
+        _deleteTarget = user;
+        _deleteError = null;
+        _showDeleteModal = true;
+    }
+
+    private async Task DeleteAccountAsync()
+    {
+        _deleteError = null;
+        _saving = true;
+        try
+        {
+            var ok = await UserService.DeleteAsync(_deleteTarget!.Id);
+            if (!ok)
+            {
+                _deleteError = "Failed to delete account. It may have been deleted already.";
+                return;
+            }
+
+            _showDeleteModal = false;
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            _deleteError = ex.InnerException?.Message ?? ex.Message;
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+}

@@ -1,8 +1,812 @@
 @page "/schedules"
 @layout MainLayout
+@using AttendanceUI.Data.Entities
+@using AttendanceUI.Services
+@inject IScheduleService ScheduleService
+@implements IDisposable
 
-<PageHeader Title="Schedules" Subtitle="Manage class schedules, time slots, and room assignments" />
+<PageHeader Title="Schedules" Subtitle="Manage class schedules, time slots, and room assignments">
+    <div class="header-actions">
+        <div class="header-date">@DateTime.Now.ToString("MMMM dd, yyyy")</div>
+    </div>
+</PageHeader>
 
-<div class="page-card">
-    <p class="text-muted">Schedule management module — coming soon.</p>
-</div>
+@if (_loading)
+{
+    <div class="loading-state">
+        <div class="spinner"></div>
+        <p>Loading schedules…</p>
+    </div>
+}
+else
+{
+    @* ── Toolbar ── *@
+    <div class="students-toolbar">
+        <div class="search-wrapper">
+            <span class="search-icon">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            </span>
+            <input class="search-input" type="text" placeholder="Search section or subject…" @oninput="HandleSearch" value="@_search" />
+        </div>
+
+        <select class="filter-select" @onchange="HandleGradeFilter" value="@_gradeFilter">
+            <option value="">All Grade Levels</option>
+            <option value="G7">Grade 7</option>
+            <option value="G8">Grade 8</option>
+            <option value="G9">Grade 9</option>
+            <option value="G10">Grade 10</option>
+        </select>
+
+        <select class="filter-select" @onchange="HandleStatusFilter" value="@_statusFilter">
+            <option value="">All Status</option>
+            <option value="ACTIVE">Active</option>
+            <option value="FINALIZED">Finalized</option>
+        </select>
+
+        <button class="action-btn" @onclick="LoadDataAsync" title="Refresh">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+            Refresh
+        </button>
+    </div>
+
+    @* ── Section Cards ── *@
+    <div class="section-cards-row">
+        @foreach (var sec in _filteredSections)
+        {
+            <div class="section-card @(_selectedSectionId == sec.SectionId ? "section-card--active" : "")" @onclick="() => SelectSection(sec.SectionId)">
+                <div class="section-card-name">@sec.SectionName</div>
+                <div class="section-card-grade">@sec.GradeLevel</div>
+                <div class="section-card-count">@sec.StudentCount enrolled</div>
+            </div>
+        }
+    </div>
+
+    @* ── Weekly Timetable ── *@
+    @if (_selectedSectionId is null)
+    {
+        <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:80px 32px;text-align:center;">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><path d="M8 14h.01"/><path d="M12 14h.01"/><path d="M16 14h.01"/><path d="M8 18h.01"/><path d="M12 18h.01"/><path d="M16 18h.01"/></svg>
+            <div style="font-size:16px;font-weight:600;color:#94a3b8;margin-top:16px;">Select a section above to view its schedule</div>
+            <div style="font-size:13px;color:#cbd5e1;margin-top:4px;">Click on any section card to see the weekly timetable</div>
+        </div>
+    }
+    else
+    {
+        <div class="timetable-wrapper">
+        <div class="timetable">
+            @* header row *@
+            <div class="tt-header tt-timecell" style="grid-row:1;grid-column:1;"></div>
+            @for (var ci = 0; ci < _days.Length; ci++)
+            {
+                <div class="tt-header tt-daycell" style="grid-row:1;grid-column:@(ci+2);">@_days[ci]</div>
+            }
+            @* body: explicitly positioned cells *@
+            @for (var si = 0; si < _timeSlots.Count; si++)
+            {
+                var row = si + 2;
+                var slot = _timeSlots[si];
+                @* time label *@
+                <div class="tt-timecol" style="grid-row:@row;grid-column:1;">
+                    <div class="tt-timelabel">@slot.ToString("HH\\:mm")</div>
+                </div>
+                @for (var di = 0; di < _dayIndices.Length; di++)
+                {
+                    var dayVal = _dayIndices[di];
+                    var col = di + 2;
+                    var block = _gridEntries.GetValueOrDefault((dayVal, slot));
+                    if (block is not null)
+                    {
+                        <div class="tt-cell tt-cell--has @block.ColorClass"
+                             style="grid-row:@row/span @block.SpanRows;grid-column:@col;"
+                             @onclick="() => OpenCellModal(dayVal, slot, block)"
+                             title="@block.Subject&#10;@block.TeacherName&#10;@block.SectionName&#10;@block.Room">
+                            <div class="tt-block-subject">@block.Subject</div>
+                            <div class="tt-block-teacher">@block.TeacherName</div>
+                            <div class="tt-block-room">@block.Room</div>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="tt-cell tt-cell--empty" style="grid-row:@row;grid-column:@col;" @onclick="() => OpenCellModal(dayVal, slot)"></div>
+                    }
+                }
+            }
+            </div>
+        </div>
+    }
+
+    @* ── Bottom panel: Form + Table ── *@
+    <div class="content-grid" style="padding: 16px 32px 32px;">
+        @* Left: Add/Edit Form *@
+        <div class="page-card">
+            <div class="card-heading" style="margin-bottom:16px;">Add / Edit Class Entry</div>
+            <div class="schedule-form-grid">
+                <div class="form-group">
+                    <label class="form-label">Section</label>
+                    <select class="filter-select" style="width:100%;">
+                        <option value="">— Select —</option>
+                        @foreach (var sec in _pageData?.Sections ?? [])
+                        {
+                            <option value="@sec.SectionId">@sec.GradeLevel @sec.SectionName</option>
+                        }
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Subject</label>
+                    <select class="filter-select" style="width:100%;">
+                        <option value="">— Select —</option>
+                        @foreach (var sub in _subjects)
+                        {
+                            <option value="@sub.Id">@sub.Title</option>
+                        }
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Teacher</label>
+                    <select class="filter-select" style="width:100%;">
+                        <option value="">— Select —</option>
+                        @foreach (var t in _teachers)
+                        {
+                            <option value="@t.Id">@t.LastName, @t.FirstName</option>
+                        }
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Day</label>
+                    <select class="filter-select" style="width:100%;">
+                        <option value="">— Select —</option>
+                        @foreach (var d in _dayOptions)
+                        {
+                            <option value="@d.Key">@d.Value</option>
+                        }
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Start Time</label>
+                    <select class="filter-select" style="width:100%;">
+                        <option value="">— Select —</option>
+                        @foreach (var t in _timeOptions)
+                        {
+                            <option value="@t">@t</option>
+                        }
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">End Time</label>
+                    <select class="filter-select" style="width:100%;">
+                        <option value="">— Select —</option>
+                        @foreach (var t in _timeOptions)
+                        {
+                            <option value="@t">@t</option>
+                        }
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Room</label>
+                    <select class="filter-select" style="width:100%;">
+                        <option value="">— Select —</option>
+                        @foreach (var r in _rooms)
+                        {
+                            <option value="@r.Code">@r.Code — @r.Name</option>
+                        }
+                    </select>
+                </div>
+            </div>
+            <div style="display:flex;gap:8px;margin-top:12px;">
+                <button class="action-btn action-btn--purple" style="flex:0 0 auto;">Save</button>
+                <button class="action-btn" style="flex:0 0 auto;color:#ef4444;">Delete</button>
+                <button class="action-btn" style="flex:0 0 auto;">Clear</button>
+            </div>
+        </div>
+
+        @* Right: Current Schedule Table *@
+        <div class="page-card">
+            <div class="card-heading" style="margin-bottom:16px;">Current Schedule</div>
+            <div class="schedule-table-wrapper" style="max-height:320px;overflow-y:auto;">
+                <table class="students-table">
+                    <thead>
+                        <tr>
+                            <th>Day</th>
+                            <th>Time</th>
+                            <th>Subject</th>
+                            <th>Teacher</th>
+                            <th>Room</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var entry in _sortedEntries)
+                        {
+                            <tr>
+                                <td><span class="day-badge">@_days[entry.DayOfWeek - 1]</span></td>
+                                <td>@entry.StartTime.ToString("HH\\:mm") – @entry.EndTime.ToString("HH\\:mm")</td>
+                                <td>@entry.Subject</td>
+                                <td>@entry.TeacherName</td>
+                                <td>@(!string.IsNullOrEmpty(entry.Room) ? entry.Room : "—")</td>
+                            </tr>
+                        }
+                        @if (_sortedEntries.Count == 0)
+                        {
+                            <tr><td class="empty-state" colspan="5">No schedule entries found.</td></tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+}
+
+@* ── Cell Click Modal ── *@
+@if (_showCellModal)
+{
+    var modalDayName = _modalDay.HasValue && _modalDay.Value >= 1 && _modalDay.Value <= 6 ? _days[_modalDay.Value - 1] : "";
+    var modalTimeStr = _modalTime?.ToString("HH\\:mm") ?? "";
+
+    <div class="modal-overlay" @onclick="CloseCellModal">
+        <div class="modal-content" style="max-width:520px;" @onclick:stopPropagation>
+            <div class="modal-header">
+                <h3>@(_editMode ? "Edit Entry" : "Quick Add") — @modalDayName @modalTimeStr</h3>
+                <button class="modal-close" @onclick="CloseCellModal">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+            </div>
+            @if (_saving)
+            {
+                <div class="modal-body" style="align-items:center;gap:12px;">
+                    <div class="spinner"></div>
+                    <p style="font-size:14px;color:#64748b;">Saving schedule…</p>
+                </div>
+            }
+            else
+            {
+            <div class="modal-body" style="align-items:stretch;">
+
+                @* Existing entries at this time *@
+                @if (_modalEntries.Count > 0)
+                {
+                    <div style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">Current Entries</div>
+                    <div style="display:flex;flex-direction:column;gap:4px;margin-bottom:12px;">
+                        @foreach (var e in _modalEntries)
+                        {
+                            <div style="padding:8px 10px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;">
+                                <div style="font-size:13px;font-weight:600;color:#1e293b;">@e.Subject</div>
+                                <div style="font-size:11px;color:#64748b;margin-top:2px;">@e.SectionName · @e.TeacherName @(!string.IsNullOrEmpty(e.Room) ? $" · {e.Room}" : "")</div>
+                            </div>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <div style="font-size:12px;color:#94a3b8;margin-bottom:12px;">No classes scheduled at this time.</div>
+                }
+
+                @* Quick-add / Edit form *@
+                <div style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">@(_editMode ? "Edit Entry" : "Quick Add")</div>
+                <div style="display:flex;flex-direction:column;gap:10px;">
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+                        <div>
+                            <div style="font-size:12px;font-weight:600;color:#475569;margin-bottom:4px;">Section</div>
+                            <select class="filter-select" style="width:100%;background:#f8fafc;" disabled>
+                                @if (_selectedSectionId.HasValue)
+                                {
+                                    var selSec = _pageData?.Sections.FirstOrDefault(s => s.SectionId == _selectedSectionId.Value);
+                                    <option value="@_selectedSectionId">@selSec?.GradeLevel @selSec?.SectionName</option>
+                                }
+                                else
+                                {
+                                    <option value="">— Select a section card first —</option>
+                                }
+                            </select>
+                        </div>
+                        <div>
+                            <div style="font-size:12px;font-weight:600;color:#475569;margin-bottom:4px;">Subject</div>
+                            <select class="filter-select" style="width:100%;@(_formErrors.ContainsKey("subject") ? "border-color:#ef4444;" : "")" @bind="_formSubjectId">
+                                <option value="0">— Select —</option>
+                                @{
+                                    var filteredSubjects = _selectedGradeLevelId > 0
+                                        ? _subjects.Where(s => s.GradeLevelId == _selectedGradeLevelId).ToList()
+                                        : _subjects;
+                                }
+                                @foreach (var sub in filteredSubjects)
+                                {
+                                    <option value="@sub.Id">@sub.Title</option>
+                                }
+                            </select>
+                            @if (_formErrors.TryGetValue("subject", out var subjectErr))
+                            {
+                                <div style="font-size:11px;color:#ef4444;margin-top:2px;">@subjectErr</div>
+                            }
+                            @if (filteredSubjects.Count == 0 && _selectedGradeLevelId > 0)
+                            {
+                                <div style="font-size:11px;color:#ef4444;margin-top:2px;">No subjects for this grade level</div>
+                            }
+                        </div>
+                    </div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+                        <div>
+                            <div style="font-size:12px;font-weight:600;color:#475569;margin-bottom:4px;">Teacher <span style="color:#22c55e;font-weight:400;">(@_availableTeachers.Count available)</span></div>
+                            <select class="filter-select" style="width:100%;@(_formErrors.ContainsKey("teacher") ? "border-color:#ef4444;" : "")" @bind="_formTeacherId">
+                                <option value="0">— Select —</option>
+                                @foreach (var t in _availableTeachers)
+                                {
+                                    <option value="@t.Id">@t.LastName, @t.FirstName</option>
+                                }
+                            </select>
+                            @if (_formErrors.TryGetValue("teacher", out var teacherErr))
+                            {
+                                <div style="font-size:11px;color:#ef4444;margin-top:2px;">@teacherErr</div>
+                            }
+                        </div>
+                        <div>
+                            <div style="font-size:12px;font-weight:600;color:#475569;margin-bottom:4px;">Room</div>
+                            <select class="filter-select" style="width:100%;@(_formErrors.ContainsKey("room") ? "border-color:#ef4444;" : "")" @bind="_formRoom">
+                                <option value="">— Select —</option>
+                                @foreach (var r in _rooms)
+                                {
+                                    <option value="@r.Code">@r.Code — @r.Name</option>
+                                }
+                            </select>
+                            @if (_formErrors.TryGetValue("room", out var roomErr))
+                            {
+                                <div style="font-size:11px;color:#ef4444;margin-top:2px;">@roomErr</div>
+                            }
+                        </div>
+                    </div>
+                    <div>
+                        <div style="font-size:12px;font-weight:600;color:#475569;margin-bottom:4px;">End Time</div>
+                        <select class="filter-select" style="width:100%;@(_formErrors.ContainsKey("endTime") ? "border-color:#ef4444;" : "")" @bind="_formEndTime">
+                            <option value="">— Select —</option>
+                            @{
+                                var startIdx = _modalTime.HasValue ? Array.IndexOf(_timeOptions, _modalTime.Value.ToString("HH\\:mm")) + 1 : -1;
+                            }
+                            @for (var ti = Math.Max(startIdx, 0); ti < _timeOptions.Length; ti++)
+                            {
+                                <option value="@_timeOptions[ti]">@_timeOptions[ti]</option>
+                            }
+                        </select>
+                        @if (_formErrors.TryGetValue("endTime", out var endTimeErr))
+                        {
+                            <div style="font-size:11px;color:#ef4444;margin-top:2px;">@endTimeErr</div>
+                        }
+                    </div>
+                    <div style="display:flex;gap:8px;margin-top:4px;">
+                        @if (_editMode)
+                        {
+                            <button class="action-btn action-btn--purple" style="flex:0 0 auto;" @onclick="UpdateCellEntry">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                                Update
+                            </button>
+                            <button class="action-btn" style="flex:0 0 auto;color:#ef4444;" @onclick="DeleteCellEntry">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                                Delete
+                            </button>
+                        }
+                        else
+                        {
+                            <button class="action-btn action-btn--purple" style="flex:0 0 auto;" @onclick="SaveCellEntry">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+                                Save
+                            </button>
+                        }
+                        <button class="action-btn" style="flex:0 0 auto;" @onclick="CloseCellModal">Cancel</button>
+                    </div>
+                    @if (!string.IsNullOrEmpty(_formErrorGeneral))
+                    {
+                        <div style="font-size:12px;color:#ef4444;padding:6px 10px;background:#fef2f2;border:1px solid #fecaca;border-radius:6px;">@_formErrorGeneral</div>
+                    }
+                </div>
+            </div>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    private SchedulePageData? _pageData;
+    private List<Subject> _subjects = [];
+    private List<Teacher> _teachers = [];
+    private List<Room> _rooms = [];
+    private bool _loading = true;
+
+    private string _search = "";
+    private string _gradeFilter = "";
+    private string _statusFilter = "";
+    private long? _selectedSectionId;
+    private long _selectedGradeLevelId;
+
+    private static readonly string[] _days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    private static readonly int[] _dayIndices = [1, 2, 3, 4, 5, 6];
+    private static readonly Dictionary<byte, string> _dayOptions = new()
+    {
+        { 1, "Monday" }, { 2, "Tuesday" }, { 3, "Wednesday" },
+        { 4, "Thursday" }, { 5, "Friday" }, { 6, "Saturday" }
+    };
+    private static readonly string[] _timeOptions =
+        Enumerable.Range(0, 22).Select(i => new TimeOnly(7, 0).AddMinutes(i * 30).ToString("HH\\:mm")).ToArray();
+
+    // Precomputed 30-minute slots from 07:00 to 17:00
+    private static readonly List<TimeOnly> _timeSlots =
+        Enumerable.Range(0, 21).Select(i => new TimeOnly(7, 0).AddMinutes(i * 30)).ToList();
+
+    // Grid entry: (day, startSlot) -> Block
+    private Dictionary<(int Day, TimeOnly Slot), TimetableBlock> _gridEntries = [];
+
+    private List<SectionCardInfo> _filteredSections => _pageData?.Sections
+        .Where(s => string.IsNullOrEmpty(_search) ||
+            s.SectionName.Contains(_search, StringComparison.OrdinalIgnoreCase) ||
+            s.GradeLevel.Contains(_search, StringComparison.OrdinalIgnoreCase))
+        .ToList() ?? [];
+
+    private List<ScheduleViewEntry> _sortedEntries => (_pageData?.Entries ?? [])
+        .Where(e => !_selectedSectionId.HasValue || e.SectionId == _selectedSectionId.Value)
+        .Where(e => string.IsNullOrEmpty(_search) ||
+            e.Subject.Contains(_search, StringComparison.OrdinalIgnoreCase) ||
+            e.SectionName.Contains(_search, StringComparison.OrdinalIgnoreCase) ||
+            e.TeacherName.Contains(_search, StringComparison.OrdinalIgnoreCase))
+        .OrderBy(e => e.DayOfWeek)
+        .ThenBy(e => e.StartTime)
+        .ToList();
+
+    private class TimetableBlock
+    {
+        public string Subject { get; init; } = "";
+        public string TeacherName { get; init; } = "";
+        public string SectionName { get; init; } = "";
+        public string? Room { get; init; }
+        public int SpanRows { get; init; }
+        public string ColorClass { get; init; } = "";
+        public long OfferingId { get; init; }
+        public long ScheduleId { get; init; }
+    }
+
+    private static readonly string[] _colorPalette =
+        ["tt-color--indigo", "tt-color--emerald", "tt-color--amber", "tt-color--rose", "tt-color--cyan", "tt-color--violet", "tt-color--lime", "tt-color--orange"];
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDataAsync();
+    }
+
+    private async Task LoadDataAsync()
+    {
+        _loading = true;
+        StateHasChanged();
+
+        try
+        {
+            _pageData = await ScheduleService.GetPageDataAsync(
+                string.IsNullOrEmpty(_gradeFilter) ? null : _gradeFilter,
+                string.IsNullOrEmpty(_statusFilter) ? null : _statusFilter);
+            _subjects = await ScheduleService.GetSubjectsAsync();
+            _teachers = await ScheduleService.GetTeachersAsync();
+            _rooms = await ScheduleService.GetRoomsAsync();
+
+            BuildGrid(); // will be empty until a section card is clicked
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private void BuildGrid()
+    {
+        _gridEntries = [];
+
+        if (_pageData is null || !_selectedSectionId.HasValue) return;
+
+        var filtered = _pageData.Entries
+            .Where(e => e.SectionId == _selectedSectionId.Value);
+
+        if (!string.IsNullOrEmpty(_search))
+            filtered = filtered.Where(e =>
+                e.Subject.Contains(_search, StringComparison.OrdinalIgnoreCase) ||
+                e.SectionName.Contains(_search, StringComparison.OrdinalIgnoreCase) ||
+                e.TeacherName.Contains(_search, StringComparison.OrdinalIgnoreCase));
+
+        var entries = filtered.ToList();
+
+        var colorIndex = 0;
+        var subjectColorMap = new Dictionary<long, string>();
+
+        foreach (var entry in entries)
+        {
+            if (!subjectColorMap.ContainsKey(entry.SubjectId))
+            {
+                subjectColorMap[entry.SubjectId] = _colorPalette[colorIndex % _colorPalette.Length];
+                colorIndex++;
+            }
+        }
+
+        foreach (var entry in entries)
+        {
+            if (entry.DayOfWeek > 6) continue;
+
+            var startMinutes = entry.StartTime.Hour * 60 + entry.StartTime.Minute;
+            var endMinutes = entry.EndTime.Hour * 60 + entry.EndTime.Minute;
+            var rangeStart = 7 * 60;
+            var rangeEnd = 17 * 60;
+
+            var clampedStart = Math.Max(startMinutes, rangeStart);
+            var clampedEnd = Math.Min(endMinutes, rangeEnd);
+            if (clampedStart >= clampedEnd) continue;
+
+            var slotStartMinutes = ((clampedStart - rangeStart) / 30) * 30 + rangeStart;
+            var slotStart = new TimeOnly(slotStartMinutes / 60, slotStartMinutes % 60);
+            var spanSlots = Math.Max(1, (clampedEnd - slotStartMinutes + 29) / 30);
+            var color = subjectColorMap.GetValueOrDefault(entry.SubjectId, "tt-color--indigo");
+
+            _gridEntries[(entry.DayOfWeek, slotStart)] = new TimetableBlock
+            {
+                Subject = entry.Subject,
+                TeacherName = entry.TeacherName,
+                SectionName = entry.SectionName,
+                Room = entry.Room,
+                SpanRows = (int)spanSlots,
+                ColorClass = color,
+                OfferingId = entry.OfferingId,
+                ScheduleId = entry.Id
+            };
+        }
+    }
+
+    @* ── Cell Modal State ── *@
+    private bool _showCellModal;
+    private int? _modalDay;
+    private TimeOnly? _modalTime;
+    private List<ScheduleViewEntry> _modalEntries = [];
+    private List<Teacher> _availableTeachers = [];
+    private long _formSectionId;
+    private long _formSubjectId;
+    private long _formTeacherId;
+    private string _formRoom = "";
+    private string _formEndTime = "";
+    private bool _editMode;
+    private long _editOfferingId;
+    private long _editScheduleId;
+    private bool _saving;
+    private Dictionary<string, string> _formErrors = [];
+    private string _formErrorGeneral = "";
+
+    private void OpenCellModal(int day, TimeOnly time, TimetableBlock? block = null)
+    {
+        _modalDay = day;
+        _modalTime = time;
+        _formSectionId = _selectedSectionId ?? 0;
+        _saving = false;
+        _formErrors = [];
+        _formErrorGeneral = "";
+
+        if (block is not null)
+        {
+            _editMode = true;
+            _editOfferingId = block.OfferingId;
+            _editScheduleId = block.ScheduleId;
+            // Pre-fill from the clicked entry
+            var entry = _pageData?.Entries.FirstOrDefault(e => e.Id == block.ScheduleId);
+            _formSubjectId = entry?.SubjectId ?? 0;
+            _formTeacherId = entry?.TeacherId ?? 0;
+            _formRoom = entry?.Room ?? "";
+            _formEndTime = entry?.EndTime.ToString("HH\\:mm") ?? "";
+        }
+        else
+        {
+            _editMode = false;
+            _editOfferingId = 0;
+            _editScheduleId = 0;
+            _formSubjectId = 0;
+            _formTeacherId = 0;
+            _formRoom = "";
+            _formEndTime = "";
+        }
+
+        _modalEntries = _pageData?.Entries
+            .Where(e => e.DayOfWeek == day && e.StartTime <= time && e.EndTime > time)
+            .OrderBy(e => e.StartTime)
+            .ToList() ?? [];
+
+        var busyTeacherIds = _pageData?.Entries
+            .Where(e => e.DayOfWeek == day && e.StartTime <= time && e.EndTime > time)
+            .Select(e => e.TeacherId)
+            .Where(id => id.HasValue)
+            .Select(id => id.Value)
+            .ToHashSet() ?? [];
+
+        _availableTeachers = _teachers
+            .Where(t => !busyTeacherIds.Contains(t.Id))
+            .ToList();
+
+        _showCellModal = true;
+        StateHasChanged();
+    }
+
+    private void CloseCellModal()
+    {
+        _showCellModal = false;
+        _editMode = false;
+        _editOfferingId = 0;
+        _editScheduleId = 0;
+        _formRoom = "";
+        _formEndTime = "";
+    }
+
+    private async Task UpdateCellEntry()
+    {
+        _formErrors = [];
+        _formErrorGeneral = "";
+
+        if (_formSubjectId == 0)
+            _formErrors["subject"] = "Select a subject to save the schedule";
+        if (_formTeacherId == 0)
+            _formErrors["teacher"] = "Select a teacher to save the schedule";
+        if (string.IsNullOrEmpty(_formRoom))
+            _formErrors["room"] = "Select a room to save the schedule";
+        if (string.IsNullOrEmpty(_formEndTime))
+            _formErrors["endTime"] = "Select an end time to save the schedule";
+
+        if (_formErrors.Count > 0) { StateHasChanged(); return; }
+
+        if (!_modalDay.HasValue || !_modalTime.HasValue) return;
+        if (!TimeOnly.TryParse(_formEndTime, out var endTime) || endTime <= _modalTime.Value)
+        {
+            _formErrors["endTime"] = "End time must be after start time";
+            StateHasChanged(); return;
+        }
+
+        _saving = true;
+        StateHasChanged();
+
+        try
+        {
+            await ScheduleService.UpdateScheduleEntryAsync(
+                _editOfferingId, _editScheduleId,
+                _formSubjectId, _formTeacherId,
+                (byte)_modalDay.Value, _modalTime.Value, endTime, _formRoom);
+
+            CloseCellModal();
+            await LoadDataAsync();
+        }
+        catch (Exception ex)
+        {
+            var msg = ex.InnerException?.Message ?? ex.Message;
+            if (msg.Contains("Conflict:")) msg = msg.Replace("Conflict: ", "");
+            _formErrorGeneral = msg;
+            _saving = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task DeleteCellEntry()
+    {
+        _saving = true;
+        _formErrorGeneral = "";
+        StateHasChanged();
+
+        try
+        {
+            await ScheduleService.DeleteScheduleEntryAsync(_editScheduleId, _editOfferingId);
+            CloseCellModal();
+            await LoadDataAsync();
+        }
+        catch (Exception ex)
+        {
+            _formErrorGeneral = ex.InnerException?.Message ?? ex.Message;
+            _saving = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task SaveCellEntry()
+    {
+        _formErrors = [];
+        _formErrorGeneral = "";
+
+        if (_formSubjectId == 0)
+            _formErrors["subject"] = "Select a subject to save the schedule";
+
+        if (_formTeacherId == 0)
+            _formErrors["teacher"] = "Select a teacher to save the schedule";
+
+        if (string.IsNullOrEmpty(_formRoom))
+            _formErrors["room"] = "Select a room to save the schedule";
+
+        if (string.IsNullOrEmpty(_formEndTime))
+            _formErrors["endTime"] = "Select an end time to save the schedule";
+
+        if (_formErrors.Count > 0)
+        {
+            StateHasChanged();
+            return;
+        }
+
+        if (!_modalDay.HasValue || !_modalTime.HasValue) return;
+
+        if (!TimeOnly.TryParse(_formEndTime, out var endTime))
+        {
+            _formErrors["endTime"] = "Invalid end time";
+            StateHasChanged();
+            return;
+        }
+
+        if (endTime <= _modalTime.Value)
+        {
+            _formErrors["endTime"] = "End time must be after start time";
+            StateHasChanged();
+            return;
+        }
+
+        _saving = true;
+        StateHasChanged();
+
+        try
+        {
+            await ScheduleService.AddScheduleEntryAsync(
+                _formSectionId,
+                _formSubjectId,
+                _formTeacherId,
+                (byte)_modalDay.Value,
+                _modalTime.Value,
+                endTime,
+                _formRoom);
+
+            CloseCellModal();
+            await LoadDataAsync();
+        }
+        catch (Exception ex)
+        {
+            var msg = ex.InnerException?.Message ?? ex.Message;
+            if (msg.Contains("Conflict:"))
+                msg = msg.Replace("Conflict: ", "");
+            else if (msg.Contains("Duplicate entry"))
+                msg = "This subject is already scheduled for this section.";
+            else if (msg.Contains("foreign key"))
+                msg = "Invalid reference — check that the teacher, section, and subject exist.";
+            _formErrorGeneral = msg;
+            _saving = false;
+            StateHasChanged();
+        }
+    }
+
+    private void SelectSection(long sectionId)
+    {
+        if (_selectedSectionId == sectionId)
+        {
+            _selectedSectionId = null;
+            _selectedGradeLevelId = 0;
+        }
+        else
+        {
+            _selectedSectionId = sectionId;
+            var sec = _pageData?.Sections.FirstOrDefault(s => s.SectionId == sectionId);
+            _selectedGradeLevelId = sec?.GradeLevelId ?? 0;
+        }
+        BuildGrid();
+        StateHasChanged();
+    }
+
+    private async Task HandleSearch(ChangeEventArgs e)
+    {
+        _search = e.Value?.ToString() ?? "";
+        BuildGrid();
+        StateHasChanged();
+    }
+
+    private async Task HandleGradeFilter(ChangeEventArgs e)
+    {
+        _gradeFilter = e.Value?.ToString() ?? "";
+        _selectedSectionId = null;
+        _selectedGradeLevelId = 0;
+        await LoadDataAsync();
+    }
+
+    private async Task HandleStatusFilter(ChangeEventArgs e)
+    {
+        _statusFilter = e.Value?.ToString() ?? "";
+        _selectedSectionId = null;
+        _selectedGradeLevelId = 0;
+        await LoadDataAsync();
+    }
+
+    public void Dispose()
+    {
+    }
+}

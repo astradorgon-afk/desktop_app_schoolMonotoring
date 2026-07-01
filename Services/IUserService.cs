@@ -19,4 +19,8 @@ public interface IUserService
     Task<bool> ChangePasswordAsync(long userId, string currentPassword, string newPassword, CancellationToken cancellationToken = default);
 
     Task<bool> ValidateCredentialsAsync(string username, string plainPassword, CancellationToken cancellationToken = default);
+
+    Task<bool> ResetPasswordAsync(long userId, string newPassword, CancellationToken cancellationToken = default);
+
+    Task<bool> ToggleLockAsync(long userId, CancellationToken cancellationToken = default);
 }
