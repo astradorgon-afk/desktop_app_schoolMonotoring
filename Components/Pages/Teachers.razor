@@ -1,8 +1,299 @@
 @page "/teachers"
 @layout MainLayout
+@using AttendanceUI.Data.Entities
+@inject ITeacherService TeacherService
+@implements IDisposable
 
-<PageHeader Title="Teachers" Subtitle="Manage teacher profiles, assignments, and schedules" />
+<PageHeader Title="Teachers" Subtitle="Manage teacher records, sections, and schedules">
+    <div class="header-actions">
+        <span class="header-date">@DateTime.Now.ToString("MMM dd, yyyy")</span>
+    </div>
+</PageHeader>
 
-<div class="page-card">
-    <p class="text-muted">Teacher management module — coming soon.</p>
-</div>
+@if (_isLoading)
+{
+    <div class="loading-state">
+        <div class="spinner"></div>
+        <p>Loading teachers...</p>
+    </div>
+}
+else if (_error is not null)
+{
+    <div class="error-banner" style="margin: 0 32px 24px;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+        <span>@_error</span>
+    </div>
+}
+else
+{
+    <div class="students-toolbar">
+        <div class="search-wrapper">
+            <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input type="text" class="search-input" placeholder="Search by name, employee no, or specialization..." @bind="_searchTerm" @bind:after="ApplyFilter" />
+        </div>
+        <select class="filter-select" @bind="_statusFilter" @bind:after="ApplyFilter">
+            <option value="">All Status</option>
+            <option value="ACTIVE">Active</option>
+            <option value="INACTIVE">Inactive</option>
+        </select>
+    </div>
+
+    <div class="students-table-wrapper">
+        <table class="students-table">
+            <thead>
+                <tr>
+                    <th>Teacher</th>
+                    <th>Employee No.</th>
+                    <th>Specialization</th>
+                    <th>Employment</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (_filteredTeachers.Count == 0)
+                {
+                    <tr>
+                        <td colspan="5" class="empty-state">No teachers found matching your filters.</td>
+                    </tr>
+                }
+                else
+                {
+                    @foreach (var teacher in _filteredTeachers)
+                    {
+                        <tr>
+                            <td>
+                                <div class="student-info-cell" @onclick="() => ShowProfile(teacher.Id)" style="cursor:pointer;">
+                                    <div class="student-avatar">
+                                        @teacher.FirstName[0]@teacher.LastName[0]
+                                    </div>
+                                    <div>
+                                        <div class="student-name">@teacher.FullName</div>
+                                        <div class="student-meta">@(!string.IsNullOrEmpty(teacher.Email) ? teacher.Email : "")</div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td><span class="code-badge">@teacher.EmployeeNo</span></td>
+                            <td><span class="text-muted">@(!string.IsNullOrEmpty(teacher.Specialization) ? teacher.Specialization : "—")</span></td>
+                            <td><span class="code-badge code-badge--alt">@(!string.IsNullOrEmpty(teacher.EmploymentStatus) ? teacher.EmploymentStatus : "—")</span></td>
+                            <td>
+                                <span class="status-badge status-badge--@teacher.Status.ToLowerInvariant()">
+                                    @teacher.Status
+                                </span>
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+@if (_profileTeacher is not null)
+{
+    <div class="modal-overlay" @onclick="CloseProfile">
+        <div class="modal-content modal-content--wide" @onclick:stopPropagation>
+            <div class="modal-header">
+                <h3>Teacher Profile</h3>
+                <button class="modal-close" @onclick="CloseProfile">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="profile-layout">
+                    <div class="profile-info">
+                        <div class="profile-header">
+                            <div class="profile-avatar-large">
+                                @_profileTeacher.Teacher.FirstName[0]@_profileTeacher.Teacher.LastName[0]
+                            </div>
+                            <div>
+                                <div class="profile-name">@_profileTeacher.Teacher.FullName</div>
+                                <div class="profile-badge-row">
+                                    <span class="code-badge">@_profileTeacher.Teacher.EmployeeNo</span>
+                                    <span class="status-badge status-badge--@_profileTeacher.Teacher.Status.ToLowerInvariant()">@_profileTeacher.Teacher.Status</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="profile-details">
+                            <div class="profile-section-title">Personal Information</div>
+                            <div class="profile-grid">
+                                <div class="profile-field">
+                                    <span class="profile-label">First Name</span>
+                                    <span class="profile-value">@_profileTeacher.Teacher.FirstName</span>
+                                </div>
+                                <div class="profile-field">
+                                    <span class="profile-label">Middle Name</span>
+                                    <span class="profile-value">@(!string.IsNullOrEmpty(_profileTeacher.Teacher.MiddleName) ? _profileTeacher.Teacher.MiddleName : "—")</span>
+                                </div>
+                                <div class="profile-field">
+                                    <span class="profile-label">Last Name</span>
+                                    <span class="profile-value">@_profileTeacher.Teacher.LastName</span>
+                                </div>
+                                <div class="profile-field">
+                                    <span class="profile-label">Email</span>
+                                    <span class="profile-value">@(!string.IsNullOrEmpty(_profileTeacher.Teacher.Email) ? _profileTeacher.Teacher.Email : "—")</span>
+                                </div>
+                                <div class="profile-field">
+                                    <span class="profile-label">Contact No.</span>
+                                    <span class="profile-value">@(!string.IsNullOrEmpty(_profileTeacher.Teacher.ContactNo) ? _profileTeacher.Teacher.ContactNo : "—")</span>
+                                </div>
+                                <div class="profile-field">
+                                    <span class="profile-label">Hire Date</span>
+                                    <span class="profile-value">@(_profileTeacher.Teacher.HireDate.HasValue ? _profileTeacher.Teacher.HireDate.Value.ToString("MMM dd, yyyy") : "—")</span>
+                                </div>
+                            </div>
+
+                            <div class="profile-section-title">Employment</div>
+                            <div class="profile-grid">
+                                <div class="profile-field">
+                                    <span class="profile-label">Specialization</span>
+                                    <span class="profile-value">@(!string.IsNullOrEmpty(_profileTeacher.Teacher.Specialization) ? _profileTeacher.Teacher.Specialization : "—")</span>
+                                </div>
+                                <div class="profile-field">
+                                    <span class="profile-label">Employment Status</span>
+                                    <span class="profile-value">@(!string.IsNullOrEmpty(_profileTeacher.Teacher.EmploymentStatus) ? _profileTeacher.Teacher.EmploymentStatus : "—")</span>
+                                </div>
+                                <div class="profile-field">
+                                    <span class="profile-label">Advisory Assignment</span>
+                                    <span class="profile-value">@(!string.IsNullOrEmpty(_profileTeacher.Teacher.AdvisoryAssignmentStatus) ? _profileTeacher.Teacher.AdvisoryAssignmentStatus : "—")</span>
+                                </div>
+                            </div>
+
+                            <div class="profile-section-title">Class Schedule</div>
+                            @if (_profileTeacher.Schedules.Count == 0)
+                            {
+                                <p class="text-muted" style="margin-top:8px;">No scheduled classes.</p>
+                            }
+                            else
+                            {
+                                var days = new[] { "Monday", "Tuesday", "Wednesday", "Thursday", "Friday" };
+                                var grouped = _profileTeacher.Schedules
+                                    .GroupBy(s => s.Day)
+                                    .ToDictionary(g => g.Key, g => g.ToList());
+
+                                <div class="cal-week">
+                                    @foreach (var day in days)
+                                    {
+                                        var dayScheds = grouped.GetValueOrDefault(day, []);
+                                        <div class="cal-day">
+                                            <div class="cal-day-header">@day.Substring(0, 3)</div>
+                                            <div class="cal-day-body">
+                                                @if (dayScheds.Count == 0)
+                                                {
+                                                    <div class="cal-empty">—</div>
+                                                }
+                                                else
+                                                {
+                                                    @foreach (var sched in dayScheds)
+                                                    {
+                                                        <div class="cal-card">
+                                                            <div class="cal-time">@sched.StartTime</div>
+                                                            <div class="cal-subject">@sched.Subject</div>
+                                                            <div class="cal-meta">@sched.Section @(!string.IsNullOrEmpty(sched.Room) ? $"· {sched.Room}" : "")</div>
+                                                        </div>
+                                                    }
+                                                }
+                                            </div>
+                                        </div>
+                                    }
+                                </div>
+                            }
+                        </div>
+                    </div>
+
+                    <div class="profile-qr">
+                        <div class="profile-qr-card">
+                            <div class="profile-qr-label">Summary</div>
+                            <div style="text-align:center;padding:8px 0;">
+                                <div style="font-size:28px;font-weight:700;color:#6366f1;">@_profileTeacher.Schedules.Count</div>
+                                <div style="font-size:11px;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;">Scheduled Classes</div>
+                            </div>
+                            <div style="text-align:center;padding:8px 0;border-top:1px solid #f1f5f9;">
+                                <div style="font-size:28px;font-weight:700;color:#22c55e;">@_profileTeacher.Schedules.Select(s => s.Section).Distinct().Count()</div>
+                                <div style="font-size:11px;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;">Sections Handled</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="action-btn" @onclick="CloseProfile">Close</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<Teacher> _teachers = [];
+    private List<Teacher> _filteredTeachers = [];
+    private bool _isLoading = true;
+    private string? _error;
+    private string _searchTerm = "";
+    private string _statusFilter = "";
+    private TeacherDetail? _profileTeacher;
+
+    private readonly CancellationTokenSource _cts = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadTeachersAsync();
+    }
+
+    private async Task LoadTeachersAsync()
+    {
+        _isLoading = true;
+        _error = null;
+
+        try
+        {
+            _teachers = (await TeacherService.GetAllAsync(_cts.Token)).ToList();
+            ApplyFilter();
+        }
+        catch (Exception ex)
+        {
+            _error = $"Failed to load teachers: {ex.Message}";
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private void ApplyFilter()
+    {
+        var query = _teachers.AsEnumerable();
+
+        if (!string.IsNullOrWhiteSpace(_searchTerm))
+        {
+            var term = _searchTerm.Trim().ToLowerInvariant();
+            query = query.Where(t =>
+                t.FirstName.ToLowerInvariant().Contains(term) ||
+                t.LastName.ToLowerInvariant().Contains(term) ||
+                (t.EmployeeNo ?? "").ToLowerInvariant().Contains(term) ||
+                (t.Specialization ?? "").ToLowerInvariant().Contains(term));
+        }
+
+        if (!string.IsNullOrEmpty(_statusFilter))
+        {
+            query = query.Where(t => t.Status == _statusFilter);
+        }
+
+        _filteredTeachers = query.ToList();
+    }
+
+    private async Task ShowProfile(long teacherId)
+    {
+        _profileTeacher = await TeacherService.GetDetailAsync(teacherId, _cts.Token);
+    }
+
+    private void CloseProfile()
+    {
+        _profileTeacher = null;
+    }
+
+    public void Dispose()
+    {
+        _cts.Cancel();
+        _cts.Dispose();
+    }
+}
