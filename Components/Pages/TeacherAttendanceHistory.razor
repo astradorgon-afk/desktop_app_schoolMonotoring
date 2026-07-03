@@ -1,0 +1,340 @@
+@page "/teacher/attendance-history"
+@layout MainLayout
+@using AttendanceUI.Data.Entities
+@using System.Globalization
+@implements IAsyncDisposable
+@inject ITeacherSessionService SessionService
+@inject ITeacherService TeacherService
+@inject IAuthService AuthService
+@inject NavigationManager Navigation
+
+<div style="height:100%;display:flex;flex-direction:column;">
+
+    @* ── Header ── *@
+    <div style="background:linear-gradient(135deg,#1e293b 0%,#334155 50%,#475569 100%);padding:32px 40px 28px;flex-shrink:0;">
+        <div style="display:flex;align-items:center;justify-content:space-between;">
+            <div>
+                <h1 style="font-size:26px;font-weight:700;color:#fff;margin:0 0 4px;">Attendance History</h1>
+                <p style="font-size:14px;color:rgba(255,255,255,0.6);margin:0;">Review past sessions and student attendance records</p>
+            </div>
+            <div style="display:flex;gap:12px;align-items:center;">
+                <div style="display:flex;gap:8px;align-items:center;">
+                    <div style="background:rgba(255,255,255,0.1);border-radius:8px;padding:6px 12px;display:flex;align-items:center;gap:8px;">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.5)" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                        <input type="date" style="background:transparent;border:none;color:#fff;font-size:13px;outline:none;width:120px;"
+                               @bind="_fromDate" @bind:after="LoadHistoryAsync" />
+                    </div>
+                    <span style="color:rgba(255,255,255,0.4);font-size:13px;">—</span>
+                    <div style="background:rgba(255,255,255,0.1);border-radius:8px;padding:6px 12px;display:flex;align-items:center;gap:8px;">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.5)" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                        <input type="date" style="background:transparent;border:none;color:#fff;font-size:13px;outline:none;width:120px;"
+                               @bind="_toDate" @bind:after="LoadHistoryAsync" />
+                    </div>
+                </div>
+                <button class="btn" @onclick="ResetFilter" style="background:rgba(255,255,255,0.1);color:rgba(255,255,255,0.7);border:1px solid rgba(255,255,255,0.15);padding:6px 16px;font-size:13px;border-radius:8px;">
+                    Reset
+                </button>
+            </div>
+        </div>
+
+        @if (_summary is not null)
+        {
+            <div style="display:flex;gap:16px;margin-top:20px;">
+                <div style="flex:1;background:rgba(255,255,255,0.06);border-radius:10px;padding:14px 18px;display:flex;align-items:center;gap:12px;">
+                    <div style="width:36px;height:36px;border-radius:8px;background:rgba(99,102,241,0.2);display:flex;align-items:center;justify-content:center;">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#818cf8" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+                    </div>
+                    <div>
+                        <span style="font-size:20px;font-weight:700;color:#fff;display:block;">@_summary.TotalSessions</span>
+                        <span style="font-size:12px;color:rgba(255,255,255,0.5);">Sessions</span>
+                    </div>
+                </div>
+                <div style="flex:1;background:rgba(255,255,255,0.06);border-radius:10px;padding:14px 18px;display:flex;align-items:center;gap:12px;">
+                    <div style="width:36px;height:36px;border-radius:8px;background:rgba(34,197,94,0.15);display:flex;align-items:center;justify-content:center;">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                    </div>
+                    <div>
+                        <span style="font-size:20px;font-weight:700;color:#fff;display:block;">@_summary.TotalPresent</span>
+                        <span style="font-size:12px;color:rgba(255,255,255,0.5);">Present</span>
+                    </div>
+                </div>
+                <div style="flex:1;background:rgba(255,255,255,0.06);border-radius:10px;padding:14px 18px;display:flex;align-items:center;gap:12px;">
+                    <div style="width:36px;height:36px;border-radius:8px;background:rgba(251,191,36,0.15);display:flex;align-items:center;justify-content:center;">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fbbf24" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                    </div>
+                    <div>
+                        <span style="font-size:20px;font-weight:700;color:#fff;display:block;">@_summary.TotalLate</span>
+                        <span style="font-size:12px;color:rgba(255,255,255,0.5);">Late</span>
+                    </div>
+                </div>
+                <div style="flex:1;background:rgba(255,255,255,0.06);border-radius:10px;padding:14px 18px;display:flex;align-items:center;gap:12px;">
+                    <div style="width:36px;height:36px;border-radius:8px;background:rgba(239,68,68,0.15);display:flex;align-items:center;justify-content:center;">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+                    </div>
+                    <div>
+                        <span style="font-size:20px;font-weight:700;color:#fff;display:block;">@_summary.TotalAbsent</span>
+                        <span style="font-size:12px;color:rgba(255,255,255,0.5);">Absent</span>
+                    </div>
+                </div>
+                <div style="flex:1;background:rgba(255,255,255,0.06);border-radius:10px;padding:14px 18px;display:flex;align-items:center;gap:12px;">
+                    <div style="width:36px;height:36px;border-radius:8px;background:rgba(255,255,255,0.08);display:flex;align-items:center;justify-content:center;">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.7)" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+                    </div>
+                    <div>
+                        <span style="font-size:20px;font-weight:700;color:#fff;display:block;">@_summary.AttendanceRate%</span>
+                        <span style="font-size:12px;color:rgba(255,255,255,0.5);">Rate</span>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+
+    @* ── Body ── *@
+    <div style="flex:1;overflow-y:auto;background:#f1f5f9;padding:24px 40px;">
+        @if (_loading)
+        {
+            <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:80px 0;gap:16px;">
+                <div class="spinner" style="width:32px;height:32px;"></div>
+                <p style="color:#64748b;font-size:14px;">Loading history...</p>
+            </div>
+        }
+        else if (_error is not null)
+        {
+            <div class="error-banner" style="margin:0;">@_error</div>
+        }
+        else if (_items.Count == 0)
+        {
+            <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:80px 0;gap:12px;">
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
+                <p style="font-size:15px;color:#94a3b8;font-weight:500;">No sessions found</p>
+                <p style="font-size:13px;color:#cbd5e1;">No attendance sessions in the selected date range.</p>
+            </div>
+        }
+        else
+        {
+            <div style="display:flex;flex-direction:column;gap:8px;">
+                @foreach (var item in _items)
+                {
+                    var isExpanded = _expandedId == item.SessionId;
+                    var bg = item.Status == "ENDED" ? "#fff" : "#f0fdf4";
+                    var border = item.Status == "ENDED" ? "#e2e8f0" : "#bbf7d0";
+                    var statusColor = item.Status == "ACTIVE" ? "#16a34a" : "#94a3b8";
+                    var rateColor = item.AttendanceRate >= 90 ? "#16a34a" : item.AttendanceRate >= 75 ? "#ca8a04" : "#dc2626";
+
+                    <div style="background:@bg;border:1px solid @border;border-radius:12px;overflow:hidden;transition:all 0.2s;animation:_slideUp 0.3s ease;">
+                        <div @onclick="() => ToggleExpand(item.SessionId)" style="display:flex;align-items:center;padding:16px 20px;cursor:pointer;gap:16px;">
+                            <div style="width:40px;height:40px;border-radius:10px;background:@(item.Status == "ACTIVE" ? "#f0fdf4" : "#f8fafc");display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="@(item.Status == "ACTIVE" ? "#22c55e" : "#94a3b8")" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+                            </div>
+                            <div style="flex:1;min-width:0;">
+                                <div style="display:flex;align-items:center;gap:8px;margin-bottom:2px;">
+                                    <span style="font-size:14px;font-weight:600;color:#1e293b;">@item.SectionName</span>
+                                    <span style="font-size:12px;color:#64748b;">· @item.SubjectName</span>
+                                    @if (!string.IsNullOrEmpty(item.Room))
+                                    {
+                                        <span style="font-size:11px;color:#94a3b8;background:#f1f5f9;padding:1px 6px;border-radius:4px;">Room @item.Room</span>
+                                    }
+                                </div>
+                                <div style="display:flex;align-items:center;gap:12px;font-size:12px;color:#94a3b8;">
+                                    <span>@item.SessionDate.ToLocalTime().ToString("MMM dd, yyyy · h:mm tt")</span>
+                                    <span style="display:flex;align-items:center;gap:4px;">
+                                        <span style="width:6px;height:6px;border-radius:50%;background:@statusColor;"></span>
+                                        @item.Status
+                                    </span>
+                                </div>
+                            </div>
+                            <div style="display:flex;align-items:center;gap:16px;flex-shrink:0;">
+                                <div style="display:flex;gap:12px;align-items:center;">
+                                    <div style="text-align:center;">
+                                        <span style="font-size:13px;font-weight:600;color:#16a34a;">@item.Present</span>
+                                        <div style="font-size:10px;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;">Present</div>
+                                    </div>
+                                    <div style="text-align:center;">
+                                        <span style="font-size:13px;font-weight:600;color:#ca8a04;">@item.Late</span>
+                                        <div style="font-size:10px;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;">Late</div>
+                                    </div>
+                                    <div style="text-align:center;">
+                                        <span style="font-size:13px;font-weight:600;color:#dc2626;">@item.Absent</span>
+                                        <div style="font-size:10px;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;">Absent</div>
+                                    </div>
+                                    <div style="background:#f8fafc;padding:4px 10px;border-radius:6px;text-align:center;">
+                                        <span style="font-size:14px;font-weight:700;color:@rateColor;">@item.AttendanceRate%</span>
+                                    </div>
+                                </div>
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2" style="transform:rotate(@(isExpanded ? 180 : 0)deg);transition:transform 0.2s;">
+                                    <polyline points="6 9 12 15 18 9"/>
+                                </svg>
+                            </div>
+                        </div>
+
+                        @if (isExpanded)
+                        {
+                            <div style="border-top:1px solid #f1f5f9;animation:_slideUp 0.2s ease;">
+                                <div style="padding:4px 20px;background:#fafafa;display:flex;gap:8px;align-items:center;">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                                    <input style="flex:1;padding:8px 0;border:none;background:transparent;font-size:13px;color:#1e293b;outline:none;"
+                                           placeholder="Search students..."
+                                           @bind="_searchText" @bind:event="oninput" />
+                                </div>
+                                <div style="max-height:360px;overflow-y:auto;">
+                                    @if (_sessionStudents is null || _sessionStudents.Count == 0)
+                                    {
+                                        <div style="padding:24px;text-align:center;">
+                                            <span class="spinner" style="width:20px;height:20px;"></span>
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        var filtered = string.IsNullOrWhiteSpace(_searchText)
+                                            ? _sessionStudents
+                                            : _sessionStudents.Where(s => s.FullName.Contains(_searchText, StringComparison.OrdinalIgnoreCase) || s.Lrn.Contains(_searchText)).ToList();
+                                        if (filtered.Count == 0)
+                                        {
+                                            <div style="padding:24px;text-align:center;color:#94a3b8;font-size:13px;">No matching students</div>
+                                        }
+                                        else
+                                        {
+                                            <table style="width:100%;border-collapse:collapse;">
+                                                <thead>
+                                                    <tr style="font-size:11px;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;">
+                                                        <th style="padding:8px 20px;text-align:left;font-weight:500;">Student</th>
+                                                        <th style="padding:8px 20px;text-align:left;font-weight:500;">LRN</th>
+                                                        <th style="padding:8px 20px;text-align:center;font-weight:500;width:100px;">Status</th>
+                                                        <th style="padding:8px 20px;text-align:right;font-weight:500;width:100px;">Time</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    @foreach (var stu in filtered)
+                                                    {
+                                                        var sbg = stu.Status == "PRESENT" ? "#f0fdf4" : stu.Status == "LATE" ? "#fefce8" : stu.Status is null ? "#f8fafc" : "#fef2f2";
+                                                        var stxt = stu.Status == "PRESENT" ? "#16a34a" : stu.Status == "LATE" ? "#a16207" : stu.Status is null ? "#94a3b8" : "#dc2626";
+                                                        var slbl = stu.Status ?? "Unmarked";
+                                                        <tr style="border-top:1px solid #f1f5f9;">
+                                                            <td style="padding:10px 20px;">
+                                                                <span style="font-size:13px;font-weight:500;color:#1e293b;">@stu.FullName</span>
+                                                            </td>
+                                                            <td style="padding:10px 20px;">
+                                                                <span style="font-size:12px;color:#94a3b8;">@stu.Lrn</span>
+                                                            </td>
+                                                            <td style="padding:10px 20px;text-align:center;">
+                                                                <span style="display:inline-block;padding:2px 10px;border-radius:6px;font-size:11px;font-weight:600;background:@sbg;color:@stxt;">@slbl</span>
+                                                            </td>
+                                                            <td style="padding:10px 20px;text-align:right;">
+                                                                <span style="font-size:12px;color:#94a3b8;">@(stu.ScannedAt?.ToLocalTime().ToString("h:mm tt") ?? "—")</span>
+                                                            </td>
+                                                        </tr>
+                                                    }
+                                                </tbody>
+                                            </table>
+                                        }
+                                    }
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        }
+    </div>
+</div>
+
+@* ── Animations ── *@
+<style>
+    @@keyframes _slideUp {
+        from { opacity: 0; transform: translateY(8px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    .spinner {
+        display: inline-block;
+        border: 2px solid #e2e8f0;
+        border-top-color: #6366f1;
+        border-radius: 50%;
+        animation: _spin 0.6s linear infinite;
+    }
+    @@keyframes _spin { to { transform: rotate(360deg); } }
+</style>
+
+@code {
+    private sealed record HistorySummary(int TotalSessions, int TotalPresent, int TotalLate, int TotalAbsent, int AttendanceRate);
+
+    private List<SessionHistoryItem> _items = [];
+    private List<SessionHistoryStudent>? _sessionStudents;
+    private HistorySummary? _summary;
+    private long? _expandedId;
+    private string _searchText = "";
+    private string? _error;
+    private bool _loading = true;
+    private long _teacherId;
+    private DateTime? _fromDate;
+    private DateTime? _toDate;
+    private readonly CancellationTokenSource _cts = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        var session = await AuthService.GetCurrentSessionAsync();
+        if (session is null) { Navigation.NavigateTo("/login"); return; }
+
+        var teacher = await TeacherService.GetByUserIdAsync(session.UserId, _cts.Token);
+        if (teacher is null) { _error = "Teacher profile not found."; return; }
+
+        _teacherId = teacher.Id;
+        await LoadHistoryAsync();
+    }
+
+    private async Task LoadHistoryAsync()
+    {
+        _loading = true;
+        _error = null;
+        _expandedId = null;
+        _sessionStudents = null;
+        try
+        {
+            DateOnly? from = _fromDate.HasValue ? DateOnly.FromDateTime(_fromDate.Value) : null;
+            DateOnly? to = _toDate.HasValue ? DateOnly.FromDateTime(_toDate.Value) : null;
+
+            _items = await SessionService.GetAttendanceHistoryAsync(_teacherId, from, to, _cts.Token);
+
+            _summary = _items.Count > 0
+                ? new HistorySummary(
+                    _items.Count,
+                    _items.Sum(i => i.Present),
+                    _items.Sum(i => i.Late),
+                    _items.Sum(i => i.Absent),
+                    _items.Sum(i => i.Present + i.Late) > 0
+                        ? (int)Math.Round((double)_items.Sum(i => i.Present + i.Late) / (_items.Sum(i => i.Present + i.Late + i.Absent) > 0 ? _items.Sum(i => i.Present + i.Late + i.Absent) : 1) * 100)
+                        : 0
+                )
+                : null;
+        }
+        catch (Exception ex) { _error = $"Failed to load: {ex.Message}"; }
+        finally { _loading = false; }
+    }
+
+    private async Task ToggleExpand(long sessionId)
+    {
+        if (_expandedId == sessionId)
+        {
+            _expandedId = null;
+            _sessionStudents = null;
+            return;
+        }
+        _expandedId = sessionId;
+        _searchText = "";
+        _sessionStudents = null;
+        _sessionStudents = await SessionService.GetSessionStudentsAsync(sessionId, _cts.Token);
+    }
+
+    private async Task ResetFilter()
+    {
+        _fromDate = null;
+        _toDate = null;
+        await LoadHistoryAsync();
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        _cts.Cancel();
+        _cts.Dispose();
+        await Task.CompletedTask;
+    }
+}

@@ -16,7 +16,7 @@
         <div class="admin-main">
             <header class="admin-topbar">
                 <div class="topbar-left">
-                    <span class="topbar-breadcrumb">Attendance & Classroom Monitor</span>
+                    <span class="topbar-breadcrumb">@(_isTeacher ? "Teacher Portal" : _isStudent ? "Student Portal" : "Attendance & Classroom Monitor")</span>
                 </div>
                 <div class="topbar-right">
                     <span class="topbar-user">@_currentSession?.DisplayName</span>
@@ -36,6 +36,8 @@
     private bool _collapsed;
     private UserSession? _currentSession;
     private bool _isReady;
+    private bool _isTeacher;
+    private bool _isStudent;
 
     protected override async Task OnInitializedAsync()
     {
@@ -47,6 +49,8 @@
             return;
         }
 
+        _isTeacher = _currentSession.Role == UserRole.TEACHER;
+        _isStudent = _currentSession.Role == UserRole.STUDENT;
         _isReady = true;
     }
 

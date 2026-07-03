@@ -18,8 +18,9 @@ public DbSet<GradeLevel> GradeLevels => Set<GradeLevel>();
 public DbSet<Enrollment> Enrollments => Set<Enrollment>();
 public DbSet<Room> Rooms => Set<Room>();
 public DbSet<SchoolYear> SchoolYears => Set<SchoolYear>();
-public DbSet<AttendanceSession> AttendanceSessions => Set<AttendanceSession>();
-public DbSet<AttendanceRecord> AttendanceRecords => Set<AttendanceRecord>();
+    public DbSet<AttendanceSession> AttendanceSessions => Set<AttendanceSession>();
+    public DbSet<AttendanceRecord> AttendanceRecords => Set<AttendanceRecord>();
+    public DbSet<QrToken> QrTokens => Set<QrToken>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -28,6 +29,7 @@ public DbSet<AttendanceRecord> AttendanceRecords => Set<AttendanceRecord>();
             entity.ToTable("users");
             entity.HasKey(e => e.Id);
             entity.Property(e => e.Id).HasColumnName("Id");
+            entity.Property(e => e.Name).HasColumnName("name").IsRequired();
             entity.Property(e => e.Username).HasColumnName("username").IsRequired();
             entity.Property(e => e.PasswordHash).HasColumnName("password_hash").IsRequired();
             entity.Property(e => e.Role).HasColumnName("role").HasConversion<string>().IsRequired();
@@ -242,6 +244,10 @@ public DbSet<AttendanceRecord> AttendanceRecords => Set<AttendanceRecord>();
             entity.Property(e => e.Id).HasColumnName("Id");
             entity.Property(e => e.ClassOfferingId).HasColumnName("class_offering_id");
             entity.Property(e => e.SessionDate).HasColumnName("session_date");
+            entity.Property(e => e.Status).HasColumnName("status").HasDefaultValue("ACTIVE");
+            entity.Property(e => e.RoomId).HasColumnName("room_id");
+            entity.Property(e => e.SectionName).HasColumnName("section_name");
+            entity.Property(e => e.SubjectName).HasColumnName("subject_name");
             entity.Property(e => e.CreatedAt).HasColumnName("created_at");
             entity.Property(e => e.UpdatedAt).HasColumnName("updated_at");
             entity.HasOne(e => e.ClassOffering).WithMany().HasForeignKey(e => e.ClassOfferingId);
@@ -258,9 +264,26 @@ public DbSet<AttendanceRecord> AttendanceRecords => Set<AttendanceRecord>();
             entity.Property(e => e.MarkedByUserId).HasColumnName("marked_by_user_id");
             entity.Property(e => e.Status).HasColumnName("status").IsRequired();
             entity.Property(e => e.Reason).HasColumnName("reason");
+            entity.Property(e => e.Hash).HasColumnName("hash");
             entity.Property(e => e.CreatedAt).HasColumnName("created_at");
             entity.Property(e => e.UpdatedAt).HasColumnName("updated_at");
             entity.HasOne(e => e.Student).WithMany().HasForeignKey(e => e.StudentId);
+        });
+
+        modelBuilder.Entity<QrToken>(entity =>
+        {
+            entity.ToTable("qr_tokens");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("Id");
+            entity.Property(e => e.Token).HasColumnName("token").IsRequired();
+            entity.Property(e => e.ModelType).HasColumnName("model_type").HasConversion<string>().IsRequired();
+            entity.Property(e => e.ModelId).HasColumnName("model_id").IsRequired();
+            entity.Property(e => e.BorrowPurpose).HasColumnName("borrow_purpose");
+            entity.Property(e => e.IsRevoked).HasColumnName("is_revoked").HasDefaultValue(false);
+            entity.Property(e => e.ExpiresAt).HasColumnName("expires_at");
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at");
+            entity.Property(e => e.UpdatedAt).HasColumnName("updated_at");
+            entity.HasIndex(e => e.Token).HasDatabaseName("idx_qr_tokens_token").IsUnique();
         });
     }
 }

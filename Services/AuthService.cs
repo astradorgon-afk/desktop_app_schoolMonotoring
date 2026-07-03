@@ -88,7 +88,7 @@ public class AuthService : IAuthService
             UserId = user.Id,
             Username = user.Username,
             Role = user.Role,
-            DisplayName = user.Username,
+            DisplayName = !string.IsNullOrWhiteSpace(user.Name) ? user.Name : user.Username,
             LoggedInAt = DateTime.UtcNow
         };
 

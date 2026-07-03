@@ -8,6 +8,7 @@ public class AttendanceRecord
     public long? MarkedByUserId { get; set; }
     public string Status { get; set; } = "PRESENT";
     public string? Reason { get; set; }
+    public string? Hash { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
 

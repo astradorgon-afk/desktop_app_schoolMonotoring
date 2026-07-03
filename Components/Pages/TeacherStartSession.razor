@@ -1,0 +1,716 @@
+@page "/teacher/start-session"
+@layout MainLayout
+@using AttendanceUI.Data.Entities
+@using Microsoft.JSInterop
+@implements IAsyncDisposable
+@inject ITeacherSessionService SessionService
+@inject ITeacherService TeacherService
+@inject IAuthService AuthService
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+
+<div style="height:calc(100vh - 64px);display:flex;flex-direction:column;overflow:hidden;">
+
+    @* ── Status Bar ── *@
+    <div style="display:flex;align-items:center;gap:12px;padding:12px 24px;background:#fff;border-bottom:1px solid #e2e8f0;flex-shrink:0;">
+        @if (_sessionId > 0)
+        {
+            <div style="display:flex;align-items:center;gap:8px;padding:4px 12px;border-radius:20px;background:#f0fdf4;">
+                <span style="width:8px;height:8px;border-radius:50%;background:#22c55e;animation:_pulse 2s infinite;"></span>
+                <span style="font-size:12px;font-weight:600;color:#16a34a;text-transform:uppercase;letter-spacing:0.5px;">Live</span>
+            </div>
+            <span style="font-size:14px;font-weight:600;color:#1e293b;">@_sessionState?.SectionName</span>
+            <span style="font-size:13px;color:#64748b;">· @_sessionState?.SubjectName</span>
+            @if (!string.IsNullOrEmpty(_sessionState?.Room))
+            {
+                <span style="font-size:13px;color:#94a3b8;">· Room @_sessionState.Room</span>
+            }
+            <div style="flex:1;"></div>
+            <span style="font-size:13px;color:#64748b;font-weight:500;padding:2px 8px;background:#f1f5f9;border-radius:4px;">
+                @_syncQueue events
+            </span>
+            <button class="btn btn-ghost" @onclick="OpenScanner" title="Scan QR">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+                <span>Scan</span>
+            </button>
+            <button class="btn btn-danger btn-xs" @onclick="EndSessionAsync" disabled="@_saving">
+                <span>End</span>
+            </button>
+        }
+        else
+        {
+            <div style="display:flex;align-items:center;gap:8px;padding:4px 12px;border-radius:20px;background:#f1f5f9;">
+                <span style="width:8px;height:8px;border-radius:50%;background:#94a3b8;"></span>
+                <span style="font-size:12px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;">No Session</span>
+            </div>
+            <span style="font-size:14px;color:#64748b;">Scan a QR code or select a class below</span>
+            <div style="flex:1;"></div>
+        }
+    </div>
+
+    @if (_loading)
+    {
+        <div style="flex:1;display:flex;align-items:center;justify-content:center;padding:32px;background:#f8fafc;">
+            <div style="max-width:560px;width:100%;">
+                <h2 style="font-size:22px;font-weight:700;color:#1e293b;text-align:center;margin-bottom:8px;">Start a Session</h2>
+                <p style="font-size:14px;color:#64748b;text-align:center;margin-bottom:24px;">Loading your classes...</p>
+                <div style="display:flex;flex-direction:column;gap:12px;">
+                    @for (var i = 0; i < 3; i++)
+                    {
+                        <div style="padding:16px 20px;border:1px solid #e2e8f0;border-radius:8px;background:#fff;">
+                            <div style="display:flex;align-items:center;justify-content:space-between;width:100%;">
+                                <div style="flex:1;">
+                                    <div style="width:180px;height:16px;background:linear-gradient(90deg,#e2e8f0 25%,#f1f5f9 50%,#e2e8f0 75%);background-size:200% 100%;animation:_shimmer 1.5s infinite;border-radius:4px;margin-bottom:8px;"></div>
+                                    <div style="width:100px;height:12px;background:linear-gradient(90deg,#e2e8f0 25%,#f1f5f9 50%,#e2e8f0 75%);background-size:200% 100%;animation:_shimmer 1.5s infinite;border-radius:4px;"></div>
+                                </div>
+                                <div style="text-align:right;">
+                                    <div style="width:50px;height:16px;background:linear-gradient(90deg,#e2e8f0 25%,#f1f5f9 50%,#e2e8f0 75%);background-size:200% 100%;animation:_shimmer 1.5s infinite;border-radius:4px;margin-bottom:8px;margin-left:auto;"></div>
+                                    <div style="width:70px;height:12px;background:linear-gradient(90deg,#e2e8f0 25%,#f1f5f9 50%,#e2e8f0 75%);background-size:200% 100%;animation:_shimmer 1.5s infinite;border-radius:4px;margin-left:auto;"></div>
+                                </div>
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    }
+    else if (_error is not null)
+    {
+        <div style="flex:1;display:flex;align-items:center;justify-content:center;padding:32px;background:#f8fafc;">
+            <div style="max-width:400px;width:100%;text-align:center;">
+                <div class="error-banner">@_error</div>
+                <button class="btn btn-primary" @onclick="LoadDataAsync" style="margin-top:12px;">Retry</button>
+            </div>
+        </div>
+    }
+    else
+    {
+        @* ── Unified Layout: Viewfinder + optional Roster ── *@
+        <div style="flex:1;display:flex;overflow:hidden;background:#f8fafc;">
+
+            @* ── Viewfinder Zone ── *@
+            <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px;position:relative;">
+                @if (_sessionId > 0 && _showScanner)
+                {
+                    <div style="width:320px;max-width:100%;position:relative;">
+                        <div style="width:100%;height:240px;border-radius:12px;overflow:hidden;background:#000;position:relative;">
+                            <div id="qr-reader" style="width:100%;height:100%;"></div>
+                            <style>
+                                #qr-reader video { width: 100% !important; height: 100% !important; object-fit: cover !important; }
+                                #qr-reader img { display: none; }
+                            </style>
+                            @if (_cameraStarted)
+                            {
+                                <div style="position:absolute;left:10%;right:10%;height:2px;background:linear-gradient(90deg,transparent,#22c55e,transparent);box-shadow:0 0 8px rgba(34,197,94,0.6);animation:_scanLine 2s ease-in-out infinite;border-radius:1px;"></div>
+                            }
+                            @if (!string.IsNullOrEmpty(_cameraError))
+                            {
+                                <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;">
+                                    <p style="color:rgba(255,255,255,0.5);font-size:14px;">@_cameraError</p>
+                                </div>
+                            }
+                            else if (!_cameraStarted)
+                            {
+                                <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;">
+                                    <span style="font-size:48px;color:rgba(255,255,255,0.15);">◻</span>
+                                </div>
+                            }
+                        </div>
+                        <div style="display:flex;gap:8px;margin-top:12px;">
+                            <input style="flex:1;padding:10px 14px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;text-align:center;outline:none;"
+                                   placeholder="Paste QR token..."
+                                   @bind="_qrInput" @bind:event="oninput" />
+                            <button class="btn btn-primary" @onclick="ProcessQrInput" disabled="@_saving">Go</button>
+                        </div>
+                        @if (!string.IsNullOrEmpty(_qrFeedback))
+                        {
+                            <p style="text-align:center;margin-top:6px;font-size:13px;color:@(_qrFeedback.Contains("✓") || _qrFeedback.Contains("marked") ? "#22c55e" : "#ef4444");">@_qrFeedback</p>
+                        }
+                    </div>
+                    <button class="btn" @onclick="CloseScanner" style="margin-top:16px;background:#f1f5f9;color:#64748b;border-color:#e2e8f0;">
+                        Stop Camera
+                    </button>
+                }
+                else
+                {
+                    <div style="width:320px;height:320px;position:relative;display:flex;align-items:center;justify-content:center;">
+                        <svg width="100%" height="100%" viewBox="0 0 320 320" style="position:absolute;inset:0;">
+                            <rect x="2" y="2" width="60" height="20" rx="4" fill="none" stroke="#6366f1" stroke-width="4"/>
+                            <rect x="2" y="2" width="20" height="60" rx="4" fill="none" stroke="#6366f1" stroke-width="4"/>
+                            <rect x="258" y="2" width="60" height="20" rx="4" fill="none" stroke="#6366f1" stroke-width="4"/>
+                            <rect x="298" y="2" width="20" height="60" rx="4" fill="none" stroke="#6366f1" stroke-width="4"/>
+                            <rect x="2" y="258" width="60" height="20" rx="4" fill="none" stroke="#6366f1" stroke-width="4"/>
+                            <rect x="2" y="298" width="20" height="60" rx="4" fill="none" stroke="#6366f1" stroke-width="4"/>
+                            <rect x="258" y="258" width="60" height="20" rx="4" fill="none" stroke="#6366f1" stroke-width="4"/>
+                            <rect x="298" y="258" width="20" height="60" rx="4" fill="none" stroke="#6366f1" stroke-width="4"/>
+                        </svg>
+                        <div style="position:absolute;left:10%;right:10%;height:2px;background:linear-gradient(90deg,transparent,#6366f1,transparent);box-shadow:0 0 8px rgba(99,102,241,0.5);animation:_scanLine 2s ease-in-out infinite;border-radius:1px;"></div>
+                        <div style="width:160px;height:160px;border-radius:50%;border:2px dashed #c7d2fe;animation:_scanPulse 3s ease-in-out infinite;"></div>
+                        <div style="position:absolute;bottom:0;text-align:center;">
+                            <p style="font-size:14px;color:#64748b;font-weight:500;">Point camera at a QR code</p>
+                        </div>
+                    </div>
+
+                    <button class="btn btn-primary" @onclick="OpenScanner" style="margin-top:24px;">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+                        <span>Scan QR Code</span>
+                    </button>
+                }
+
+                @if (_sessionId == 0)
+                {
+                    <div style="display:flex;align-items:center;gap:16px;margin-top:32px;width:400px;">
+                        <div style="flex:1;height:1px;background:#e2e8f0;"></div>
+                        <span style="font-size:13px;color:#94a3b8;font-weight:500;text-transform:uppercase;letter-spacing:1px;">or</span>
+                        <div style="flex:1;height:1px;background:#e2e8f0;"></div>
+                    </div>
+
+                    <div style="margin-top:20px;text-align:center;">
+                        <p style="font-size:13px;color:#64748b;margin-bottom:10px;">Select a section to start a class session</p>
+                        @if (_sections.Count == 0)
+                        {
+                            <p style="font-size:13px;color:#94a3b8;">No classes scheduled for today.</p>
+                        }
+                        else
+                        {
+                            <div style="display:flex;gap:8px;max-width:420px;width:100%;">
+                                <select style="flex:1;padding:10px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;color:#1e293b;background:#fff;outline:none;"
+                                        @bind="_selectedOfferingId" @bind:after="StartFromDropdown">
+                                    <option value="0">Choose a section...</option>
+                                    @foreach (var sec in _sections)
+                                    {
+                                        <option value="@(sec.OfferingId?.ToString() ?? "0")">
+                                            @sec.SectionName — @sec.Subject (@sec.TimeDisplay)
+                                        </option>
+                                    }
+                                </select>
+                                <button class="btn btn-primary" @onclick="StartFromDropdown" disabled="@_saving || _selectedOfferingId == 0">
+                                    Start
+                                </button>
+                            </div>
+                        }
+                    </div>
+                }
+
+                @* Floating notifications *@
+                @if (_notifications.Count > 0)
+                {
+                    <div style="position:absolute;bottom:32px;left:50%;transform:translateX(-50%);display:flex;flex-direction:column;gap:8px;width:320px;">
+                        @foreach (var n in _notifications)
+                        {
+                            <div style="padding:10px 14px;border-radius:8px;font-size:13px;font-weight:500;display:flex;align-items:center;gap:8px;box-shadow:0 4px 12px rgba(0,0,0,0.1);animation:_slideUp 0.3s ease;background:@(n.Type == "present" ? "#f0fdf4" : n.Type == "late" ? "#fefce8" : "#fef2f2");color:@(n.Type == "present" ? "#16a34a" : n.Type == "late" ? "#a16207" : "#dc2626");">
+                                <span>@n.Text</span>
+                                <button style="margin-left:auto;background:none;border:none;cursor:pointer;color:inherit;padding:2px;" @onclick="() => DismissNotification(n)">✕</button>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+
+            @* ── Roster Panel (only when session active) ── *@
+            @if (_sessionId > 0)
+            {
+                <div style="width:384px;border-left:1px solid #e2e8f0;background:#fff;display:flex;flex-direction:column;flex-shrink:0;">
+                    <div style="padding:16px;border-bottom:1px solid #e2e8f0;box-shadow:inset 3px 0 0 #22c55e;">
+                        <div style="display:flex;align-items:center;justify-content:space-between;">
+                            <h3 style="font-size:15px;font-weight:700;color:#1e293b;">@_sessionState?.SectionName</h3>
+                            <div style="display:flex;gap:12px;font-size:12px;">
+                                <span style="color:#22c55e;font-weight:600;">@(_sessionState?.PresentCount ?? 0) P</span>
+                                <span style="color:#eab308;font-weight:600;">@(_sessionState?.LateCount ?? 0) L</span>
+                                <span style="color:#ef4444;font-weight:600;">@(_sessionState?.AbsentCount ?? 0) A</span>
+                            </div>
+                        </div>
+
+                        <div style="position:relative;margin-top:12px;">
+                            <svg style="position:absolute;left:10px;top:50%;transform:translateY(-50%);" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                            <input style="width:100%;padding:8px 10px 8px 30px;border:1px solid #e2e8f0;border-radius:6px;font-size:13px;outline:none;"
+                                   placeholder="Search by name or ID..."
+                                   @bind="_rosterSearch" @bind:event="oninput" />
+                        </div>
+                    </div>
+
+                    <div style="flex:1;overflow-y:auto;">
+                        @if (_students.Count == 0)
+                        {
+                            <div style="text-align:center;padding:48px 16px;color:#94a3b8;font-size:13px;">No students found.</div>
+                        }
+                        else
+                        {
+                            @foreach (var s in _filteredStudents)
+                            {
+                                var avatarBg = s.Status switch
+                                {
+                                    "PRESENT" => "#22c55e",
+                                    "LATE" => "#eab308",
+                                    "ABSENT" => "#ef4444",
+                                    _ => "#e2e8f0"
+                                };
+                                var avatarText = s.Status switch
+                                {
+                                    "PRESENT" => "#fff",
+                                    "LATE" => "#fff",
+                                    "ABSENT" => "#fff",
+                                    _ => "#94a3b8"
+                                };
+
+                                <div style="display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid #f1f5f9;">
+                                    <div style="width:32px;height:32px;border-radius:50%;background:@avatarBg;color:@avatarText;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;flex-shrink:0;">
+                                        @s.FullName[..1].ToUpper()
+                                    </div>
+                                    <div style="flex:1;min-width:0;">
+                                        <div style="font-size:13px;font-weight:500;color:#1e293b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">@s.FullName</div>
+                                        <div style="font-size:11px;color:#94a3b8;">@s.StudentNumber</div>
+                                    </div>
+                                    @if (s.Status is not null)
+                                    {
+                                        var badgeBg = s.Status == "PRESENT" ? "#f0fdf4" : s.Status == "LATE" ? "#fefce8" : "#fef2f2";
+                                        var badgeText = s.Status == "PRESENT" ? "#16a34a" : s.Status == "LATE" ? "#a16207" : "#dc2626";
+                                        <span style="font-size:11px;font-weight:600;padding:2px 8px;border-radius:4px;background:@badgeBg;color:@badgeText;cursor:pointer;" @onclick="() => UndoMarkAsync(s.StudentId)" title="Click to undo">
+                                            @s.Status @(s.ScannedAt.HasValue ? s.ScannedAt.Value.ToString("HH:mm") : "")
+                                        </span>
+                                    }
+                                    else
+                                    {
+                                        <button class="btn btn-xs btn-ghost" @onclick="() => MarkStudentAsync(s.StudentId)"
+                                                disabled="@_saving" title="Mark Present"
+                                                style="border:2px dashed #cbd5e1;border-radius:50%;width:32px;height:32px;padding:0;display:flex;align-items:center;justify-content:center;color:#94a3b8;">
+                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+                                        </button>
+                                    }
+                                </div>
+                            }
+                        }
+                    </div>
+
+                    <div style="padding:12px 16px;border-top:1px solid #e2e8f0;font-size:12px;color:#94a3b8;display:flex;justify-content:space-between;">
+                        <span>@_filteredStudents.Count visible</span>
+                        <span>@_students.Count(s => s.Status is not null) / @_students.Count marked</span>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+
+    @* ── Scanner Overlay Modal (only when no session) ── *@
+    @if (_sessionId == 0 && _showScanner)
+    {
+        <div style="position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:2000;display:flex;flex-direction:column;align-items:center;justify-content:center;">
+            <div style="width:320px;position:relative;">
+                <div style="width:100%;height:240px;border-radius:12px;overflow:hidden;background:#000;position:relative;">
+                    <div id="qr-reader" style="width:100%;height:100%;"></div>
+                    <style>
+                        #qr-reader video { width: 100% !important; height: 100% !important; object-fit: cover !important; }
+                        #qr-reader img { display: none; }
+                    </style>
+                    @if (!string.IsNullOrEmpty(_cameraError))
+                    {
+                        <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;">
+                            <p style="color:rgba(255,255,255,0.5);font-size:14px;text-align:center;">@_cameraError</p>
+                            <p style="color:rgba(255,255,255,0.3);font-size:12px;">Enter token manually below</p>
+                        </div>
+                    }
+                    else if (!_cameraStarted)
+                    {
+                        <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;">
+                            <span style="font-size:48px;color:rgba(255,255,255,0.15);">◻</span>
+                        </div>
+                    }
+                </div>
+                <svg width="344" height="264" viewBox="0 0 344 264" style="position:absolute;top:-12px;left:-12px;pointer-events:none;">
+                    <rect x="12" y="0" width="60" height="16" rx="4" fill="none" stroke="#22c55e" stroke-width="4"/>
+                    <rect x="0" y="12" width="16" height="60" rx="4" fill="none" stroke="#22c55e" stroke-width="4"/>
+                    <rect x="272" y="0" width="60" height="16" rx="4" fill="none" stroke="#22c55e" stroke-width="4"/>
+                    <rect x="332" y="12" width="12" height="60" rx="4" fill="none" stroke="#22c55e" stroke-width="4"/>
+                    <rect x="12" y="248" width="60" height="16" rx="4" fill="none" stroke="#22c55e" stroke-width="4"/>
+                    <rect x="0" y="192" width="16" height="60" rx="4" fill="none" stroke="#22c55e" stroke-width="4"/>
+                    <rect x="272" y="248" width="60" height="16" rx="4" fill="none" stroke="#22c55e" stroke-width="4"/>
+                    <rect x="332" y="192" width="12" height="60" rx="4" fill="none" stroke="#22c55e" stroke-width="4"/>
+                </svg>
+                <div style="margin-top:12px;width:100%;">
+                    <p style="color:rgba(255,255,255,0.6);font-size:12px;text-align:center;margin-bottom:8px;">
+                        @(_sessionId > 0 ? "Scan a student QR to mark attendance" : "Scan a room QR to start a session")
+                        <span style="color:rgba(255,255,255,0.3);">or type it below</span>
+                    </p>
+                    <div style="display:flex;gap:8px;">
+                        <input id="qrInput" style="flex:1;padding:10px 14px;border:1px solid rgba(255,255,255,0.2);border-radius:8px;background:rgba(255,255,255,0.1);color:#fff;font-size:14px;text-align:center;outline:none;"
+                               placeholder="Paste or type QR token..."
+                               @bind="_qrInput" @bind:event="oninput" />
+                        <button class="btn btn-primary" @onclick="ProcessQrInput" disabled="@_saving">Go</button>
+                    </div>
+                    @if (!string.IsNullOrEmpty(_qrFeedback))
+                    {
+                        <p style="text-align:center;margin-top:6px;font-size:13px;color:@(_qrFeedback.Contains("✓") || _qrFeedback.Contains("marked") ? "#22c55e" : "#ef4444");">@_qrFeedback</p>
+                    }
+                </div>
+            </div>
+            <button class="btn" @onclick="CloseScanner" style="margin-top:20px;background:rgba(255,255,255,0.1);color:rgba(255,255,255,0.7);border-color:rgba(255,255,255,0.2);padding:8px 32px;">Cancel</button>
+        </div>
+    }
+</div>
+
+@* ── Animations ── *@
+<style>
+    @@keyframes _pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.4; }
+    }
+    @@keyframes _scanPulse {
+        0%, 100% { transform: scale(1); opacity: 0.6; }
+        50% { transform: scale(1.1); opacity: 0.3; }
+    }
+    @@keyframes _scanLine {
+        0% { top: 8%; }
+        50% { top: 88%; }
+        100% { top: 8%; }
+    }
+    @@keyframes _slideUp {
+        from { opacity: 0; transform: translateY(8px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    @@keyframes _shimmer {
+        0% { background-position: 200% 0; }
+        100% { background-position: -200% 0; }
+    }
+</style>
+
+@code {
+    private enum QrScanMode { Room, Student }
+
+    private const string StatusPresent = "PRESENT";
+    private const string StatusLate = "LATE";
+    private const string StatusAbsent = "ABSENT";
+
+    private List<SectionSelectItem> _sections = [];
+    private long _selectedOfferingId;
+    private List<RosterStudentItem> _students = [];
+    private List<RosterStudentItem> _filteredStudents => string.IsNullOrWhiteSpace(_rosterSearch)
+        ? _students
+        : _students.Where(s =>
+            s.FullName.Contains(_rosterSearch, StringComparison.OrdinalIgnoreCase) ||
+            s.StudentNumber.Contains(_rosterSearch, StringComparison.OrdinalIgnoreCase) ||
+            s.Lrn.Contains(_rosterSearch, StringComparison.OrdinalIgnoreCase)).ToList();
+
+    private ActiveSessionState? _sessionState;
+    private long _sessionId;
+    private long _teacherId;
+    private long _userId;
+    private string _rosterSearch = "";
+    private string _qrInput = "";
+    private string? _qrFeedback;
+    private QrScanMode _scanMode = QrScanMode.Student;
+    private bool _showScanner;
+    private bool _cameraStarted;
+    private string? _cameraError;
+    private bool _loading = true;
+    private bool _saving;
+    private string? _error;
+    private int _syncQueue;
+    private DotNetObjectReference<TeacherStartSession>? _dotNetRef;
+
+    private readonly List<NotificationCard> _notifications = [];
+    private readonly CancellationTokenSource _cts = new();
+
+    private sealed record NotificationCard(string Text, string Type, Guid Id = default)
+    {
+        public Guid Id { get; init; } = Id == default ? Guid.NewGuid() : Id;
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDataAsync();
+    }
+
+    private async Task LoadDataAsync()
+    {
+        _loading = true;
+        _error = null;
+
+        try
+        {
+            var sessionTask = AuthService.GetCurrentSessionAsync();
+            var timeoutTask = Task.Delay(TimeSpan.FromSeconds(20));
+
+            var completed = await Task.WhenAny(sessionTask, timeoutTask);
+            if (completed == timeoutTask)
+            {
+                _error = "Connection timed out. Please check your connection and try again.";
+                return;
+            }
+
+            var session = await sessionTask;
+            if (session is null) { Navigation.NavigateTo("/login"); return; }
+
+            _userId = session.UserId;
+
+            var teacher = await TeacherService.GetByUserIdAsync(session.UserId, _cts.Token);
+            if (teacher is null) { _error = "Teacher profile not found."; return; }
+
+            _teacherId = teacher.Id;
+            _sections = await SessionService.GetTeacherSectionsAsync(teacher.Id, _cts.Token);
+            await RefreshActiveSessionAsync();
+        }
+        catch (OperationCanceledException)
+        {
+            _error = "Request was cancelled.";
+        }
+        catch (Exception ex)
+        {
+            _error = $"Failed to load: {ex.Message}";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task RefreshActiveSessionAsync()
+    {
+        var state = await SessionService.GetActiveSessionForTeacherAsync(_teacherId, _cts.Token);
+        if (state is not null)
+        {
+            _sessionId = state.SessionId;
+            _sessionState = state;
+        }
+    }
+
+    private async Task StartFromDropdown()
+    {
+        if (_selectedOfferingId == 0) return;
+        _saving = true;
+        try
+        {
+            var state = await SessionService.StartManualSessionAsync(_teacherId, _userId, _selectedOfferingId, _cts.Token);
+            _sessionId = state.SessionId;
+            _sessionState = state;
+            _students = await SessionService.GetRosterAsync(_sessionId, _cts.Token);
+            _notifications.Clear();
+            _ = PollLiveScansAsync();
+        }
+        catch (Exception ex) { _error = ex.Message; }
+        finally { _saving = false; }
+    }
+
+    private async Task MarkStudentAsync(long studentId)
+    {
+        _saving = true;
+        try
+        {
+            var result = await SessionService.MarkAttendanceAsync(_sessionId, _userId, studentId, _cts.Token);
+            if (result.Success)
+            {
+                var s = _students.First(x => x.StudentId == studentId);
+                s.Status = result.Status ?? StatusPresent;
+                s.ScannedAt = DateTime.Now;
+                _notifications.Add(new NotificationCard(result.Message, result.Status == "LATE" ? "late" : "present"));
+                _sessionState = await SessionService.GetActiveSessionAsync(_sessionId, _cts.Token);
+                if (_notifications.Count > 5) _notifications.RemoveAt(0);
+                _ = AutoDismissNotification();
+            }
+            else
+            {
+                _notifications.Add(new NotificationCard(result.Message, "error"));
+            }
+        }
+        finally { _saving = false; }
+    }
+
+    private async Task UndoMarkAsync(long studentId)
+    {
+        _saving = true;
+        try
+        {
+            var result = await SessionService.UndoAttendanceAsync(_sessionId, _userId, studentId, _cts.Token);
+            if (result.Success)
+            {
+                var s = _students.First(x => x.StudentId == studentId);
+                s.Status = null;
+                s.ScannedAt = null;
+                _sessionState = await SessionService.GetActiveSessionAsync(_sessionId, _cts.Token);
+            }
+        }
+        finally { _saving = false; }
+    }
+
+    private async Task EndSessionAsync()
+    {
+        _saving = true;
+        try
+        {
+            await SessionService.EndSessionAsync(_sessionId, _cts.Token);
+            _sessionId = 0;
+            _sessionState = null;
+            _students = [];
+            _notifications.Clear();
+            await LoadDataAsync();
+        }
+        finally { _saving = false; }
+    }
+
+    private async Task ProcessQrInput()
+    {
+        var input = _qrInput?.Trim();
+        if (string.IsNullOrEmpty(input))
+        {
+            _qrFeedback = "Please enter a QR token.";
+            return;
+        }
+
+        _saving = true;
+        try
+        {
+            if (_scanMode == QrScanMode.Room)
+            {
+                var result = await SessionService.ScanRoomQrAsync(_teacherId, _userId, input, null, _cts.Token);
+                _qrFeedback = result.Message;
+                if (result.Success)
+                {
+                    _showScanner = false;
+                    _qrInput = "";
+                    _qrFeedback = null;
+                    await LoadDataAsync();
+                    await RefreshActiveSessionAsync();
+                }
+            }
+            else
+            {
+                if (_sessionId == 0)
+                {
+                    _qrFeedback = "Start a session first before scanning student QR codes.";
+                    return;
+                }
+
+                var result = await SessionService.ScanStudentQrAsync(_sessionId, _userId, input, _cts.Token);
+                _qrFeedback = result.Message;
+                    if (result.Success)
+                    {
+                        if (result.StudentId.HasValue)
+                        {
+                            var s = _students.FirstOrDefault(x => x.StudentId == result.StudentId.Value);
+                            if (s is not null)
+                            {
+                                s.Status = result.Status ?? StatusPresent;
+                                s.ScannedAt = DateTime.Now;
+                            }
+                        }
+                        _sessionState = await SessionService.GetActiveSessionAsync(_sessionId, _cts.Token);
+                        _qrInput = "";
+                        _qrFeedback = null;
+                        _notifications.Add(new NotificationCard(result.Message, result.Status == "LATE" ? "late" : "present"));
+                        _ = AutoDismissNotification();
+                        if (_sessionId == 0)
+                        {
+                            _showScanner = false;
+                        }
+                    }
+            }
+        }
+        finally { _saving = false; }
+    }
+
+    private string QrButtonStyle(QrScanMode mode)
+    {
+        if (_scanMode == mode)
+            return "background:#6366f1;color:#fff;border-color:#6366f1;";
+        return "background:rgba(255,255,255,0.1);color:rgba(255,255,255,0.8);border-color:rgba(255,255,255,0.3);";
+    }
+
+    private void SwitchScanModeRoom()
+    {
+        _scanMode = QrScanMode.Room;
+        _qrInput = "";
+        _qrFeedback = null;
+    }
+
+    private void SwitchScanModeStudent()
+    {
+        _scanMode = QrScanMode.Student;
+        _qrInput = "";
+        _qrFeedback = null;
+    }
+
+    private async Task OpenScanner()
+    {
+        _showScanner = true;
+        _scanMode = _sessionId > 0 ? QrScanMode.Student : QrScanMode.Room;
+        _qrInput = "";
+        _qrFeedback = null;
+        _cameraError = null;
+        _cameraStarted = false;
+        _dotNetRef = DotNetObjectReference.Create(this);
+
+        try
+        {
+            await JS.InvokeVoidAsync("qrScanner.start", _dotNetRef, "qr-reader");
+            _cameraStarted = true;
+        }
+        catch
+        {
+            _cameraError = "Camera not available";
+        }
+        StateHasChanged();
+    }
+
+    private async Task CloseScanner()
+    {
+        await JS.InvokeVoidAsync("qrScanner.stop");
+        _dotNetRef?.Dispose();
+        _dotNetRef = null;
+        _cameraStarted = false;
+        _cameraError = null;
+        _showScanner = false;
+        _qrInput = "";
+        _qrFeedback = null;
+    }
+
+    [JSInvokable]
+    public async Task OnQrCodeScanned(string decodedText)
+    {
+        _qrInput = decodedText;
+        await ProcessQrInput();
+    }
+
+    [JSInvokable]
+    public void OnScannerError(string message)
+    {
+        _cameraError = message;
+        _cameraStarted = false;
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void DismissNotification(NotificationCard n) => _notifications.Remove(n);
+
+    private async Task AutoDismissNotification()
+    {
+        await Task.Delay(10000);
+        if (_notifications.Count > 0) _notifications.RemoveAt(0);
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task PollLiveScansAsync()
+    {
+        while (_sessionId > 0 && !_cts.Token.IsCancellationRequested)
+        {
+            try
+            {
+                await Task.Delay(15000, _cts.Token);
+                if (_sessionId > 0)
+                {
+                    _sessionState = await SessionService.GetActiveSessionAsync(_sessionId, _cts.Token);
+                    var events = await SessionService.GetLiveScansAsync(_sessionId, _cts.Token);
+                    _syncQueue = events.Count;
+                    await InvokeAsync(StateHasChanged);
+                }
+            }
+            catch { break; }
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        try { await JS.InvokeVoidAsync("qrScanner.stop"); } catch { }
+        _dotNetRef?.Dispose();
+        _cts.Cancel();
+        _cts.Dispose();
+        await Task.CompletedTask;
+    }
+}

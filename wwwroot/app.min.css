@@ -1111,9 +1111,6 @@
     --tw-ease: var(--ease-in-out);
     transition-timing-function: var(--ease-in-out);
   }
-  .\[this\:\[TYPE\:\%p\:\%s\]\] {
-    this: [TYPE:%p:%s];
-  }
   .block-4 {
     block-size: calc(var(--spacing) * 4);
   }

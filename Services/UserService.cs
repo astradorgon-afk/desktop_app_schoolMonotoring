@@ -80,6 +80,7 @@ public class UserService : IUserService
         if (existing is null)
             return false;
 
+        existing.Name = user.Name;
         existing.Username = user.Username;
         existing.Role = user.Role;
         existing.Status = user.Status;

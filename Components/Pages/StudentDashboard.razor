@@ -1,0 +1,371 @@
+@page "/student/dashboard"
+@layout MainLayout
+@using AttendanceUI.Data.Entities
+@inject IStudentPortalService StudentPortalService
+@inject IAuthService AuthService
+@inject NavigationManager Navigation
+
+<PageHeader Title="Student Dashboard" Subtitle="@($"Welcome back, {_data?.FullName ?? "Student"}")">
+    <div class="header-actions">
+        <span class="header-date">@DateTime.Now.ToString("dddd, MMMM dd, yyyy")</span>
+    </div>
+</PageHeader>
+
+@if (_isLoading)
+{
+    <div class="loading-state">
+        <div class="spinner"></div>
+        <p>Loading your dashboard...</p>
+    </div>
+}
+else if (_error is not null)
+{
+    <div class="error-banner" style="margin: 0 32px 24px;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+        <span>@_error</span>
+    </div>
+}
+else if (_data is not null)
+{
+    @* Profile and Info Section *@
+    <div style="padding: 0 32px 24px;">
+        <div class="page-card" style="display:flex; align-items:center; gap: 24px;">
+            @* Profile Picture *@
+            <div style="flex-shrink:0;">
+                @if (_data.ProfilePicture is not null && _data.ProfilePicture.Length > 0)
+                {
+                    var base64 = Convert.ToBase64String(_data.ProfilePicture);
+                    <img src="data:image/png;base64,@base64" alt="Profile" style="width:80px;height:80px;border-radius:50%;object-fit:cover;border:3px solid #e2e8f0;" />
+                }
+                else
+                {
+                    <div style="width:80px;height:80px;border-radius:50%;background:#eef2ff;display:flex;align-items:center;justify-content:center;border:3px solid #e2e8f0;">
+                        <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#6366f1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                    </div>
+                }
+            </div>
+
+            @* Student Info *@
+            <div style="flex:1;">
+                <h2 style="font-size:20px;font-weight:700;color:#1e293b;margin:0 0 4px;">@_data.FullName</h2>
+                <div style="display:flex; gap: 16px; flex-wrap:wrap; font-size:13px; color:#64748b;">
+                    <span><strong>LRN:</strong> @_data.Lrn</span>
+                    <span><strong>ID:</strong> @_data.StudentNumber</span>
+                    <span><strong>Section:</strong> @_data.SectionName</span>
+                    <span><strong>Grade Level:</strong> @_data.GradeLevel</span>
+                    <span><strong>School Year:</strong> @_data.CurrentSchoolYear</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @* Stats Grid *@
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-icon stat-icon--blue">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+            </div>
+            <div class="stat-info">
+                <span class="stat-value">@_data.TotalSessions</span>
+                <span class="stat-label">Total Sessions</span>
+            </div>
+        </div>
+
+        <div class="stat-card">
+            <div class="stat-icon stat-icon--green">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+            </div>
+            <div class="stat-info">
+                <span class="stat-value">@_data.PresentCount</span>
+                <span class="stat-label">Present</span>
+            </div>
+        </div>
+
+        <div class="stat-card">
+            <div class="stat-icon stat-icon--yellow">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            </div>
+            <div class="stat-info">
+                <span class="stat-value">@_data.LateCount</span>
+                <span class="stat-label">Late</span>
+            </div>
+        </div>
+
+        <div class="stat-card">
+            <div class="stat-icon stat-icon--red">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+            </div>
+            <div class="stat-info">
+                <span class="stat-value">@_data.AbsentCount</span>
+                <span class="stat-label">Absent</span>
+            </div>
+        </div>
+
+        <div class="stat-card">
+            <div class="stat-icon stat-icon--purple">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+            </div>
+            <div class="stat-info">
+                <span class="stat-value">@_data.AttendanceRate%</span>
+                <span class="stat-label">Attendance Rate</span>
+            </div>
+        </div>
+    </div>
+
+    @* Today's Schedule + Quick Info *@
+    <div class="content-grid">
+        <div class="page-card">
+            <h2 class="card-heading">Today's Schedule</h2>
+            <p class="text-muted" style="margin-bottom: 16px; margin-top: 4px;">@DateTime.Now.ToString("dddd, MMMM dd, yyyy")</p>
+
+            @if (_data.TodaySchedule.Count == 0)
+            {
+                <div style="text-align:center;padding:32px 0;color:#94a3b8;">
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin-bottom:12px;">
+                        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+                    </svg>
+                    <p>No classes scheduled for today.</p>
+                </div>
+            }
+            else
+            {
+                <div style="display: flex; flex-direction: column; gap: 10px;">
+                    @foreach (var sched in _data.TodaySchedule)
+                    {
+                        var isOngoing = IsTimeSlotActive(sched.StartTime, sched.EndTime);
+                        var statusColor = isOngoing ? "#3b82f6" : "#22c55e";
+                        var statusLabel = isOngoing ? "Ongoing" : "Upcoming";
+                        var statusBg = isOngoing ? "#eff6ff" : "#f0fdf4";
+                        var statusText = isOngoing ? "#3b82f6" : "#22c55e";
+
+                        <div style="display: flex; align-items: center; gap: 12px; padding: 10px 12px; background: #f8fafc; border-radius: 8px; border-left: 3px solid @statusColor;">
+                            <span style="font-size: 13px; color: #64748b; min-width: 72px; font-weight: 500;">@sched.StartTime</span>
+                            <div style="flex: 1;">
+                                <div style="font-size: 14px; font-weight: 600; color: #1e293b;">@sched.Subject</div>
+                                <div style="font-size: 12px; color: #94a3b8;">@sched.Teacher @(!string.IsNullOrEmpty(sched.Room) ? $"\u00b7 {sched.Room}" : "")</div>
+                            </div>
+                            <span style="font-size: 11px; padding: 2px 8px; border-radius: 4px; background: @statusBg; color: @statusText; font-weight: 500; white-space: nowrap;">@statusLabel</span>
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+
+        <div class="page-card">
+            <h2 class="card-heading">Attendance Summary</h2>
+            <p class="text-muted" style="margin-bottom: 16px; margin-top: 4px;">Your overall attendance breakdown</p>
+
+            @if (_data.TotalSessions > 0)
+            {
+                <div style="margin-bottom: 20px;">
+                    <div style="display: flex; justify-content: space-between; font-size: 13px; color: #64748b; margin-bottom: 6px;">
+                        <span>Attendance Rate</span>
+                        <span style="font-weight: 600; color: #1e293b;">@_data.AttendanceRate%</span>
+                    </div>
+                    <div style="height: 10px; background: #f1f5f9; border-radius: 5px; overflow: hidden; display: flex;">
+                        @{
+                            var presentPct = _data.TotalSessions > 0 ? (double)_data.PresentCount / _data.TotalSessions * 100 : 0;
+                            var latePct = _data.TotalSessions > 0 ? (double)_data.LateCount / _data.TotalSessions * 100 : 0;
+                            var absentPct = _data.TotalSessions > 0 ? (double)_data.AbsentCount / _data.TotalSessions * 100 : 0;
+                        }
+                        @if (presentPct > 0)
+                        {
+                            <div style="height:100%;width:@(presentPct)%;background:#22c55e;transition:width 0.3s;" title="Present"></div>
+                        }
+                        @if (latePct > 0)
+                        {
+                            <div style="height:100%;width:@(latePct)%;background:#eab308;transition:width 0.3s;" title="Late"></div>
+                        }
+                        @if (absentPct > 0)
+                        {
+                            <div style="height:100%;width:@(absentPct)%;background:#ef4444;transition:width 0.3s;" title="Absent"></div>
+                        }
+                    </div>
+                </div>
+
+                <div style="display: flex; gap: 16px;">
+                    <div style="flex:1; text-align:center; padding: 12px; background: #f0fdf4; border-radius: 8px;">
+                        <div style="font-size: 20px; font-weight: 700; color: #22c55e;">@_data.PresentCount</div>
+                        <div style="font-size: 11px; color: #64748b;">Present</div>
+                    </div>
+                    <div style="flex:1; text-align:center; padding: 12px; background: #fefce8; border-radius: 8px;">
+                        <div style="font-size: 20px; font-weight: 700; color: #eab308;">@_data.LateCount</div>
+                        <div style="font-size: 11px; color: #64748b;">Late</div>
+                    </div>
+                    <div style="flex:1; text-align:center; padding: 12px; background: #fef2f2; border-radius: 8px;">
+                        <div style="font-size: 20px; font-weight: 700; color: #ef4444;">@_data.AbsentCount</div>
+                        <div style="font-size: 11px; color: #64748b;">Absent</div>
+                    </div>
+                </div>
+            }
+            else
+            {
+                <div style="text-align:center;padding:32px 0;color:#94a3b8;">
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin-bottom:12px;">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>
+                    </svg>
+                    <p>No attendance records yet.</p>
+                </div>
+            }
+        </div>
+    </div>
+
+    @* Weekly Schedule *@
+    <div style="padding: 0 32px 32px;">
+        <div class="page-card">
+            <h2 class="card-heading" style="margin-bottom: 16px;">Weekly Schedule</h2>
+
+            @if (_data.WeeklySchedule.Count == 0)
+            {
+                <p class="text-muted">No classes scheduled for this week.</p>
+            }
+            else
+            {
+                var days = new[] { "Monday", "Tuesday", "Wednesday", "Thursday", "Friday" };
+                var grouped = _data.WeeklySchedule
+                    .GroupBy(s => s.Day)
+                    .ToDictionary(g => g.Key, g => g.ToList());
+
+                <div class="cal-week">
+                    @foreach (var day in days)
+                    {
+                        var dayScheds = grouped.GetValueOrDefault(day, []);
+                        <div class="cal-day">
+                            <div class="cal-day-header">@day.Substring(0, 3)</div>
+                            <div class="cal-day-body">
+                                @if (dayScheds.Count == 0)
+                                {
+                                    <div class="cal-empty">—</div>
+                                }
+                                else
+                                {
+                                    @foreach (var sched in dayScheds)
+                                    {
+                                        <div class="cal-card">
+                                            <div class="cal-time">@sched.StartTime</div>
+                                            <div class="cal-subject">@sched.Subject</div>
+                                            <div class="cal-meta">@sched.Teacher @(!string.IsNullOrEmpty(sched.Room) ? $"\u00b7 {sched.Room}" : "")</div>
+                                        </div>
+                                    }
+                                }
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+    </div>
+
+    @* Recent Attendance History *@
+    <div style="padding: 0 32px 32px;">
+        <div class="page-card">
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom: 16px;">
+                <h2 class="card-heading" style="margin-bottom:0;">Recent Attendance</h2>
+            </div>
+
+            @if (_data.RecentAttendance.Count == 0)
+            {
+                <p class="text-muted">No attendance records found.</p>
+            }
+            else
+            {
+                <div style="overflow-x: auto;">
+                    <table style="width:100%; border-collapse: collapse; font-size: 13px;">
+                        <thead>
+                            <tr style="border-bottom: 2px solid #e2e8f0;">
+                                <th style="text-align:left; padding: 10px 12px; color:#64748b; font-weight:600; white-space:nowrap;">Date</th>
+                                <th style="text-align:left; padding: 10px 12px; color:#64748b; font-weight:600; white-space:nowrap;">Subject</th>
+                                <th style="text-align:left; padding: 10px 12px; color:#64748b; font-weight:600; white-space:nowrap;">Teacher</th>
+                                <th style="text-align:center; padding: 10px 12px; color:#64748b; font-weight:600; white-space:nowrap;">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var record in _data.RecentAttendance)
+                            {
+                                var (statusColor, statusBg) = record.Status switch
+                                {
+                                    "PRESENT" => ("#22c55e", "#f0fdf4"),
+                                    "LATE" => ("#eab308", "#fefce8"),
+                                    "ABSENT" => ("#ef4444", "#fef2f2"),
+                                    _ => ("#64748b", "#f8fafc")
+                                };
+
+                                <tr style="border-bottom: 1px solid #f1f5f9;">
+                                    <td style="padding: 10px 12px; color:#1e293b; white-space:nowrap;">@record.Date.ToString("MMM dd, yyyy")</td>
+                                    <td style="padding: 10px 12px; color:#1e293b;">@record.Subject</td>
+                                    <td style="padding: 10px 12px; color:#64748b;">@(record.Teacher ?? "—")</td>
+                                    <td style="padding: 10px 12px; text-align:center;">
+                                        <span style="display:inline-block; padding: 2px 10px; border-radius: 4px; background:@statusBg; color:@statusColor; font-weight:600; font-size:12px; white-space:nowrap;">@record.Status</span>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    private StudentDashboardData? _data;
+    private bool _isLoading = true;
+    private string? _error;
+
+    private readonly CancellationTokenSource _cts = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDashboardAsync();
+    }
+
+    private async Task LoadDashboardAsync()
+    {
+        _isLoading = true;
+        _error = null;
+
+        try
+        {
+            var session = await AuthService.GetCurrentSessionAsync();
+            if (session is null)
+            {
+                Navigation.NavigateTo("/login");
+                return;
+            }
+
+            var student = await StudentPortalService.GetStudentByUserIdAsync(session.UserId, _cts.Token);
+            if (student is null)
+            {
+                _error = "Student profile not found for your account.";
+                return;
+            }
+
+            _data = await StudentPortalService.GetDashboardAsync(student.Id, _cts.Token);
+        }
+        catch (Exception ex)
+        {
+            _error = $"Failed to load dashboard: {ex.Message}";
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private static bool IsTimeSlotActive(string startTime, string endTime)
+    {
+        if (TimeOnly.TryParse(startTime, out var start) &&
+            TimeOnly.TryParse(endTime, out var end))
+        {
+            var now = TimeOnly.FromDateTime(DateTime.Now);
+            return now >= start && now <= end;
+        }
+        return false;
+    }
+
+    public void Dispose()
+    {
+        _cts.Cancel();
+        _cts.Dispose();
+    }
+}

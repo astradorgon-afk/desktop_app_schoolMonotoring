@@ -67,7 +67,7 @@ else
     <div class="students-toolbar">
         <div class="search-wrapper">
             <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-            <input class="search-input" placeholder="Search by username…" @bind="_searchQuery" @bind:after="ApplyFilters" />
+            <input class="search-input" placeholder="Search by name or username…" @bind="_searchQuery" @bind:after="ApplyFilters" />
         </div>
         <select class="filter-select" @bind="_roleFilter" @bind:after="ApplyFilters">
             <option value="">All Roles</option>
@@ -92,6 +92,7 @@ else
         <table class="students-table">
             <thead>
                 <tr>
+                    <th>Name</th>
                     <th>Username</th>
                     <th>Role</th>
                     <th>Status</th>
@@ -103,7 +104,7 @@ else
             <tbody>
                 @if (_filteredUsers.Count == 0)
                 {
-                    <tr><td colspan="6" class="empty-state">No accounts found.</td></tr>
+                    <tr><td colspan="7" class="empty-state">No accounts found.</td></tr>
                 }
                 else
                 {
@@ -112,12 +113,13 @@ else
                         <tr>
                             <td>
                                 <div class="student-info-cell">
-                                    <div class="student-avatar">@user.Username[..1].ToUpper()</div>
+                                    <div class="student-avatar">@(!string.IsNullOrWhiteSpace(user.Name) ? user.Name[..1].ToUpper() : user.Username[..1].ToUpper())</div>
                                     <div>
-                                        <div class="student-name">@user.Username</div>
+                                        <div class="student-name">@(!string.IsNullOrWhiteSpace(user.Name) ? user.Name : user.Username)</div>
                                     </div>
                                 </div>
                             </td>
+                            <td style="font-size:13px;color:#64748b;">@user.Username</td>
                             <td>
                                 <span class="role-badge role-badge--@user.Role.ToString().ToLower()">@FormatRole(user.Role)</span>
                             </td>
@@ -176,12 +178,20 @@ else
                 </button>
             </div>
             <div class="modal-body" style="gap:16px;align-items:stretch;">
+                @* Full Name *@
+                <div class="form-group">
+                    <label for="editName" class="form-label">Full Name</label>
+                    <input id="editName" class="form-input-inner"
+                           placeholder="Enter full name"
+                           @bind="_formName" />
+                </div>
+
                 @* Username *@
                 <div class="form-group">
-                    <label class="form-label">Username</label>
-                    <input class="form-input-inner @(_usernameError is not null ? "input-error" : "")"
+                    <label for="editUsername" class="form-label">Username</label>
+                    <input id="editUsername" class="form-input-inner @(_usernameError is not null ? "input-error" : "")"
                            placeholder="Choose a username"
-                           @bind="_formUsername" disabled="@(_editTarget is not null)" />
+                           @bind="_formUsername" />
                     @if (_usernameError is not null)
                     {
                         <span class="validation-message">@_usernameError</span>
@@ -192,9 +202,9 @@ else
                 @if (_editTarget is null)
                 {
                     <div class="form-group">
-                        <label class="form-label">Password</label>
+                        <label for="editPassword" class="form-label">Password</label>
                         <div class="password-row">
-                            <input class="form-input-inner @(_passwordError is not null ? "input-error" : "")"
+                            <input id="editPassword" class="form-input-inner @(_passwordError is not null ? "input-error" : "")"
                                    type="@(_showPassword ? "text" : "password")" placeholder="Min 6 characters"
                                    @bind="_formPassword" />
                             <button class="btn btn-xs btn-ghost" @onclick="ToggleShowPassword" title="@(_showPassword ? "Hide password" : "Show password")">
@@ -220,8 +230,8 @@ else
 
                 @* Role *@
                 <div class="form-group">
-                    <label class="form-label">Role</label>
-                    <select class="filter-select" style="width:100%;" @bind="_formRole">
+                    <label for="editRole" class="form-label">Role</label>
+                    <select id="editRole" class="filter-select" style="width:100%;" @bind="_formRole">
                         <option value="SUPERADMIN">Super Admin</option>
                         <option value="TEACHER">Teacher</option>
                         <option value="STUDENT">Student</option>
@@ -230,8 +240,8 @@ else
 
                 @* Status *@
                 <div class="form-group">
-                    <label class="form-label">Status</label>
-                    <select class="filter-select" style="width:100%;" @bind="_formStatus">
+                    <label for="editStatus" class="form-label">Status</label>
+                    <select id="editStatus" class="filter-select" style="width:100%;" @bind="_formStatus">
                         <option value="ACTIVE">Active</option>
                         <option value="INACTIVE">Inactive</option>
                         <option value="LOCKED">Locked</option>
@@ -239,10 +249,12 @@ else
                 </div>
 
                 @* Can Login *@
-                <label class="toggle-row">
-                    <input type="checkbox" @bind="_formCanLogin" />
-                    <span>Allow login access</span>
-                </label>
+                <div class="form-group">
+                    <label class="toggle-row">
+                        <input type="checkbox" @bind="_formCanLogin" />
+                        <span>Allow login access</span>
+                    </label>
+                </div>
 
                 @if (_formError is not null)
                 {
@@ -394,6 +406,7 @@ else
     private bool _showAddEditModal;
     private bool _saving;
     private User? _editTarget;
+    private string _formName = "";
     private string _formUsername = "";
     private string _formPassword = "";
     private string _formRole = "TEACHER";
@@ -454,10 +467,10 @@ else
     {
         var q = _searchQuery?.Trim().ToLowerInvariant() ?? "";
         _filteredUsers = _users
-            .Where(u => string.IsNullOrEmpty(q) || u.Username.Contains(q, StringComparison.OrdinalIgnoreCase))
+            .Where(u => string.IsNullOrEmpty(q) || u.Username.Contains(q, StringComparison.OrdinalIgnoreCase) || u.Name.Contains(q, StringComparison.OrdinalIgnoreCase))
             .Where(u => string.IsNullOrEmpty(_roleFilter) || u.Role.ToString() == _roleFilter)
             .Where(u => string.IsNullOrEmpty(_statusFilter) || u.Status.ToString() == _statusFilter)
-            .OrderBy(u => u.Username)
+            .OrderBy(u => string.IsNullOrWhiteSpace(u.Name) ? u.Username : u.Name)
             .ToList();
         StateHasChanged();
     }
@@ -522,6 +535,7 @@ else
     private void OpenAddModal()
     {
         _editTarget = null;
+        _formName = "";
         _formUsername = "";
         _formPassword = "";
         _formRole = "TEACHER";
@@ -537,6 +551,7 @@ else
     private void OpenEditModal(User user)
     {
         _editTarget = user;
+        _formName = user.Name;
         _formUsername = user.Username;
         _formPassword = "";
         _formRole = user.Role.ToString();
@@ -592,6 +607,7 @@ else
             if (_editTarget is not null)
             {
                 // Update existing
+                _editTarget.Name = _formName.Trim();
                 _editTarget.Username = _formUsername;
                 _editTarget.Role = role;
                 _editTarget.Status = status;
@@ -612,6 +628,7 @@ else
                 // Create new
                 var user = new User
                 {
+                    Name = _formName.Trim(),
                     Username = _formUsername.Trim(),
                     Role = role,
                     Status = status,

@@ -1,3 +1,4 @@
+using AttendanceUI.Data.Entities;
 using AttendanceUI.Models.Auth;
 using AttendanceUI.Services;
 using Microsoft.AspNetCore.Components;
@@ -44,7 +45,13 @@ public partial class Login : ComponentBase
 
             if (result.Success)
             {
-                Navigation.NavigateTo("/dashboard");
+                var target = result.Session?.Role switch
+            {
+                UserRole.TEACHER => "/teacher/dashboard",
+                UserRole.STUDENT => "/student/dashboard",
+                _ => "/dashboard"
+            };
+                Navigation.NavigateTo(target);
             }
             else
             {
