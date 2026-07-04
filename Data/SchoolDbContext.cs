@@ -14,13 +14,14 @@ public class SchoolDbContext(DbContextOptions<SchoolDbContext> options) : DbCont
     public DbSet<Subject> Subjects => Set<Subject>();
     public DbSet<ClassOffering> ClassOfferings => Set<ClassOffering>();
     public DbSet<ClassSchedule> ClassSchedules => Set<ClassSchedule>();
-public DbSet<GradeLevel> GradeLevels => Set<GradeLevel>();
-public DbSet<Enrollment> Enrollments => Set<Enrollment>();
-public DbSet<Room> Rooms => Set<Room>();
-public DbSet<SchoolYear> SchoolYears => Set<SchoolYear>();
+    public DbSet<GradeLevel> GradeLevels => Set<GradeLevel>();
+    public DbSet<Enrollment> Enrollments => Set<Enrollment>();
+    public DbSet<Room> Rooms => Set<Room>();
+    public DbSet<SchoolYear> SchoolYears => Set<SchoolYear>();
     public DbSet<AttendanceSession> AttendanceSessions => Set<AttendanceSession>();
     public DbSet<AttendanceRecord> AttendanceRecords => Set<AttendanceRecord>();
     public DbSet<QrToken> QrTokens => Set<QrToken>();
+    public DbSet<LeaveRequest> LeaveRequests => Set<LeaveRequest>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -284,6 +285,31 @@ public DbSet<SchoolYear> SchoolYears => Set<SchoolYear>();
             entity.Property(e => e.CreatedAt).HasColumnName("created_at");
             entity.Property(e => e.UpdatedAt).HasColumnName("updated_at");
             entity.HasIndex(e => e.Token).HasDatabaseName("idx_qr_tokens_token").IsUnique();
+        });
+
+        modelBuilder.Entity<LeaveRequest>(entity =>
+        {
+            entity.ToTable("leave_requests");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Reason).HasColumnName("reason").IsRequired();
+            entity.Property(e => e.Category).HasColumnName("category").HasMaxLength(50);
+            entity.Property(e => e.StartDate).HasColumnName("start_date").IsRequired();
+            entity.Property(e => e.EndDate).HasColumnName("end_date").IsRequired();
+            entity.Property(e => e.Status).HasColumnName("status").IsRequired().HasMaxLength(20).HasDefaultValue("PENDING");
+            entity.Property(e => e.ReviewNotes).HasColumnName("review_notes");
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at");
+            entity.Property(e => e.UpdatedAt).HasColumnName("updated_at");
+
+            entity.HasOne(e => e.Teacher)
+                .WithMany()
+                .HasForeignKey(e => e.TeacherId)
+                .HasConstraintName("fk_leave_requests_teacher");
+
+            entity.HasOne(e => e.ReviewedBy)
+                .WithMany()
+                .HasForeignKey(e => e.ReviewedByUserId)
+                .HasConstraintName("fk_leave_requests_reviewed_by")
+                .OnDelete(DeleteBehavior.SetNull);
         });
     }
 }

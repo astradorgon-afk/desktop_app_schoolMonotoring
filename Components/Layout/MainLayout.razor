@@ -9,6 +9,10 @@
 @if (_isReady)
 {
     <div class="admin-shell">
+        <div class="admin-bg-blob" style="position:absolute;top:-20%;right:-10%;width:600px;height:600px;background:radial-gradient(circle,rgba(99,102,241,0.08) 0%,transparent 70%);border-radius:50%;pointer-events:none;z-index:0;"></div>
+        <div class="admin-bg-blob" style="position:absolute;bottom:-15%;left:-5%;width:500px;height:500px;background:radial-gradient(circle,rgba(139,92,246,0.06) 0%,transparent 70%);border-radius:50%;pointer-events:none;z-index:0;"></div>
+        <div class="admin-bg-blob" style="position:absolute;top:40%;left:50%;width:400px;height:400px;background:radial-gradient(circle,rgba(59,130,246,0.05) 0%,transparent 70%);border-radius:50%;pointer-events:none;z-index:0;"></div>
+
         <aside class="admin-sidebar @(_collapsed ? "collapsed" : "")">
             <NavMenu Collapsed="@_collapsed" OnToggle="ToggleSidebar" Role="@_currentSession?.Role" />
         </aside>

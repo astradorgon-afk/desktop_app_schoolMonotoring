@@ -1,3 +1,4 @@
+using System.Globalization;
 using AttendanceUI.Data;
 using AttendanceUI.Data.Entities;
 using Microsoft.EntityFrameworkCore;
@@ -107,12 +108,6 @@ public class StudentPortalService : IStudentPortalService
         var today = DateTime.Now;
         var todayDbDay = (byte)(((int)today.DayOfWeek + 6) % 7 + 1);
 
-        var dayOrder = new Dictionary<string, int>
-        {
-            ["Monday"] = 1, ["Tuesday"] = 2, ["Wednesday"] = 3,
-            ["Thursday"] = 4, ["Friday"] = 5, ["Saturday"] = 6, ["Sunday"] = 7
-        };
-
         List<StudentWeeklyScheduleView> weeklySchedule = [];
 
         if (offeringIds.Count > 0)
@@ -135,13 +130,11 @@ public class StudentPortalService : IStudentPortalService
                         Subject = subjectMap.GetValueOrDefault(subjectId, "—"),
                         Teacher = teacherId.HasValue ? teacherMap.GetValueOrDefault(teacherId.Value, "—") : "—",
                         Day = DayNames[sr.DayOfWeek],
-                        StartTime = sr.StartTime.ToString(),
-                        EndTime = sr.EndTime.ToString(),
+                        StartTime = sr.StartTime.ToString("h:mm tt", CultureInfo.InvariantCulture),
+                        EndTime = sr.EndTime.ToString("h:mm tt", CultureInfo.InvariantCulture),
                         Room = off.Room
                     };
                 })
-                .OrderBy(s => dayOrder.GetValueOrDefault(s.Day, 99))
-                .ThenBy(s => s.StartTime)
                 .ToList();
         }
 
@@ -204,5 +197,49 @@ public class StudentPortalService : IStudentPortalService
             TodaySchedule = todaySchedule,
             RecentAttendance = recentAttendance
         };
+    }
+
+    public async Task<List<StudentAttendanceHistoryView>> GetAttendanceHistoryAsync(long studentId, CancellationToken cancellationToken = default)
+    {
+        await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
+
+        var records = await context.AttendanceRecords
+            .AsNoTracking()
+            .Where(r => r.StudentId == studentId)
+            .Include(r => r.Session)
+                .ThenInclude(s => s!.ClassOffering)
+                    .ThenInclude(co => co!.Subject)
+            .Include(r => r.Session)
+                .ThenInclude(s => s!.ClassOffering)
+                    .ThenInclude(co => co!.Teacher)
+            .OrderByDescending(r => r.CreatedAt)
+            .ToListAsync(cancellationToken);
+
+        return records
+            .Select(r => new StudentAttendanceHistoryView
+            {
+                Date = r.Session?.SessionDate ?? r.CreatedAt,
+                Subject = r.Session?.SubjectName
+                    ?? r.Session?.ClassOffering?.Subject?.Title
+                    ?? "—",
+                Status = r.Status,
+                Teacher = r.Session?.ClassOffering?.Teacher is not null
+                    ? $"{r.Session.ClassOffering.Teacher.FirstName} {r.Session.ClassOffering.Teacher.LastName}"
+                    : null,
+                Reason = r.Reason
+            })
+            .ToList();
+    }
+
+    public async Task<bool> UpdateProfilePictureAsync(long studentId, byte[] imageBytes, CancellationToken cancellationToken = default)
+    {
+        await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
+
+        var student = await context.Students.FindAsync([studentId], cancellationToken);
+        if (student is null) return false;
+
+        student.ProfilePicture = imageBytes;
+        await context.SaveChangesAsync(cancellationToken);
+        return true;
     }
 }

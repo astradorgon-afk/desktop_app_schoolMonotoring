@@ -96,7 +96,7 @@ else if (_data is not null)
 
             @if (_data.TodaySchedule.Count == 0)
             {
-                <div style="text-align:center;padding:32px 0;color:#94a3b8;">
+                <div style="text-align:center;padding:32px 0;color:rgba(255,255,255,0.4);">
                     <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin-bottom:12px;">
                         <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
                     </svg>
@@ -111,14 +111,14 @@ else if (_data is not null)
                         var isOngoing = IsTimeSlotActive(sched.StartTime, sched.EndTime);
                         var statusColor = isOngoing ? "#3b82f6" : "#22c55e";
                         var statusLabel = isOngoing ? "Ongoing" : "Upcoming";
-                        var statusBg = isOngoing ? "#eff6ff" : "#f0fdf4";
-                        var statusText = isOngoing ? "#3b82f6" : "#22c55e";
+                        var statusBg = isOngoing ? "rgba(59,130,246,0.15)" : "rgba(34,197,94,0.15)";
+                        var statusText = isOngoing ? "#60a5fa" : "#4ade80";
 
-                        <div style="display: flex; align-items: center; gap: 12px; padding: 10px 12px; background: #f8fafc; border-radius: 8px; border-left: 3px solid @statusColor;">
-                            <span style="font-size: 13px; color: #64748b; min-width: 72px; font-weight: 500;">@sched.StartTime</span>
+                        <div style="display: flex; align-items: center; gap: 12px; padding: 10px 12px; background: rgba(255,255,255,0.03); border-radius: 8px; border-left: 3px solid @statusColor;">
+                            <span style="font-size: 13px; color: rgba(255,255,255,0.5); min-width: 72px; font-weight: 500;">@sched.StartTime</span>
                             <div style="flex: 1;">
-                                <div style="font-size: 14px; font-weight: 600; color: #1e293b;">@sched.Subject</div>
-                                <div style="font-size: 12px; color: #94a3b8;">@sched.Section @(!string.IsNullOrEmpty(sched.Room) ? $"\u00b7 {sched.Room}" : "")</div>
+                                <div style="font-size: 14px; font-weight: 600; color: #fff;">@sched.Subject</div>
+                                <div style="font-size: 12px; color: rgba(255,255,255,0.4);">@sched.Section @(!string.IsNullOrEmpty(sched.Room) ? $"\u00b7 {sched.Room}" : "")</div>
                             </div>
                             <span style="font-size: 11px; padding: 2px 8px; border-radius: 4px; background: @statusBg; color: @statusText; font-weight: 500; white-space: nowrap;">@statusLabel</span>
                         </div>
@@ -248,8 +248,8 @@ else if (_data is not null)
 
     private static bool IsTimeSlotActive(string startTime, string endTime)
     {
-        if (TimeOnly.TryParse(startTime, out var start) &&
-            TimeOnly.TryParse(endTime, out var end))
+        if (TimeOnly.TryParseExact(startTime, "h:mm tt", CultureInfo.InvariantCulture, DateTimeStyles.None, out var start) &&
+            TimeOnly.TryParseExact(endTime, "h:mm tt", CultureInfo.InvariantCulture, DateTimeStyles.None, out var end))
         {
             var now = TimeOnly.FromDateTime(DateTime.Now);
             return now >= start && now <= end;
@@ -264,7 +264,7 @@ else if (_data is not null)
 
     private void NavigateToSchedule()
     {
-        Navigation.NavigateTo("/schedules");
+        Navigation.NavigateTo("/teacher/schedule");
     }
 
     private void NavigateToStudents()

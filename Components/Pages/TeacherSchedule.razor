@@ -1,0 +1,543 @@
+@page "/teacher/schedule"
+@layout MainLayout
+@using System.Globalization
+@using AttendanceUI.Data.Entities
+@using AttendanceUI.Services
+@implements IDisposable
+@inject ITeacherService TeacherService
+@inject IAuthService AuthService
+@inject ILeaveRequestService LeaveService
+@inject NavigationManager Navigation
+
+<PageHeader Title="My Schedule" Subtitle="Your weekly timetable at a glance">
+    <div class="header-actions">
+        <span class="header-date">@DateTime.Now.ToString("dddd, MMMM dd, yyyy")</span>
+    </div>
+</PageHeader>
+
+@if (_isLoading)
+{
+    <div class="loading-state">
+        <div class="spinner"></div>
+        <p>Loading your schedule...</p>
+    </div>
+}
+else if (_error is not null)
+{
+    <div class="error-banner" style="margin: 0 32px 24px;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+        <span>@_error</span>
+    </div>
+}
+else
+{
+<div class="teacher-schedule-page">
+    @* ── Stats Bar ── *@
+    <div class="sch-bar">
+        <div class="sch-stat">
+            <span class="sch-stat-value">@_weeklyCount</span>
+            <span class="sch-stat-label">Weekly Classes</span>
+        </div>
+        <div class="sch-stat">
+            <span class="sch-stat-value">@_todayCount</span>
+            <span class="sch-stat-label">Today</span>
+        </div>
+        <div class="sch-stat">
+            <span class="sch-stat-value">@_sectionCount</span>
+            <span class="sch-stat-label">Sections</span>
+        </div>
+        <div class="sch-stat">
+            <span class="sch-stat-value">@_subjectCount</span>
+            <span class="sch-stat-label">Subjects</span>
+        </div>
+    </div>
+
+    @* ── Legend ── *@
+    @if (_legendItems.Count > 0)
+    {
+        <div class="sch-legend" style="margin-bottom:16px;">
+            @foreach (var leg in _legendItems)
+            {
+                <div class="sch-legend-item">
+                    <span class="sch-legend-swatch" style="background:@leg.SwatchColor"></span>
+                    <span class="sch-legend-label">@leg.Label</span>
+                </div>
+            }
+        </div>
+    }
+
+    @* ── Leave Request Modal ── *@
+    @if (_showLeaveModal)
+    {
+        <div class="modal-overlay" @onclick="CloseLeaveModal">
+            <div class="modal-content" style="max-width:500px;" @onclick:stopPropagation>
+                <div class="modal-header">
+                    <h3>Request Leave — @_selectedDay</h3>
+                    <button type="button" class="modal-close" @onclick="CloseLeaveModal">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                    </button>
+                </div>
+                <div class="modal-body" style="align-items:stretch;">
+                    <div class="form-group">
+                        <label class="form-label">Start Date</label>
+                        <input type="date" class="form-input" @bind="_leaveStartDate" @bind:after="PreviewLeaveSchedule" style="padding-left:16px;" />
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">End Date</label>
+                        <input type="date" class="form-input" @bind="_leaveEndDate" @bind:after="PreviewLeaveSchedule" style="padding-left:16px;" />
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Category</label>
+                        <select class="form-input" @bind="_leaveCategory" style="padding-left:16px;">
+                            <option value="">Select category...</option>
+                            @foreach (var cat in LeaveCategories.All)
+                            {
+                                <option value="@cat">@cat</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Reason</label>
+                        <textarea class="form-input" @bind="_leaveReason" placeholder="Why are you requesting leave?" rows="3" style="padding-left:16px;resize:vertical;min-height:80px;"></textarea>
+                    </div>
+
+                    @if (_leaveAffectedSchedules.Count > 0)
+                    {
+                        <div style="margin-bottom:8px;">
+                            <label class="form-label" style="margin-bottom:8px;">Affected Classes</label>
+                            <div class="leave-affected-list">
+                                @foreach (var s in _leaveAffectedSchedules)
+                                {
+                                    <div class="leave-affected-item">
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                                        <span>@s.Day · @s.Subject · @s.Section</span>
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    }
+
+                    @if (!string.IsNullOrEmpty(_leaveError))
+                    {
+                        <div class="validation-message" style="margin-bottom:8px;">@_leaveError</div>
+                    }
+                    @if (!string.IsNullOrEmpty(_leaveSuccess))
+                    {
+                        <div style="padding:10px 14px;background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.2);border-radius:10px;color:#4ade80;font-size:13px;margin-bottom:8px;">@_leaveSuccess</div>
+                    }
+
+                    <button type="button" class="btn-login" @onclick="SubmitLeaveRequest" disabled="@_isLeaveSubmitting" style="width:100%;">
+                        @if (_isLeaveSubmitting)
+                        {
+                            <span class="spinner"></span>
+                            <span>Submitting...</span>
+                        }
+                        else
+                        {
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:8px;"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                            <span>Submit Request</span>
+                        }
+                    </button>
+                </div>
+            </div>
+        </div>
+    }
+
+    @* ── Weekly Timetable (CSS Grid) ── *@
+    <div class="timetable-wrapper">
+        <div class="timetable">
+            @* Header row *@
+            <div class="tt-header" style="grid-row:1;grid-column:1;"></div>
+            @for (var di = 0; di < 5; di++)
+            {
+                var isToday = di == _todayIndex;
+                <div class="tt-header @(isToday ? "tt-header--today" : "")" style="grid-row:1;grid-column:@(di + 2);">@_dayNames[di]</div>
+            }
+            @* Body: positioned cells *@
+            @for (var si = 0; si < _timeSlots.Count; si++)
+            {
+                var row = si + 2;
+                var slot = _timeSlots[si];
+                var isNowSlot = si == _currentSlotIndex;
+                @* Time label *@
+                <div class="tt-timecol @(isNowSlot ? "tt-timecol--now" : "")" style="grid-row:@row;grid-column:1;">
+                    @if (isNowSlot)
+                    {
+                        <span class="tt-now-dot"></span>
+                    }
+                    <span class="tt-timelabel">@slot.ToString("h\\:mm tt")</span>
+                </div>
+                @* Day columns *@
+                @for (var di = 0; di < 5; di++)
+                {
+                    var capturedDi = di;
+                    var col = capturedDi + 2;
+                    var block = _gridEntries.GetValueOrDefault((capturedDi, si));
+                    var isTodayCol = capturedDi == _todayIndex;
+                    if (block is not null)
+                    {
+                        var isNowBlock = isNowSlot && isTodayCol;
+                        var roomPrefix = string.IsNullOrEmpty(block.Room) ? "" : block.Room + " · ";
+                        var titleText = block.Subject + "\n" + block.SectionName + "\n" + roomPrefix + block.StartTime + " – " + block.EndTime;
+                        <div class="tt-cell tt-cell--has @block.ColorClass @(isNowBlock ? "tt-cell--now-block" : "")"
+                             style="grid-row:@row/span @block.SpanRows;grid-column:@col;cursor:pointer;"
+                             title="@titleText"
+                             @onclick="() => OpenLeaveModal(capturedDi)">
+                            <div class="tt-block-subject">@block.Subject</div>
+                            <div class="tt-block-section">@block.SectionName</div>
+                            @if (!string.IsNullOrEmpty(block.Room))
+                            {
+                                <div class="tt-block-room">@block.Room</div>
+                            }
+                        </div>
+                    }
+                    else
+                    {
+                        var isNowEmpty = isNowSlot && isTodayCol;
+                        <div class="tt-cell tt-cell--empty @(isNowEmpty ? "tt-cell--now" : "") @(isTodayCol ? "tt-cell--today" : "")"
+                             style="grid-row:@row;grid-column:@col;"></div>
+                    }
+                }
+            }
+        </div>
+    </div>
+</div>
+}
+
+@code {
+    private List<TeacherScheduleView> _schedules = [];
+    private bool _isLoading = true;
+    private string? _error;
+    private int _weeklyCount;
+    private int _todayCount;
+    private int _sectionCount;
+    private int _subjectCount;
+    private int _currentSlotIndex = -1;
+    private int _todayIndex = -1;
+    private long _currentTeacherId;
+    private readonly CancellationTokenSource _cts = new();
+    private Timer? _refreshTimer;
+
+    private Dictionary<(int DayIndex, int SlotIndex), TimetableBlock> _gridEntries = [];
+    private List<LegendItem> _legendItems = [];
+
+    private bool _showLeaveModal;
+    private string _selectedDay = "";
+    private DateTime? _leaveStartDate;
+    private DateTime? _leaveEndDate;
+    private string _leaveReason = "";
+    private string _leaveCategory = "";
+    private List<AffectedSchedule> _leaveAffectedSchedules = [];
+    private string? _leaveError;
+    private string? _leaveSuccess;
+    private bool _isLeaveSubmitting;
+
+    private static readonly string[] _dayNames = ["Mon", "Tue", "Wed", "Thu", "Fri"];
+    private static readonly string[] _fullDayNames = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
+
+    private static readonly List<TimeOnly> _timeSlots =
+        Enumerable.Range(0, 21).Select(i => new TimeOnly(7, 0).AddMinutes(i * 30)).ToList();
+
+    private record SubjectColor(string CssClass, string HexColor);
+
+    private static readonly SubjectColor[] _colorPalette = [
+        new("tt-color--indigo", "#818cf8"),
+        new("tt-color--emerald", "#34d399"),
+        new("tt-color--amber", "#fbbf24"),
+        new("tt-color--rose", "#f43f5e"),
+        new("tt-color--cyan", "#22d3ee"),
+        new("tt-color--violet", "#8b5cf6"),
+        new("tt-color--lime", "#84cc16"),
+        new("tt-color--orange", "#fb923c"),
+    ];
+
+    private class TimetableBlock
+    {
+        public string Subject { get; init; } = "";
+        public string SectionName { get; init; } = "";
+        public string? Room { get; init; }
+        public string StartTime { get; init; } = "";
+        public string EndTime { get; init; } = "";
+        public int SpanRows { get; init; }
+        public string ColorClass { get; init; } = "";
+    }
+
+    private record LegendItem(string Label, string SwatchColor);
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadScheduleAsync();
+
+        _refreshTimer = new Timer(async _ =>
+        {
+            await InvokeAsync(() =>
+            {
+                UpdateNowIndicator();
+                StateHasChanged();
+            });
+        }, null, TimeSpan.FromMinutes(1), TimeSpan.FromMinutes(1));
+    }
+
+    private async Task LoadScheduleAsync()
+    {
+        _isLoading = true;
+        _error = null;
+
+        try
+        {
+            var session = await AuthService.GetCurrentSessionAsync();
+            if (session is null)
+            {
+                Navigation.NavigateTo("/login");
+                return;
+            }
+
+            var teacher = await TeacherService.GetByUserIdAsync(session.UserId, _cts.Token);
+            if (teacher is null)
+            {
+                _error = "Teacher profile not found for your account.";
+                return;
+            }
+
+            _currentTeacherId = teacher.Id;
+            _schedules = await TeacherService.GetWeeklyScheduleAsync(teacher.Id, _cts.Token);
+
+            _weeklyCount = _schedules.Count;
+
+            var now = DateTime.Now;
+            _todayIndex = now.DayOfWeek switch
+            {
+                DayOfWeek.Monday => 0,
+                DayOfWeek.Tuesday => 1,
+                DayOfWeek.Wednesday => 2,
+                DayOfWeek.Thursday => 3,
+                DayOfWeek.Friday => 4,
+                _ => -1
+            };
+
+            _todayCount = _todayIndex >= 0
+                ? _schedules.Count(s => s.Day == _fullDayNames[_todayIndex])
+                : 0;
+            _sectionCount = _schedules.Select(s => s.Section).Distinct().Count();
+            _subjectCount = _schedules.Select(s => s.Subject).Distinct().Count();
+
+            BuildGrid();
+            UpdateNowIndicator();
+        }
+        catch (Exception ex)
+        {
+            _error = $"Failed to load schedule: {ex.Message}";
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private void BuildGrid()
+    {
+        _gridEntries = [];
+
+        var colorIdx = 0;
+        var subjectColorMap = new Dictionary<long, SubjectColor>();
+        var legendSubjects = new Dictionary<long, string>();
+
+        foreach (var s in _schedules)
+        {
+            if (!subjectColorMap.ContainsKey(s.SubjectId))
+            {
+                var sc = _colorPalette[colorIdx % _colorPalette.Length];
+                subjectColorMap[s.SubjectId] = sc;
+                legendSubjects[s.SubjectId] = s.Subject;
+                colorIdx++;
+            }
+        }
+
+        foreach (var sched in _schedules)
+        {
+            if (!TimeOnly.TryParseExact(sched.StartTime, "h:mm tt", CultureInfo.InvariantCulture, DateTimeStyles.None, out var startTime)) continue;
+            if (!TimeOnly.TryParseExact(sched.EndTime, "h:mm tt", CultureInfo.InvariantCulture, DateTimeStyles.None, out var endTime)) continue;
+
+            var dayIndex = Array.IndexOf(_fullDayNames, sched.Day);
+            if (dayIndex < 0) continue;
+
+            var rangeStart = 7 * 60;
+            var startMinutes = startTime.Hour * 60 + startTime.Minute;
+            var endMinutes = endTime.Hour * 60 + endTime.Minute;
+
+            var clampedStart = Math.Max(startMinutes, rangeStart);
+            var clampedEnd = Math.Min(endMinutes, 17 * 60);
+            if (clampedStart >= clampedEnd) continue;
+
+            var slotStartMinutes = ((clampedStart - rangeStart) / 30) * 30 + rangeStart;
+            var slotIndex = (slotStartMinutes - rangeStart) / 30;
+            var spanSlots = Math.Max(1, (clampedEnd - slotStartMinutes + 29) / 30);
+
+            var sc = subjectColorMap.GetValueOrDefault(sched.SubjectId, _colorPalette[0]);
+
+            _gridEntries[(dayIndex, slotIndex)] = new TimetableBlock
+            {
+                Subject = sched.Subject,
+                SectionName = sched.Section,
+                Room = sched.Room,
+                StartTime = sched.StartTime,
+                EndTime = sched.EndTime,
+                SpanRows = (int)spanSlots,
+                ColorClass = sc.CssClass
+            };
+        }
+
+        _legendItems = legendSubjects
+            .Select(kv => new LegendItem(kv.Value, subjectColorMap[kv.Key].HexColor))
+            .ToList();
+    }
+
+    private void UpdateNowIndicator()
+    {
+        var now = DateTime.Now;
+        _todayIndex = now.DayOfWeek switch
+        {
+            DayOfWeek.Monday => 0,
+            DayOfWeek.Tuesday => 1,
+            DayOfWeek.Wednesday => 2,
+            DayOfWeek.Thursday => 3,
+            DayOfWeek.Friday => 4,
+            _ => -1
+        };
+
+        if (_todayIndex >= 0)
+        {
+            _todayCount = _schedules.Count(s => s.Day == _fullDayNames[_todayIndex]);
+        }
+
+        var currentMinutes = now.Hour * 60 + now.Minute;
+        var rangeStart = 7 * 60;
+        var rangeEnd = 17 * 60;
+
+        if (_todayIndex >= 0 && currentMinutes >= rangeStart && currentMinutes < rangeEnd)
+        {
+            _currentSlotIndex = (currentMinutes - rangeStart) / 30;
+        }
+        else
+        {
+            _currentSlotIndex = -1;
+        }
+    }
+
+    private async Task OpenLeaveModal(int dayIndex)
+    {
+        _selectedDay = _fullDayNames[dayIndex];
+        var clickedDate = GetNextWeekday(dayIndex);
+        _leaveStartDate = clickedDate;
+        _leaveEndDate = clickedDate;
+        _leaveReason = "";
+        _leaveCategory = "";
+        _leaveAffectedSchedules = [];
+        _leaveError = null;
+        _leaveSuccess = null;
+        _showLeaveModal = true;
+
+        await PreviewLeaveSchedule();
+    }
+
+    private void CloseLeaveModal()
+    {
+        _showLeaveModal = false;
+        _leaveReason = "";
+        _leaveCategory = "";
+        _leaveAffectedSchedules = [];
+        _leaveError = null;
+        _leaveSuccess = null;
+    }
+
+    private static DateTime GetNextWeekday(int dayIndex)
+    {
+        var today = DateTime.Today;
+        var diff = dayIndex - (int)today.DayOfWeek;
+        if (diff < 0) diff += 7;
+        return today.AddDays(diff);
+    }
+
+    private async Task PreviewLeaveSchedule()
+    {
+        _leaveAffectedSchedules = [];
+        _leaveError = null;
+
+        if (_leaveStartDate is null || _leaveEndDate is null) return;
+
+        if (_leaveEndDate < _leaveStartDate)
+        {
+            _leaveError = "End date must be after start date.";
+            return;
+        }
+
+        _leaveAffectedSchedules = await LeaveService.GetAffectedSchedulesAsync(
+            _currentTeacherId,
+            DateOnly.FromDateTime(_leaveStartDate.Value),
+            DateOnly.FromDateTime(_leaveEndDate.Value),
+            _cts.Token);
+    }
+
+    private async Task SubmitLeaveRequest()
+    {
+        _leaveError = null;
+        _leaveSuccess = null;
+
+        if (_leaveStartDate is null || _leaveEndDate is null)
+        {
+            _leaveError = "Please select start and end dates.";
+            return;
+        }
+
+        if (_leaveEndDate < _leaveStartDate)
+        {
+            _leaveError = "End date must be after start date.";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(_leaveReason))
+        {
+            _leaveError = "Please provide a reason for your leave.";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(_leaveCategory))
+        {
+            _leaveError = "Please select a leave category.";
+            return;
+        }
+
+        _isLeaveSubmitting = true;
+
+        try
+        {
+            await LeaveService.SubmitAsync(new SubmitLeaveRequest
+            {
+                TeacherId = _currentTeacherId,
+                Reason = _leaveReason,
+                Category = _leaveCategory,
+                StartDate = DateOnly.FromDateTime(_leaveStartDate.Value),
+                EndDate = DateOnly.FromDateTime(_leaveEndDate.Value)
+            }, _cts.Token);
+
+            _leaveSuccess = "Leave request submitted successfully!";
+            _leaveReason = "";
+            _leaveCategory = "";
+        }
+        catch (Exception ex)
+        {
+            _leaveError = $"Failed to submit: {ex.Message}";
+        }
+        finally
+        {
+            _isLeaveSubmitting = false;
+        }
+    }
+
+    public void Dispose()
+    {
+        _refreshTimer?.Dispose();
+        _cts.Cancel();
+        _cts.Dispose();
+    }
+}

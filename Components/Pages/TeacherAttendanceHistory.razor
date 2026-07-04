@@ -90,12 +90,12 @@
     </div>
 
     @* ── Body ── *@
-    <div style="flex:1;overflow-y:auto;background:#f1f5f9;padding:24px 40px;">
+    <div style="flex:1;overflow-y:auto;background:transparent;padding:24px 40px;">
         @if (_loading)
         {
             <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:80px 0;gap:16px;">
                 <div class="spinner" style="width:32px;height:32px;"></div>
-                <p style="color:#64748b;font-size:14px;">Loading history...</p>
+                <p style="color:rgba(255,255,255,0.5);font-size:14px;">Loading history...</p>
             </div>
         }
         else if (_error is not null)
@@ -105,9 +105,9 @@
         else if (_items.Count == 0)
         {
             <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:80px 0;gap:12px;">
-                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
-                <p style="font-size:15px;color:#94a3b8;font-weight:500;">No sessions found</p>
-                <p style="font-size:13px;color:#cbd5e1;">No attendance sessions in the selected date range.</p>
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.2)" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
+                <p style="font-size:15px;color:rgba(255,255,255,0.4);font-weight:500;">No sessions found</p>
+                <p style="font-size:13px;color:rgba(255,255,255,0.25);">No attendance sessions in the selected date range.</p>
             </div>
         }
         else
@@ -116,9 +116,9 @@
                 @foreach (var item in _items)
                 {
                     var isExpanded = _expandedId == item.SessionId;
-                    var bg = item.Status == "ENDED" ? "#fff" : "#f0fdf4";
-                    var border = item.Status == "ENDED" ? "#e2e8f0" : "#bbf7d0";
-                    var statusColor = item.Status == "ACTIVE" ? "#16a34a" : "#94a3b8";
+                    var bg = item.Status == "ENDED" ? "rgba(255,255,255,0.04)" : "rgba(34,197,94,0.06)";
+                    var border = item.Status == "ENDED" ? "rgba(255,255,255,0.06)" : "rgba(34,197,94,0.2)";
+                    var statusColor = item.Status == "ACTIVE" ? "#4ade80" : "rgba(255,255,255,0.4)";
                     var rateColor = item.AttendanceRate >= 90 ? "#16a34a" : item.AttendanceRate >= 75 ? "#ca8a04" : "#dc2626";
 
                     <div style="background:@bg;border:1px solid @border;border-radius:12px;overflow:hidden;transition:all 0.2s;animation:_slideUp 0.3s ease;">
@@ -128,14 +128,14 @@
                             </div>
                             <div style="flex:1;min-width:0;">
                                 <div style="display:flex;align-items:center;gap:8px;margin-bottom:2px;">
-                                    <span style="font-size:14px;font-weight:600;color:#1e293b;">@item.SectionName</span>
-                                    <span style="font-size:12px;color:#64748b;">· @item.SubjectName</span>
-                                    @if (!string.IsNullOrEmpty(item.Room))
-                                    {
-                                        <span style="font-size:11px;color:#94a3b8;background:#f1f5f9;padding:1px 6px;border-radius:4px;">Room @item.Room</span>
-                                    }
+                            <span style="font-size:14px;font-weight:600;color:#fff;">@item.SectionName</span>
+                            <span style="font-size:12px;color:rgba(255,255,255,0.5);">· @item.SubjectName</span>
+                            @if (!string.IsNullOrEmpty(item.Room))
+                            {
+                                <span style="font-size:11px;color:rgba(255,255,255,0.4);background:rgba(255,255,255,0.06);padding:1px 6px;border-radius:4px;">Room @item.Room</span>
+                            }
                                 </div>
-                                <div style="display:flex;align-items:center;gap:12px;font-size:12px;color:#94a3b8;">
+                                <div style="display:flex;align-items:center;gap:12px;font-size:12px;color:rgba(255,255,255,0.4);">
                                     <span>@item.SessionDate.ToLocalTime().ToString("MMM dd, yyyy · h:mm tt")</span>
                                     <span style="display:flex;align-items:center;gap:4px;">
                                         <span style="width:6px;height:6px;border-radius:50%;background:@statusColor;"></span>
@@ -157,7 +157,7 @@
                                         <span style="font-size:13px;font-weight:600;color:#dc2626;">@item.Absent</span>
                                         <div style="font-size:10px;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;">Absent</div>
                                     </div>
-                                    <div style="background:#f8fafc;padding:4px 10px;border-radius:6px;text-align:center;">
+                                    <div style="background:rgba(255,255,255,0.04);padding:4px 10px;border-radius:6px;text-align:center;">
                                         <span style="font-size:14px;font-weight:700;color:@rateColor;">@item.AttendanceRate%</span>
                                     </div>
                                 </div>
@@ -169,10 +169,10 @@
 
                         @if (isExpanded)
                         {
-                            <div style="border-top:1px solid #f1f5f9;animation:_slideUp 0.2s ease;">
-                                <div style="padding:4px 20px;background:#fafafa;display:flex;gap:8px;align-items:center;">
-                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-                                    <input style="flex:1;padding:8px 0;border:none;background:transparent;font-size:13px;color:#1e293b;outline:none;"
+                            <div style="border-top:1px solid rgba(255,255,255,0.04);animation:_slideUp 0.2s ease;">
+                                <div style="padding:4px 20px;background:rgba(255,255,255,0.02);display:flex;gap:8px;align-items:center;">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.4)" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                                    <input style="flex:1;padding:8px 0;border:none;background:transparent;font-size:13px;color:#fff;outline:none;"
                                            placeholder="Search students..."
                                            @bind="_searchText" @bind:event="oninput" />
                                 </div>
@@ -196,7 +196,7 @@
                                         {
                                             <table style="width:100%;border-collapse:collapse;">
                                                 <thead>
-                                                    <tr style="font-size:11px;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;">
+                                                    <tr style="font-size:11px;color:rgba(255,255,255,0.4);text-transform:uppercase;letter-spacing:0.5px;">
                                                         <th style="padding:8px 20px;text-align:left;font-weight:500;">Student</th>
                                                         <th style="padding:8px 20px;text-align:left;font-weight:500;">LRN</th>
                                                         <th style="padding:8px 20px;text-align:center;font-weight:500;width:100px;">Status</th>
@@ -206,21 +206,21 @@
                                                 <tbody>
                                                     @foreach (var stu in filtered)
                                                     {
-                                                        var sbg = stu.Status == "PRESENT" ? "#f0fdf4" : stu.Status == "LATE" ? "#fefce8" : stu.Status is null ? "#f8fafc" : "#fef2f2";
-                                                        var stxt = stu.Status == "PRESENT" ? "#16a34a" : stu.Status == "LATE" ? "#a16207" : stu.Status is null ? "#94a3b8" : "#dc2626";
+                                                        var sbg = stu.Status == "PRESENT" ? "rgba(34,197,94,0.15)" : stu.Status == "LATE" ? "rgba(234,179,8,0.15)" : stu.Status is null ? "rgba(255,255,255,0.03)" : "rgba(239,68,68,0.15)";
+                                                        var stxt = stu.Status == "PRESENT" ? "#4ade80" : stu.Status == "LATE" ? "#facc15" : stu.Status is null ? "rgba(255,255,255,0.4)" : "#f87171";
                                                         var slbl = stu.Status ?? "Unmarked";
-                                                        <tr style="border-top:1px solid #f1f5f9;">
+                                                        <tr style="border-top:1px solid rgba(255,255,255,0.04);">
                                                             <td style="padding:10px 20px;">
-                                                                <span style="font-size:13px;font-weight:500;color:#1e293b;">@stu.FullName</span>
+                                                                <span style="font-size:13px;font-weight:500;color:#fff;">@stu.FullName</span>
                                                             </td>
                                                             <td style="padding:10px 20px;">
-                                                                <span style="font-size:12px;color:#94a3b8;">@stu.Lrn</span>
+                                                                <span style="font-size:12px;color:rgba(255,255,255,0.4);">@stu.Lrn</span>
                                                             </td>
                                                             <td style="padding:10px 20px;text-align:center;">
                                                                 <span style="display:inline-block;padding:2px 10px;border-radius:6px;font-size:11px;font-weight:600;background:@sbg;color:@stxt;">@slbl</span>
                                                             </td>
                                                             <td style="padding:10px 20px;text-align:right;">
-                                                                <span style="font-size:12px;color:#94a3b8;">@(stu.ScannedAt?.ToLocalTime().ToString("h:mm tt") ?? "—")</span>
+                                                                <span style="font-size:12px;color:rgba(255,255,255,0.4);">@(stu.ScannedAt?.ToLocalTime().ToString("h:mm tt") ?? "—")</span>
                                                             </td>
                                                         </tr>
                                                     }

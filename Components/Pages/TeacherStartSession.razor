@@ -12,21 +12,21 @@
 <div style="height:calc(100vh - 64px);display:flex;flex-direction:column;overflow:hidden;">
 
     @* ── Status Bar ── *@
-    <div style="display:flex;align-items:center;gap:12px;padding:12px 24px;background:#fff;border-bottom:1px solid #e2e8f0;flex-shrink:0;">
+    <div style="display:flex;align-items:center;gap:12px;padding:12px 24px;background:rgba(255,255,255,0.03);backdrop-filter:blur(12px);border-bottom:1px solid rgba(255,255,255,0.06);flex-shrink:0;">
         @if (_sessionId > 0)
         {
-            <div style="display:flex;align-items:center;gap:8px;padding:4px 12px;border-radius:20px;background:#f0fdf4;">
-                <span style="width:8px;height:8px;border-radius:50%;background:#22c55e;animation:_pulse 2s infinite;"></span>
-                <span style="font-size:12px;font-weight:600;color:#16a34a;text-transform:uppercase;letter-spacing:0.5px;">Live</span>
+            <div style="display:flex;align-items:center;gap:8px;padding:4px 12px;border-radius:20px;background:rgba(34,197,94,0.15);">
+                <span style="width:8px;height:8px;border-radius:50%;background:#4ade80;animation:_pulse 2s infinite;"></span>
+                <span style="font-size:12px;font-weight:600;color:#4ade80;text-transform:uppercase;letter-spacing:0.5px;">Live</span>
             </div>
-            <span style="font-size:14px;font-weight:600;color:#1e293b;">@_sessionState?.SectionName</span>
-            <span style="font-size:13px;color:#64748b;">· @_sessionState?.SubjectName</span>
+            <span style="font-size:14px;font-weight:600;color:#fff;">@_sessionState?.SectionName</span>
+            <span style="font-size:13px;color:rgba(255,255,255,0.5);">· @_sessionState?.SubjectName</span>
             @if (!string.IsNullOrEmpty(_sessionState?.Room))
             {
-                <span style="font-size:13px;color:#94a3b8;">· Room @_sessionState.Room</span>
+                <span style="font-size:13px;color:rgba(255,255,255,0.4);">· Room @_sessionState.Room</span>
             }
             <div style="flex:1;"></div>
-            <span style="font-size:13px;color:#64748b;font-weight:500;padding:2px 8px;background:#f1f5f9;border-radius:4px;">
+            <span style="font-size:13px;color:rgba(255,255,255,0.5);font-weight:500;padding:2px 8px;background:rgba(255,255,255,0.04);border-radius:4px;">
                 @_syncQueue events
             </span>
             <button class="btn btn-ghost" @onclick="OpenScanner" title="Scan QR">
@@ -39,33 +39,33 @@
         }
         else
         {
-            <div style="display:flex;align-items:center;gap:8px;padding:4px 12px;border-radius:20px;background:#f1f5f9;">
-                <span style="width:8px;height:8px;border-radius:50%;background:#94a3b8;"></span>
-                <span style="font-size:12px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;">No Session</span>
+            <div style="display:flex;align-items:center;gap:8px;padding:4px 12px;border-radius:20px;background:rgba(255,255,255,0.04);">
+                <span style="width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,0.4);"></span>
+                <span style="font-size:12px;font-weight:600;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:0.5px;">No Session</span>
             </div>
-            <span style="font-size:14px;color:#64748b;">Scan a QR code or select a class below</span>
+            <span style="font-size:14px;color:rgba(255,255,255,0.5);">Scan a QR code or select a class below</span>
             <div style="flex:1;"></div>
         }
     </div>
 
     @if (_loading)
     {
-        <div style="flex:1;display:flex;align-items:center;justify-content:center;padding:32px;background:#f8fafc;">
+        <div style="flex:1;display:flex;align-items:center;justify-content:center;padding:32px;background:transparent;">
             <div style="max-width:560px;width:100%;">
-                <h2 style="font-size:22px;font-weight:700;color:#1e293b;text-align:center;margin-bottom:8px;">Start a Session</h2>
-                <p style="font-size:14px;color:#64748b;text-align:center;margin-bottom:24px;">Loading your classes...</p>
+                <h2 style="font-size:22px;font-weight:700;color:#fff;text-align:center;margin-bottom:8px;">Start a Session</h2>
+                <p style="font-size:14px;color:rgba(255,255,255,0.5);text-align:center;margin-bottom:24px;">Loading your classes...</p>
                 <div style="display:flex;flex-direction:column;gap:12px;">
                     @for (var i = 0; i < 3; i++)
                     {
-                        <div style="padding:16px 20px;border:1px solid #e2e8f0;border-radius:8px;background:#fff;">
+                        <div style="padding:16px 20px;border:1px solid rgba(255,255,255,0.06);border-radius:8px;background:rgba(255,255,255,0.03);">
                             <div style="display:flex;align-items:center;justify-content:space-between;width:100%;">
                                 <div style="flex:1;">
-                                    <div style="width:180px;height:16px;background:linear-gradient(90deg,#e2e8f0 25%,#f1f5f9 50%,#e2e8f0 75%);background-size:200% 100%;animation:_shimmer 1.5s infinite;border-radius:4px;margin-bottom:8px;"></div>
-                                    <div style="width:100px;height:12px;background:linear-gradient(90deg,#e2e8f0 25%,#f1f5f9 50%,#e2e8f0 75%);background-size:200% 100%;animation:_shimmer 1.5s infinite;border-radius:4px;"></div>
+                                    <div style="width:180px;height:16px;background:linear-gradient(90deg,rgba(255,255,255,0.06) 25%,rgba(255,255,255,0.1) 50%,rgba(255,255,255,0.06) 75%);background-size:200% 100%;animation:_shimmer 1.5s infinite;border-radius:4px;margin-bottom:8px;"></div>
+                                    <div style="width:100px;height:12px;background:linear-gradient(90deg,rgba(255,255,255,0.06) 25%,rgba(255,255,255,0.1) 50%,rgba(255,255,255,0.06) 75%);background-size:200% 100%;animation:_shimmer 1.5s infinite;border-radius:4px;"></div>
                                 </div>
                                 <div style="text-align:right;">
-                                    <div style="width:50px;height:16px;background:linear-gradient(90deg,#e2e8f0 25%,#f1f5f9 50%,#e2e8f0 75%);background-size:200% 100%;animation:_shimmer 1.5s infinite;border-radius:4px;margin-bottom:8px;margin-left:auto;"></div>
-                                    <div style="width:70px;height:12px;background:linear-gradient(90deg,#e2e8f0 25%,#f1f5f9 50%,#e2e8f0 75%);background-size:200% 100%;animation:_shimmer 1.5s infinite;border-radius:4px;margin-left:auto;"></div>
+                                    <div style="width:50px;height:16px;background:linear-gradient(90deg,rgba(255,255,255,0.06) 25%,rgba(255,255,255,0.1) 50%,rgba(255,255,255,0.06) 75%);background-size:200% 100%;animation:_shimmer 1.5s infinite;border-radius:4px;margin-bottom:8px;margin-left:auto;"></div>
+                                    <div style="width:70px;height:12px;background:linear-gradient(90deg,rgba(255,255,255,0.06) 25%,rgba(255,255,255,0.1) 50%,rgba(255,255,255,0.06) 75%);background-size:200% 100%;animation:_shimmer 1.5s infinite;border-radius:4px;margin-left:auto;"></div>
                                 </div>
                             </div>
                         </div>
@@ -76,7 +76,7 @@
     }
     else if (_error is not null)
     {
-        <div style="flex:1;display:flex;align-items:center;justify-content:center;padding:32px;background:#f8fafc;">
+        <div style="flex:1;display:flex;align-items:center;justify-content:center;padding:32px;background:transparent;">
             <div style="max-width:400px;width:100%;text-align:center;">
                 <div class="error-banner">@_error</div>
                 <button class="btn btn-primary" @onclick="LoadDataAsync" style="margin-top:12px;">Retry</button>
@@ -86,7 +86,7 @@
     else
     {
         @* ── Unified Layout: Viewfinder + optional Roster ── *@
-        <div style="flex:1;display:flex;overflow:hidden;background:#f8fafc;">
+        <div style="flex:1;display:flex;overflow:hidden;background:transparent;">
 
             @* ── Viewfinder Zone ── *@
             <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px;position:relative;">
@@ -117,17 +117,17 @@
                             }
                         </div>
                         <div style="display:flex;gap:8px;margin-top:12px;">
-                            <input style="flex:1;padding:10px 14px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;text-align:center;outline:none;"
+                            <input style="flex:1;padding:10px 14px;border:1px solid rgba(255,255,255,0.1);border-radius:8px;font-size:13px;text-align:center;outline:none;background:rgba(255,255,255,0.05);color:#fff;"
                                    placeholder="Paste QR token..."
                                    @bind="_qrInput" @bind:event="oninput" />
                             <button class="btn btn-primary" @onclick="ProcessQrInput" disabled="@_saving">Go</button>
                         </div>
                         @if (!string.IsNullOrEmpty(_qrFeedback))
                         {
-                            <p style="text-align:center;margin-top:6px;font-size:13px;color:@(_qrFeedback.Contains("✓") || _qrFeedback.Contains("marked") ? "#22c55e" : "#ef4444");">@_qrFeedback</p>
+                            <p style="text-align:center;margin-top:6px;font-size:13px;color:@(_qrFeedback.Contains("✓") || _qrFeedback.Contains("marked") ? "#4ade80" : "#f87171");">@_qrFeedback</p>
                         }
                     </div>
-                    <button class="btn" @onclick="CloseScanner" style="margin-top:16px;background:#f1f5f9;color:#64748b;border-color:#e2e8f0;">
+                    <button class="btn" @onclick="CloseScanner" style="margin-top:16px;background:rgba(255,255,255,0.04);color:rgba(255,255,255,0.6);border-color:rgba(255,255,255,0.1);">
                         Stop Camera
                     </button>
                 }
@@ -147,7 +147,7 @@
                         <div style="position:absolute;left:10%;right:10%;height:2px;background:linear-gradient(90deg,transparent,#6366f1,transparent);box-shadow:0 0 8px rgba(99,102,241,0.5);animation:_scanLine 2s ease-in-out infinite;border-radius:1px;"></div>
                         <div style="width:160px;height:160px;border-radius:50%;border:2px dashed #c7d2fe;animation:_scanPulse 3s ease-in-out infinite;"></div>
                         <div style="position:absolute;bottom:0;text-align:center;">
-                            <p style="font-size:14px;color:#64748b;font-weight:500;">Point camera at a QR code</p>
+                            <p style="font-size:14px;color:rgba(255,255,255,0.5);font-weight:500;">Point camera at a QR code</p>
                         </div>
                     </div>
 
@@ -160,26 +160,26 @@
                 @if (_sessionId == 0)
                 {
                     <div style="display:flex;align-items:center;gap:16px;margin-top:32px;width:400px;">
-                        <div style="flex:1;height:1px;background:#e2e8f0;"></div>
-                        <span style="font-size:13px;color:#94a3b8;font-weight:500;text-transform:uppercase;letter-spacing:1px;">or</span>
-                        <div style="flex:1;height:1px;background:#e2e8f0;"></div>
+                        <div style="flex:1;height:1px;background:rgba(255,255,255,0.06);"></div>
+                        <span style="font-size:13px;color:rgba(255,255,255,0.3);font-weight:500;text-transform:uppercase;letter-spacing:1px;">or</span>
+                        <div style="flex:1;height:1px;background:rgba(255,255,255,0.06);"></div>
                     </div>
 
                     <div style="margin-top:20px;text-align:center;">
-                        <p style="font-size:13px;color:#64748b;margin-bottom:10px;">Select a section to start a class session</p>
+                        <p style="font-size:13px;color:rgba(255,255,255,0.5);margin-bottom:10px;">Select a section to start a class session</p>
                         @if (_sections.Count == 0)
                         {
-                            <p style="font-size:13px;color:#94a3b8;">No classes scheduled for today.</p>
+                            <p style="font-size:13px;color:rgba(255,255,255,0.3);">No classes scheduled for today.</p>
                         }
                         else
                         {
                             <div style="display:flex;gap:8px;max-width:420px;width:100%;">
-                                <select style="flex:1;padding:10px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;color:#1e293b;background:#fff;outline:none;"
+                                <select style="flex:1;padding:10px 12px;border:1px solid rgba(255,255,255,0.1);border-radius:8px;font-size:13px;color:#fff;background:rgba(255,255,255,0.05);outline:none;"
                                         @bind="_selectedOfferingId" @bind:after="StartFromDropdown">
-                                    <option value="0">Choose a section...</option>
+                                    <option style="background:#141E3A;color:#fff;" value="0">Choose a section...</option>
                                     @foreach (var sec in _sections)
                                     {
-                                        <option value="@(sec.OfferingId?.ToString() ?? "0")">
+                                        <option style="background:#141E3A;color:#fff;" value="@(sec.OfferingId?.ToString() ?? "0")">
                                             @sec.SectionName — @sec.Subject (@sec.TimeDisplay)
                                         </option>
                                     }
@@ -198,7 +198,7 @@
                     <div style="position:absolute;bottom:32px;left:50%;transform:translateX(-50%);display:flex;flex-direction:column;gap:8px;width:320px;">
                         @foreach (var n in _notifications)
                         {
-                            <div style="padding:10px 14px;border-radius:8px;font-size:13px;font-weight:500;display:flex;align-items:center;gap:8px;box-shadow:0 4px 12px rgba(0,0,0,0.1);animation:_slideUp 0.3s ease;background:@(n.Type == "present" ? "#f0fdf4" : n.Type == "late" ? "#fefce8" : "#fef2f2");color:@(n.Type == "present" ? "#16a34a" : n.Type == "late" ? "#a16207" : "#dc2626");">
+                            <div style="padding:10px 14px;border-radius:8px;font-size:13px;font-weight:500;display:flex;align-items:center;gap:8px;box-shadow:0 4px 12px rgba(0,0,0,0.3);animation:_slideUp 0.3s ease;background:@(n.Type == "present" ? "rgba(34,197,94,0.15)" : n.Type == "late" ? "rgba(234,179,8,0.15)" : "rgba(239,68,68,0.15)");color:@(n.Type == "present" ? "#4ade80" : n.Type == "late" ? "#facc15" : "#f87171");">
                                 <span>@n.Text</span>
                                 <button style="margin-left:auto;background:none;border:none;cursor:pointer;color:inherit;padding:2px;" @onclick="() => DismissNotification(n)">✕</button>
                             </div>
@@ -210,20 +210,20 @@
             @* ── Roster Panel (only when session active) ── *@
             @if (_sessionId > 0)
             {
-                <div style="width:384px;border-left:1px solid #e2e8f0;background:#fff;display:flex;flex-direction:column;flex-shrink:0;">
-                    <div style="padding:16px;border-bottom:1px solid #e2e8f0;box-shadow:inset 3px 0 0 #22c55e;">
+                <div style="width:384px;border-left:1px solid rgba(255,255,255,0.06);background:rgba(255,255,255,0.03);backdrop-filter:blur(12px);display:flex;flex-direction:column;flex-shrink:0;">
+                    <div style="padding:16px;border-bottom:1px solid rgba(255,255,255,0.04);box-shadow:inset 3px 0 0 #4ade80;">
                         <div style="display:flex;align-items:center;justify-content:space-between;">
-                            <h3 style="font-size:15px;font-weight:700;color:#1e293b;">@_sessionState?.SectionName</h3>
+                            <h3 style="font-size:15px;font-weight:700;color:#fff;">@_sessionState?.SectionName</h3>
                             <div style="display:flex;gap:12px;font-size:12px;">
-                                <span style="color:#22c55e;font-weight:600;">@(_sessionState?.PresentCount ?? 0) P</span>
-                                <span style="color:#eab308;font-weight:600;">@(_sessionState?.LateCount ?? 0) L</span>
-                                <span style="color:#ef4444;font-weight:600;">@(_sessionState?.AbsentCount ?? 0) A</span>
+                                <span style="color:#4ade80;font-weight:600;">@(_sessionState?.PresentCount ?? 0) P</span>
+                                <span style="color:#facc15;font-weight:600;">@(_sessionState?.LateCount ?? 0) L</span>
+                                <span style="color:#f87171;font-weight:600;">@(_sessionState?.AbsentCount ?? 0) A</span>
                             </div>
                         </div>
 
                         <div style="position:relative;margin-top:12px;">
-                            <svg style="position:absolute;left:10px;top:50%;transform:translateY(-50%);" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-                            <input style="width:100%;padding:8px 10px 8px 30px;border:1px solid #e2e8f0;border-radius:6px;font-size:13px;outline:none;"
+                            <svg style="position:absolute;left:10px;top:50%;transform:translateY(-50%);" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.3)" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                            <input style="width:100%;padding:8px 10px 8px 30px;border:1px solid rgba(255,255,255,0.1);border-radius:6px;font-size:13px;outline:none;background:rgba(255,255,255,0.05);color:#fff;"
                                    placeholder="Search by name or ID..."
                                    @bind="_rosterSearch" @bind:event="oninput" />
                         </div>
@@ -232,7 +232,7 @@
                     <div style="flex:1;overflow-y:auto;">
                         @if (_students.Count == 0)
                         {
-                            <div style="text-align:center;padding:48px 16px;color:#94a3b8;font-size:13px;">No students found.</div>
+                            <div style="text-align:center;padding:48px 16px;color:rgba(255,255,255,0.4);font-size:13px;">No students found.</div>
                         }
                         else
                         {
@@ -243,37 +243,37 @@
                                     "PRESENT" => "#22c55e",
                                     "LATE" => "#eab308",
                                     "ABSENT" => "#ef4444",
-                                    _ => "#e2e8f0"
+                                    _ => "rgba(255,255,255,0.1)"
                                 };
                                 var avatarText = s.Status switch
                                 {
                                     "PRESENT" => "#fff",
                                     "LATE" => "#fff",
                                     "ABSENT" => "#fff",
-                                    _ => "#94a3b8"
+                                    _ => "rgba(255,255,255,0.5)"
                                 };
 
-                                <div style="display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid #f1f5f9;">
+                                <div style="display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid rgba(255,255,255,0.04);">
                                     <div style="width:32px;height:32px;border-radius:50%;background:@avatarBg;color:@avatarText;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;flex-shrink:0;">
                                         @s.FullName[..1].ToUpper()
                                     </div>
                                     <div style="flex:1;min-width:0;">
-                                        <div style="font-size:13px;font-weight:500;color:#1e293b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">@s.FullName</div>
-                                        <div style="font-size:11px;color:#94a3b8;">@s.StudentNumber</div>
+                                        <div style="font-size:13px;font-weight:500;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">@s.FullName</div>
+                                        <div style="font-size:11px;color:rgba(255,255,255,0.4);">@s.StudentNumber</div>
                                     </div>
                                     @if (s.Status is not null)
                                     {
-                                        var badgeBg = s.Status == "PRESENT" ? "#f0fdf4" : s.Status == "LATE" ? "#fefce8" : "#fef2f2";
-                                        var badgeText = s.Status == "PRESENT" ? "#16a34a" : s.Status == "LATE" ? "#a16207" : "#dc2626";
+                                        var badgeBg = s.Status == "PRESENT" ? "rgba(34,197,94,0.15)" : s.Status == "LATE" ? "rgba(234,179,8,0.15)" : "rgba(239,68,68,0.15)";
+                                        var badgeText = s.Status == "PRESENT" ? "#4ade80" : s.Status == "LATE" ? "#facc15" : "#f87171";
                                         <span style="font-size:11px;font-weight:600;padding:2px 8px;border-radius:4px;background:@badgeBg;color:@badgeText;cursor:pointer;" @onclick="() => UndoMarkAsync(s.StudentId)" title="Click to undo">
-                                            @s.Status @(s.ScannedAt.HasValue ? s.ScannedAt.Value.ToString("HH:mm") : "")
+                                            @s.Status @(s.ScannedAt.HasValue ? s.ScannedAt.Value.ToString("h:mm tt") : "")
                                         </span>
                                     }
                                     else
                                     {
                                         <button class="btn btn-xs btn-ghost" @onclick="() => MarkStudentAsync(s.StudentId)"
                                                 disabled="@_saving" title="Mark Present"
-                                                style="border:2px dashed #cbd5e1;border-radius:50%;width:32px;height:32px;padding:0;display:flex;align-items:center;justify-content:center;color:#94a3b8;">
+                                                style="border:2px dashed rgba(255,255,255,0.2);border-radius:50%;width:32px;height:32px;padding:0;display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,0.4);">
                                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
                                         </button>
                                     }
@@ -282,7 +282,7 @@
                         }
                     </div>
 
-                    <div style="padding:12px 16px;border-top:1px solid #e2e8f0;font-size:12px;color:#94a3b8;display:flex;justify-content:space-between;">
+                    <div style="padding:12px 16px;border-top:1px solid rgba(255,255,255,0.04);font-size:12px;color:rgba(255,255,255,0.4);display:flex;justify-content:space-between;">
                         <span>@_filteredStudents.Count visible</span>
                         <span>@_students.Count(s => s.Status is not null) / @_students.Count marked</span>
                     </div>

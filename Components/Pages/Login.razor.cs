@@ -12,6 +12,12 @@ public partial class Login : ComponentBase
     private string? errorMessage;
     private string? usernameError;
     private string? passwordError;
+    private bool _showPassword;
+
+    private void TogglePasswordVisibility()
+    {
+        _showPassword = !_showPassword;
+    }
 
     [Inject]
     private IAuthService AuthService { get; set; } = null!;

@@ -89,7 +89,7 @@ public class TeacherSessionService : ITeacherSessionService
         {
             var hasSchedules = timesByOffering.TryGetValue(offering.Id, out var schedules);
             var timeDisplay = hasSchedules && schedules!.Count > 0
-                ? string.Join(", ", schedules.Select(s => $"{s.StartTime:hh\\:mm}-{s.EndTime:hh\\:mm}"))
+                ? string.Join(", ", schedules.Select(s => $"{s.StartTime:h\\:mm tt}-{s.EndTime:h\\:mm tt}"))
                 : null;
 
             result.Add(new SectionSelectItem

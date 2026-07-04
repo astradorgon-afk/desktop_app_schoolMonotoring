@@ -34,6 +34,7 @@ public static class MauiProgram
 		builder.Services.AddSingleton<IReportService, ReportService>();
 		builder.Services.AddSingleton<ITeacherSessionService, TeacherSessionService>();
 		builder.Services.AddSingleton<IStudentPortalService, StudentPortalService>();
+		builder.Services.AddSingleton<ILeaveRequestService, LeaveRequestService>();
 
 #if DEBUG
 		builder.Services.AddBlazorWebViewDeveloperTools();

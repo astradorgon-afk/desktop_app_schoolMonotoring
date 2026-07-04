@@ -27,11 +27,25 @@ else if (_error is not null)
 }
 else if (_data is not null)
 {
+    @* Upload error snackbar *@
+    @if (!string.IsNullOrEmpty(_uploadError))
+    {
+        <div style="padding:0 32px 24px;">
+            <div style="display:flex;align-items:center;gap:8px;padding:10px 14px;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.2);border-radius:10px;color:#ef4444;font-size:13px;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+                <span style="flex:1;">@_uploadError</span>
+                <button type="button" @onclick="() => _uploadError = null" style="background:none;border:none;color:rgba(239,68,68,0.6);cursor:pointer;padding:2px;">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+            </div>
+        </div>
+    }
+
     @* Profile and Info Section *@
     <div style="padding: 0 32px 24px;">
         <div class="page-card" style="display:flex; align-items:center; gap: 24px;">
             @* Profile Picture *@
-            <div style="flex-shrink:0;">
+            <div style="flex-shrink:0;position:relative;">
                 @if (_data.ProfilePicture is not null && _data.ProfilePicture.Length > 0)
                 {
                     var base64 = Convert.ToBase64String(_data.ProfilePicture);
@@ -41,6 +55,16 @@ else if (_data is not null)
                 {
                     <div style="width:80px;height:80px;border-radius:50%;background:#eef2ff;display:flex;align-items:center;justify-content:center;border:3px solid #e2e8f0;">
                         <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#6366f1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                    </div>
+                }
+                <label for="profile-upload" style="position:absolute;bottom:-4px;right:-4px;width:28px;height:28px;border-radius:50%;background:#6366f1;border:2px solid #fff;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:background 0.15s;" title="Change profile picture">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                </label>
+                <InputFile id="profile-upload" accept="image/png,image/jpeg,image/jpg,image/gif,image/webp" OnChange="OnProfilePictureSelected" style="display:none;" />
+                @if (_isUploading)
+                {
+                    <div style="position:absolute;inset:0;border-radius:50%;background:rgba(0,0,0,0.4);display:flex;align-items:center;justify-content:center;">
+                        <div class="spinner" style="width:20px;height:20px;border-width:2px;"></div>
                     </div>
                 }
             </div>
@@ -261,6 +285,10 @@ else if (_data is not null)
         <div class="page-card">
             <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom: 16px;">
                 <h2 class="card-heading" style="margin-bottom:0;">Recent Attendance</h2>
+                <a href="/student/attendance" style="display:inline-flex;align-items:center;gap:4px;font-size:13px;color:#6366f1;text-decoration:none;font-weight:500;">
+                    View All
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+                </a>
             </div>
 
             @if (_data.RecentAttendance.Count == 0)
@@ -280,7 +308,7 @@ else if (_data is not null)
                             </tr>
                         </thead>
                         <tbody>
-                            @foreach (var record in _data.RecentAttendance)
+                            @foreach (var record in _data.RecentAttendance.Take(5))
                             {
                                 var (statusColor, statusBg) = record.Status switch
                                 {
@@ -311,6 +339,9 @@ else if (_data is not null)
     private StudentDashboardData? _data;
     private bool _isLoading = true;
     private string? _error;
+    private bool _isUploading;
+    private string? _uploadError;
+    private long _studentId;
 
     private readonly CancellationTokenSource _cts = new();
 
@@ -340,6 +371,7 @@ else if (_data is not null)
                 return;
             }
 
+            _studentId = student.Id;
             _data = await StudentPortalService.GetDashboardAsync(student.Id, _cts.Token);
         }
         catch (Exception ex)
@@ -352,10 +384,47 @@ else if (_data is not null)
         }
     }
 
+    private async Task OnProfilePictureSelected(InputFileChangeEventArgs e)
+    {
+        var file = e.File;
+        if (file is null) return;
+
+        const int maxSize = 2 * 1024 * 1024;
+        if (file.Size > maxSize)
+        {
+            _uploadError = "Image must be smaller than 2MB.";
+            return;
+        }
+
+        _isUploading = true;
+        _uploadError = null;
+
+        try
+        {
+            using var stream = file.OpenReadStream(maxSize);
+            using var ms = new MemoryStream();
+            await stream.CopyToAsync(ms);
+
+            var ok = await StudentPortalService.UpdateProfilePictureAsync(_studentId, ms.ToArray(), _cts.Token);
+            if (ok)
+            {
+                _data = await StudentPortalService.GetDashboardAsync(_studentId, _cts.Token);
+            }
+        }
+        catch (Exception ex)
+        {
+            _uploadError = $"Failed to upload: {ex.Message}";
+        }
+        finally
+        {
+            _isUploading = false;
+        }
+    }
+
     private static bool IsTimeSlotActive(string startTime, string endTime)
     {
-        if (TimeOnly.TryParse(startTime, out var start) &&
-            TimeOnly.TryParse(endTime, out var end))
+        if (TimeOnly.TryParseExact(startTime, "h:mm tt", CultureInfo.InvariantCulture, DateTimeStyles.None, out var start) &&
+            TimeOnly.TryParseExact(endTime, "h:mm tt", CultureInfo.InvariantCulture, DateTimeStyles.None, out var end))
         {
             var now = TimeOnly.FromDateTime(DateTime.Now);
             return now >= start && now <= end;

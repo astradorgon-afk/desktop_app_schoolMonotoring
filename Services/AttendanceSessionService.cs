@@ -87,7 +87,7 @@ public class AttendanceSessionService : IAttendanceSessionService
 
             var times = schedules
                 .OrderBy(s => s.StartTime)
-                .Select(s => $"{s.StartTime:hh\\:mm}-{s.EndTime:hh\\:mm}")
+                .Select(s => $"{s.StartTime:h\\:mm tt}-{s.EndTime:h\\:mm tt}")
                 .ToList();
 
             var sessionId = sessionByOffering.GetValueOrDefault(off.Id);

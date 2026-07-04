@@ -1,4 +1,5 @@
 using System.Resources;
+using System.Text.Json;
 using AttendanceUI.Data.Entities;
 using AttendanceUI.Models.Auth;
 using AttendanceUI.Resources;
@@ -14,6 +15,8 @@ public class AuthService : IAuthService
     private readonly ResourceManager _logMessages = new(typeof(LogMessages));
 
     private UserSession? _currentSession;
+
+    private const string SessionPrefKey = "auth_session";
 
     public AuthService(IUserService userService, ILogger<AuthService> logger)
     {
@@ -92,6 +95,15 @@ public class AuthService : IAuthService
             LoggedInAt = DateTime.UtcNow
         };
 
+        if (request.RememberMe)
+        {
+            PersistSession(_currentSession);
+        }
+        else
+        {
+            ClearPersistedSession();
+        }
+
         _logger.LogInformation(
             _logMessages.GetString("Auth_LoginSuccess") ?? "User '{Username}' logged in successfully.",
             request.Username);
@@ -109,11 +121,59 @@ public class AuthService : IAuthService
         }
 
         _currentSession = null;
+        ClearPersistedSession();
         return Task.CompletedTask;
     }
 
     public Task<UserSession?> GetCurrentSessionAsync()
     {
+        if (_currentSession is not null)
+            return Task.FromResult(_currentSession);
+
+        _currentSession = LoadPersistedSession();
         return Task.FromResult(_currentSession);
+    }
+
+    private static void PersistSession(UserSession session)
+    {
+        try
+        {
+            var json = JsonSerializer.Serialize(session);
+            Preferences.Set(SessionPrefKey, json);
+        }
+        catch
+        {
+            // Silently fail - persistence is best-effort
+        }
+    }
+
+    private static UserSession? LoadPersistedSession()
+    {
+        try
+        {
+            var json = Preferences.Get(SessionPrefKey, null);
+            if (string.IsNullOrEmpty(json))
+                return null;
+
+            return JsonSerializer.Deserialize<UserSession>(json);
+        }
+        catch
+        {
+            ClearPersistedSession();
+            return null;
+        }
+    }
+
+    private static void ClearPersistedSession()
+    {
+        try
+        {
+            if (Preferences.ContainsKey(SessionPrefKey))
+                Preferences.Remove(SessionPrefKey);
+        }
+        catch
+        {
+            // Silently fail
+        }
     }
 }

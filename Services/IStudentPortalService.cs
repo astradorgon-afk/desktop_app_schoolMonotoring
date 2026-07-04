@@ -44,4 +44,8 @@ public interface IStudentPortalService
     Task<Data.Entities.Student?> GetStudentByUserIdAsync(long userId, CancellationToken cancellationToken = default);
 
     Task<StudentDashboardData?> GetDashboardAsync(long studentId, CancellationToken cancellationToken = default);
+
+    Task<List<StudentAttendanceHistoryView>> GetAttendanceHistoryAsync(long studentId, CancellationToken cancellationToken = default);
+
+    Task<bool> UpdateProfilePictureAsync(long studentId, byte[] imageBytes, CancellationToken cancellationToken = default);
 }

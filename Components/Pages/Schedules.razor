@@ -87,7 +87,7 @@ else
                 var slot = _timeSlots[si];
                 @* time label *@
                 <div class="tt-timecol" style="grid-row:@row;grid-column:1;">
-                    <div class="tt-timelabel">@slot.ToString("HH\\:mm")</div>
+                    <div class="tt-timelabel">@slot.ToString("h\\:mm tt")</div>
                 </div>
                 @for (var di = 0; di < _dayIndices.Length; di++)
                 {
@@ -218,7 +218,7 @@ else
                         {
                             <tr>
                                 <td><span class="day-badge">@_days[entry.DayOfWeek - 1]</span></td>
-                                <td>@entry.StartTime.ToString("HH\\:mm") – @entry.EndTime.ToString("HH\\:mm")</td>
+                                <td>@entry.StartTime.ToString("h\\:mm tt") – @entry.EndTime.ToString("h\\:mm tt")</td>
                                 <td>@entry.Subject</td>
                                 <td>@entry.TeacherName</td>
                                 <td>@(!string.IsNullOrEmpty(entry.Room) ? entry.Room : "—")</td>
@@ -239,7 +239,7 @@ else
 @if (_showCellModal)
 {
     var modalDayName = _modalDay.HasValue && _modalDay.Value >= 1 && _modalDay.Value <= 6 ? _days[_modalDay.Value - 1] : "";
-    var modalTimeStr = _modalTime?.ToString("HH\\:mm") ?? "";
+    var modalTimeStr = _modalTime?.ToString("h\\:mm tt") ?? "";
 
     <div class="modal-overlay" @onclick="CloseCellModal">
         <div class="modal-content" style="max-width:520px;" @onclick:stopPropagation>
@@ -356,7 +356,7 @@ else
                         <select class="filter-select" style="width:100%;@(_formErrors.ContainsKey("endTime") ? "border-color:#ef4444;" : "")" @bind="_formEndTime">
                             <option value="">— Select —</option>
                             @{
-                                var startIdx = _modalTime.HasValue ? Array.IndexOf(_timeOptions, _modalTime.Value.ToString("HH\\:mm")) + 1 : -1;
+                                var startIdx = _modalTime.HasValue ? Array.IndexOf(_timeOptions, _modalTime.Value.ToString("h\\:mm tt")) + 1 : -1;
                             }
                             @for (var ti = Math.Max(startIdx, 0); ti < _timeOptions.Length; ti++)
                             {
@@ -421,7 +421,7 @@ else
         { 4, "Thursday" }, { 5, "Friday" }, { 6, "Saturday" }
     };
     private static readonly string[] _timeOptions =
-        Enumerable.Range(0, 22).Select(i => new TimeOnly(7, 0).AddMinutes(i * 30).ToString("HH\\:mm")).ToArray();
+        Enumerable.Range(0, 22).Select(i => new TimeOnly(7, 0).AddMinutes(i * 30).ToString("h\\:mm tt")).ToArray();
 
     // Precomputed 30-minute slots from 07:00 to 17:00
     private static readonly List<TimeOnly> _timeSlots =
@@ -586,7 +586,7 @@ else
             _formSubjectId = entry?.SubjectId ?? 0;
             _formTeacherId = entry?.TeacherId ?? 0;
             _formRoom = entry?.Room ?? "";
-            _formEndTime = entry?.EndTime.ToString("HH\\:mm") ?? "";
+            _formEndTime = entry?.EndTime.ToString("h\\:mm tt") ?? "";
         }
         else
         {
