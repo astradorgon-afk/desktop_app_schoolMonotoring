@@ -56,7 +56,7 @@ else if (_isTeacher)
                 @if (_affectedSchedules.Count > 0)
                 {
                     <div style="margin-bottom:16px;">
-                        <label class="form-label" style="margin-bottom:8px;">Affected Classes</label>
+                        <label class="form-label" style="margin-bottom:8px;">Affected Classes (@_affectedSchedules.Count)</label>
                         <div class="leave-affected-list">
                             @foreach (var s in _affectedSchedules)
                             {
@@ -148,25 +148,236 @@ else if (_isTeacher)
 }
 else
 {
-    <div class="page-card" style="margin:0 32px;">
-        <p class="text-muted">Leave request management for admins — coming soon.</p>
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-icon stat-icon--yellow">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            </div>
+            <div class="stat-info">
+                <span class="stat-value">@_pendingCount</span>
+                <span class="stat-label">Pending</span>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon stat-icon--green">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+            </div>
+            <div class="stat-info">
+                <span class="stat-value">@_approvedCount</span>
+                <span class="stat-label">Approved</span>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon stat-icon--red">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+            </div>
+            <div class="stat-info">
+                <span class="stat-value">@_rejectedCount</span>
+                <span class="stat-label">Rejected</span>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon stat-icon--blue">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+            </div>
+            <div class="stat-info">
+                <span class="stat-value">@_allRequests.Count</span>
+                <span class="stat-label">Total</span>
+            </div>
+        </div>
     </div>
+
+    <div style="padding:0 32px 24px;">
+        <div style="display:flex;align-items:center;gap:16px;margin-bottom:16px;flex-wrap:wrap;">
+            <div style="display:flex;gap:4px;background:var(--clr-surface);border:1px solid var(--clr-border);border-radius:10px;padding:3px;">
+                <button type="button" class="@(_showPendingOnly ? "tab-btn tab-btn--active" : "tab-btn")" @onclick="() => { _showPendingOnly = true; ApplyFilter(); }">Pending</button>
+                <button type="button" class="@(!_showPendingOnly ? "tab-btn tab-btn--active" : "tab-btn")" @onclick="() => { _showPendingOnly = false; ApplyFilter(); }">All Requests</button>
+            </div>
+            <input type="text" class="form-input" @bind="_searchQuery" @bind:after="ApplyFilter" placeholder="Search teacher..." style="flex:1;min-width:200px;max-width:320px;padding:9px 14px;" />
+        </div>
+
+        <div class="page-card" style="padding:0;">
+            @if (_filteredRequests.Count == 0)
+            {
+                <div style="text-align:center;padding:48px 16px;color:var(--clr-text-muted);">
+                    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin-bottom:8px;"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                    <p>@(_showPendingOnly ? "No pending leave requests." : "No leave requests found.")</p>
+                </div>
+            }
+            else
+            {
+                <div class="leave-table-wrapper">
+                    <table class="students-table">
+                        <thead>
+                            <tr>
+                                <th>Teacher</th>
+                                <th>Dates</th>
+                                <th>Duration</th>
+                                <th>Category</th>
+                                <th>Reason</th>
+                                <th>Status</th>
+                                <th>Submitted</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var r in _filteredRequests)
+                            {
+                                <tr @onclick="() => OpenDetail(r.Id)" style="cursor:pointer;">
+                                    <td style="font-weight:600;">@r.TeacherName</td>
+                                    <td style="white-space:nowrap;">@r.StartDate.ToString("MMM dd") - @r.EndDate.ToString("MMM dd")</td>
+                                    <td>@r.DurationDays @(r.DurationDays == 1 ? "day" : "days")</td>
+                                    <td>@(r.Category ?? "—")</td>
+                                    <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="@r.Reason">@r.Reason</td>
+                                    <td>
+                                        <span class="status-badge status-badge--@(r.Status.ToLower())">@r.Status</span>
+                                    </td>
+                                    <td style="font-size:12px;color:var(--clr-text-muted);white-space:nowrap;">@r.CreatedAt.ToString("MMM dd, yyyy")</td>
+                                    <td>
+                                        @if (r.IsPending)
+                                        {
+                                            <div style="display:flex;gap:6px;">
+                                                <button type="button" class="btn-sm btn-sm--green" @onclick:stopPropagation @onclick="() => OpenDetail(r.Id)">Approve</button>
+                                                <button type="button" class="btn-sm btn-sm--red" @onclick:stopPropagation @onclick="() => OpenDetail(r.Id)">Reject</button>
+                                            </div>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+    </div>
+
+    @if (_detailRequest is not null)
+    {
+        <div class="modal-overlay" @onclick:stopPropagation @onclick="() => CloseDetail()">
+            <div class="modal-content modal-content--wide" @onclick:stopPropagation>
+                <div class="modal-header">
+                    <h3>Leave Request Details</h3>
+                    <button type="button" @onclick="CloseDetail" class="modal-close">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;">
+                        <div>
+                            <div class="form-label">Teacher</div>
+                            <div style="font-weight:600;color:var(--clr-text);">@_detailRequest.TeacherName</div>
+                        </div>
+                        <div>
+                            <div class="form-label">Status</div>
+                            <span class="status-badge status-badge--@(_detailRequest.Status.ToLower())">@_detailRequest.Status</span>
+                        </div>
+                        <div>
+                            <div class="form-label">Start Date</div>
+                            <div style="color:var(--clr-text);">@_detailRequest.StartDate.ToString("MMM dd, yyyy")</div>
+                        </div>
+                        <div>
+                            <div class="form-label">End Date</div>
+                            <div style="color:var(--clr-text);">@_detailRequest.EndDate.ToString("MMM dd, yyyy")</div>
+                        </div>
+                        <div>
+                            <div class="form-label">Duration</div>
+                            <div style="color:var(--clr-text);">@_detailRequest.DurationDays @(_detailRequest.DurationDays == 1 ? "day" : "days")</div>
+                        </div>
+                        <div>
+                            <div class="form-label">Category</div>
+                            <div style="color:var(--clr-text);">@(_detailRequest.Category ?? "—")</div>
+                        </div>
+                    </div>
+
+                    <div style="margin-bottom:20px;">
+                        <div class="form-label">Reason</div>
+                        <div style="color:var(--clr-text);margin-top:4px;padding:12px;background:var(--clr-surface-alt);border-radius:8px;line-height:1.5;">@_detailRequest.Reason</div>
+                    </div>
+
+                    @if (_detailRequest.AffectedSchedules.Count > 0)
+                    {
+                        <div style="margin-bottom:20px;">
+                            <div class="form-label" style="margin-bottom:8px;">Affected Classes (@_detailRequest.AffectedSchedules.Count)</div>
+                            <div class="leave-affected-list">
+                                @foreach (var s in _detailRequest.AffectedSchedules)
+                                {
+                                    <div class="leave-affected-item">
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                                        <span>@s.Day · @s.Subject · @s.Section (@s.StartTime - @s.EndTime)</span>
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    }
+
+                    @if (!string.IsNullOrEmpty(_detailRequest.ReviewNotes))
+                    {
+                        <div style="margin-bottom:20px;">
+                            <div class="form-label">Review Notes</div>
+                            <div style="color:var(--clr-text-secondary);margin-top:4px;padding:12px;background:var(--clr-surface-alt);border-radius:8px;line-height:1.5;font-style:italic;">@_detailRequest.ReviewNotes</div>
+                        </div>
+                    }
+
+                    @if (_detailRequest.IsPending)
+                    {
+                        <div style="margin-bottom:8px;">
+                            <div class="form-label" style="margin-bottom:6px;">Review Notes (optional)</div>
+                            <textarea class="form-input" @bind="_reviewNotes" placeholder="Add notes for approval or rejection..." rows="2" style="padding-left:14px;resize:vertical;min-height:60px;"></textarea>
+                        </div>
+                    }
+
+                    @if (!string.IsNullOrEmpty(_actionError))
+                    {
+                        <div class="validation-message" style="margin-bottom:12px;">@_actionError</div>
+                    }
+                    @if (!string.IsNullOrEmpty(_actionSuccess))
+                    {
+                        <div style="padding:10px 14px;background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.2);border-radius:10px;color:#4ade80;font-size:13px;margin-bottom:12px;">@_actionSuccess</div>
+                    }
+                </div>
+                @if (_detailRequest.IsPending)
+                {
+                    <div class="modal-footer">
+                        <button type="button" class="btn-sm btn-sm--red" @onclick="() => RejectRequest(_detailRequest.Id)" disabled="@_isActing">
+                            @if (_isActing) { <span>Rejecting...</span> } else { <span>Reject</span> }
+                        </button>
+                        <button type="button" class="btn-sm btn-sm--green" @onclick="() => ApproveRequest(_detailRequest.Id)" disabled="@_isActing">
+                            @if (_isActing) { <span>Approving...</span> } else { <span>Approve</span> }
+                        </button>
+                    </div>
+                }
+            </div>
+        </div>
+    }
 }
 
 @code {
     private List<LeaveRequestView> _myRequests = [];
     private List<AffectedSchedule> _affectedSchedules = [];
+    private List<LeaveRequestView> _allRequests = [];
+    private List<LeaveRequestView> _filteredRequests = [];
+    private LeaveRequestDetail? _detailRequest;
     private DateTime? _startDate;
     private DateTime? _endDate;
     private string _reason = string.Empty;
     private string _category = string.Empty;
+    private string _reviewNotes = string.Empty;
+    private string _searchQuery = string.Empty;
+    private bool _showPendingOnly = true;
     private bool _isLoading = true;
     private bool _isSubmitting;
+    private bool _isActing;
     private bool _isTeacher;
     private string? _error;
     private string? _submitError;
     private string? _submitSuccess;
+    private string? _actionError;
+    private string? _actionSuccess;
+    private int _pendingCount;
+    private int _approvedCount;
+    private int _rejectedCount;
     private long _currentTeacherId;
+    private long _currentUserId;
     private readonly CancellationTokenSource _cts = new();
 
     protected override async Task OnInitializedAsync()
@@ -188,6 +399,7 @@ else
                 return;
             }
 
+            _currentUserId = session.UserId;
             _isTeacher = session.Role == UserRole.TEACHER;
 
             if (_isTeacher)
@@ -201,6 +413,10 @@ else
                 _currentTeacherId = teacher.Id;
                 _myRequests = await LeaveService.GetTeacherRequestsAsync(_currentTeacherId, _cts.Token);
             }
+            else
+            {
+                await LoadAdminDataAsync();
+            }
         }
         catch (Exception ex)
         {
@@ -209,6 +425,100 @@ else
         finally
         {
             _isLoading = false;
+        }
+    }
+
+    private async Task LoadAdminDataAsync()
+    {
+        _allRequests = await LeaveService.GetAllRequestsAsync(_cts.Token);
+        _pendingCount = _allRequests.Count(r => r.IsPending);
+        _approvedCount = _allRequests.Count(r => r.IsApproved);
+        _rejectedCount = _allRequests.Count(r => r.IsRejected);
+        ApplyFilter();
+    }
+
+    private void ApplyFilter()
+    {
+        var q = _searchQuery?.Trim().ToLower() ?? "";
+        _filteredRequests = _allRequests
+            .Where(r => !_showPendingOnly || r.IsPending)
+            .Where(r => string.IsNullOrEmpty(q) || r.TeacherName.Contains(q, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+    }
+
+    private async Task OpenDetail(long requestId)
+    {
+        _actionError = null;
+        _actionSuccess = null;
+        _reviewNotes = string.Empty;
+
+        _detailRequest = await LeaveService.GetRequestDetailAsync(requestId, _cts.Token);
+    }
+
+    private void CloseDetail()
+    {
+        _detailRequest = null;
+        _actionError = null;
+        _actionSuccess = null;
+    }
+
+    private async Task ApproveRequest(long requestId)
+    {
+        _actionError = null;
+        _actionSuccess = null;
+        _isActing = true;
+
+        try
+        {
+            var ok = await LeaveService.ApproveAsync(requestId, _currentUserId, _reviewNotes, ct: _cts.Token);
+            if (ok)
+            {
+                _actionSuccess = "Leave request approved successfully.";
+                await LoadAdminDataAsync();
+                _detailRequest = await LeaveService.GetRequestDetailAsync(requestId, _cts.Token);
+            }
+            else
+            {
+                _actionError = "Could not approve. The request may have already been processed.";
+            }
+        }
+        catch (Exception ex)
+        {
+            _actionError = $"Failed to approve: {ex.Message}";
+        }
+        finally
+        {
+            _isActing = false;
+        }
+    }
+
+    private async Task RejectRequest(long requestId)
+    {
+        _actionError = null;
+        _actionSuccess = null;
+        _isActing = true;
+
+        try
+        {
+            var ok = await LeaveService.RejectAsync(requestId, _currentUserId, _reviewNotes, ct: _cts.Token);
+            if (ok)
+            {
+                _actionSuccess = "Leave request rejected.";
+                await LoadAdminDataAsync();
+                _detailRequest = await LeaveService.GetRequestDetailAsync(requestId, _cts.Token);
+            }
+            else
+            {
+                _actionError = "Could not reject. The request may have already been processed.";
+            }
+        }
+        catch (Exception ex)
+        {
+            _actionError = $"Failed to reject: {ex.Message}";
+        }
+        finally
+        {
+            _isActing = false;
         }
     }
 
@@ -293,7 +603,7 @@ else
     {
         try
         {
-            var ok = await LeaveService.CancelAsync(requestId, _currentTeacherId, _cts.Token);
+            var ok = await LeaveService.CancelAsync(requestId, _currentTeacherId, ct: _cts.Token);
             if (ok)
             {
                 _myRequests = await LeaveService.GetTeacherRequestsAsync(_currentTeacherId, _cts.Token);

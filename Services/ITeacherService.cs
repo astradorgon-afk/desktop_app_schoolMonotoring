@@ -112,4 +112,8 @@ public interface ITeacherService
     Task<List<SectionEnrolledStudent>> GetSectionStudentsAsync(long sectionId, CancellationToken cancellationToken = default);
 
     Task<TeacherAnalyticsData> GetTeacherAnalyticsAsync(long teacherId, CancellationToken cancellationToken = default);
+
+    Task<bool> UpdateAsync(Teacher teacher, CancellationToken cancellationToken = default);
+
+    Task<bool> UpdateProfilePictureAsync(long teacherId, byte[] picture, CancellationToken cancellationToken = default);
 }

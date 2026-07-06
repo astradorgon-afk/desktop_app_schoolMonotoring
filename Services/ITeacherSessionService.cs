@@ -100,7 +100,7 @@ public interface ITeacherSessionService
 
     Task<ScanResult> UndoAttendanceAsync(long sessionId, long userId, long studentId, CancellationToken cancellationToken = default);
 
-    Task EndSessionAsync(long sessionId, CancellationToken cancellationToken = default);
+    Task EndSessionAsync(long sessionId, long? userId = null, CancellationToken cancellationToken = default);
 
     Task<List<LiveScanEvent>> GetLiveScansAsync(long sessionId, CancellationToken cancellationToken = default);
 

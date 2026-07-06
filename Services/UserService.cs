@@ -10,19 +10,21 @@ namespace AttendanceUI.Services;
 public class UserService : IUserService
 {
     private readonly IDbContextFactory<SchoolDbContext> _contextFactory;
+    private readonly IAuditService _auditService;
     private readonly ILogger<UserService> _logger;
     private readonly ResourceManager _logMessages = new(typeof(LogMessages));
 
-    public UserService(IDbContextFactory<SchoolDbContext> contextFactory, ILogger<UserService> logger)
+    public UserService(IDbContextFactory<SchoolDbContext> contextFactory, IAuditService auditService, ILogger<UserService> logger)
     {
         _contextFactory = contextFactory ?? throw new ArgumentNullException(nameof(contextFactory));
+        _auditService = auditService ?? throw new ArgumentNullException(nameof(auditService));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
     public async Task<User?> GetByIdAsync(long id, CancellationToken cancellationToken = default)
     {
         await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
-        return await context.Users.FindAsync([id], cancellationToken);
+        return await context.Users.FirstOrDefaultAsync(u => u.Id == id, cancellationToken);
     }
 
     public async Task<User?> GetByUsernameAsync(string username, CancellationToken cancellationToken = default)
@@ -43,7 +45,7 @@ public class UserService : IUserService
             .ToListAsync(cancellationToken);
     }
 
-    public async Task<bool> CreateAsync(User user, string plainPassword, CancellationToken cancellationToken = default)
+    public async Task<bool> CreateAsync(User user, string plainPassword, long? actorId = null, string? actorName = null, string? actorRole = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(user);
         ArgumentNullException.ThrowIfNull(plainPassword);
@@ -63,6 +65,9 @@ public class UserService : IUserService
         context.Users.Add(user);
         await context.SaveChangesAsync(cancellationToken);
 
+        await _auditService.LogAsync(actorId ?? 0, actorName ?? "System", actorRole ?? "SYSTEM", "UserCreate", "User", user.Id,
+            $"User '{user.Username}' ({user.Role}) created.");
+
         _logger.LogInformation(
             _logMessages.GetString("User_Created") ?? "User '{Username}' created.",
             user.Username);
@@ -70,13 +75,13 @@ public class UserService : IUserService
         return true;
     }
 
-    public async Task<bool> UpdateAsync(User user, CancellationToken cancellationToken = default)
+    public async Task<bool> UpdateAsync(User user, long? actorId = null, string? actorName = null, string? actorRole = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(user);
 
         await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
 
-        var existing = await context.Users.FindAsync([user.Id], cancellationToken);
+        var existing = await context.Users.FirstOrDefaultAsync(u => u.Id == user.Id, cancellationToken);
         if (existing is null)
             return false;
 
@@ -89,6 +94,9 @@ public class UserService : IUserService
 
         await context.SaveChangesAsync(cancellationToken);
 
+        await _auditService.LogAsync(actorId ?? 0, actorName ?? "System", actorRole ?? "SYSTEM", "UserUpdate", "User", user.Id,
+            $"User '{user.Username}' updated (role={user.Role}).");
+
         _logger.LogInformation(
             _logMessages.GetString("User_Updated") ?? "User '{Username}' updated.",
             user.Username);
@@ -96,7 +104,7 @@ public class UserService : IUserService
         return true;
     }
 
-    public async Task<bool> DeleteAsync(long id, CancellationToken cancellationToken = default)
+    public async Task<bool> DeleteAsync(long id, long? actorId = null, string? actorName = null, string? actorRole = null, CancellationToken cancellationToken = default)
     {
         await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
 
@@ -106,6 +114,9 @@ public class UserService : IUserService
 
         context.Users.Remove(user);
         await context.SaveChangesAsync(cancellationToken);
+
+        await _auditService.LogAsync(actorId ?? 0, actorName ?? "System", actorRole ?? "SYSTEM", "UserDelete", "User", id,
+            $"User '{user.Username}' deleted.");
 
         _logger.LogInformation(
             _logMessages.GetString("User_Deleted") ?? "User '{Username}' deleted.",
@@ -146,7 +157,7 @@ public class UserService : IUserService
         return PasswordHelper.Verify(plainPassword, user.PasswordHash);
     }
 
-    public async Task<bool> ResetPasswordAsync(long userId, string newPassword, CancellationToken cancellationToken = default)
+    public async Task<bool> ResetPasswordAsync(long userId, string newPassword, long? actorId = null, string? actorName = null, string? actorRole = null, CancellationToken cancellationToken = default)
     {
         await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
 
@@ -159,6 +170,9 @@ public class UserService : IUserService
 
         await context.SaveChangesAsync(cancellationToken);
 
+        await _auditService.LogAsync(actorId ?? 0, actorName ?? "System", actorRole ?? "SYSTEM", "UserResetPassword", "User", userId,
+            $"Password reset for user '{user.Username}'.");
+
         _logger.LogInformation(
             _logMessages.GetString("Auth_PasswordChanged") ?? "Password reset for user '{Username}' by admin.",
             user.Username);
@@ -166,7 +180,7 @@ public class UserService : IUserService
         return true;
     }
 
-    public async Task<bool> ToggleLockAsync(long userId, CancellationToken cancellationToken = default)
+    public async Task<bool> ToggleLockAsync(long userId, long? actorId = null, string? actorName = null, string? actorRole = null, CancellationToken cancellationToken = default)
     {
         await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
 
@@ -174,10 +188,14 @@ public class UserService : IUserService
         if (user is null)
             return false;
 
-        user.Status = user.Status == UserStatus.LOCKED ? UserStatus.ACTIVE : UserStatus.LOCKED;
+        var wasLocked = user.Status == UserStatus.LOCKED;
+        user.Status = wasLocked ? UserStatus.ACTIVE : UserStatus.LOCKED;
         user.UpdatedAt = DateTime.UtcNow;
 
         await context.SaveChangesAsync(cancellationToken);
+
+        await _auditService.LogAsync(actorId ?? 0, actorName ?? "System", actorRole ?? "SYSTEM", "UserToggleLock", "User", userId,
+            wasLocked ? $"User '{user.Username}' unlocked." : $"User '{user.Username}' locked.");
 
         _logger.LogInformation(
             _logMessages.GetString("User_Updated") ?? "User '{Username}' lock status toggled.",

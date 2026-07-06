@@ -8,10 +8,12 @@ namespace AttendanceUI.Services;
 public class LeaveRequestService : ILeaveRequestService
 {
     private readonly IDbContextFactory<SchoolDbContext> _contextFactory;
+    private readonly IAuditService _auditService;
 
-    public LeaveRequestService(IDbContextFactory<SchoolDbContext> contextFactory)
+    public LeaveRequestService(IDbContextFactory<SchoolDbContext> contextFactory, IAuditService auditService)
     {
         _contextFactory = contextFactory;
+        _auditService = auditService;
     }
 
     public async Task<List<LeaveRequestView>> GetTeacherRequestsAsync(long teacherId, CancellationToken ct = default)
@@ -88,6 +90,33 @@ public class LeaveRequestService : ILeaveRequestService
         }).ToList();
     }
 
+    public async Task<List<LeaveRequestView>> GetAllRequestsAsync(CancellationToken ct = default)
+    {
+        await using var context = await _contextFactory.CreateDbContextAsync(ct);
+        var items = await context.LeaveRequests
+            .AsNoTracking()
+            .OrderByDescending(lr => lr.CreatedAt)
+            .Select(lr => new
+            {
+                lr.Id,
+                TeacherName = lr.Teacher!.LastName + ", " + lr.Teacher.FirstName,
+                lr.Reason, lr.Category, lr.StartDate, lr.EndDate, lr.Status,
+                lr.ReviewNotes,
+                ReviewedByName = lr.ReviewedBy != null ? lr.ReviewedBy.Name : null,
+                lr.CreatedAt
+            })
+            .ToListAsync(ct);
+
+        return items.Select(lr => new LeaveRequestView
+        {
+            Id = lr.Id, TeacherName = lr.TeacherName, Reason = lr.Reason,
+            Category = lr.Category, StartDate = lr.StartDate, EndDate = lr.EndDate,
+            DurationDays = (lr.EndDate.ToDateTime(TimeOnly.MinValue) - lr.StartDate.ToDateTime(TimeOnly.MinValue)).Days + 1,
+            Status = lr.Status, ReviewNotes = lr.ReviewNotes,
+            ReviewedByName = lr.ReviewedByName, CreatedAt = lr.CreatedAt
+        }).ToList();
+    }
+
     public async Task<LeaveRequestDetail?> GetRequestDetailAsync(long requestId, CancellationToken ct = default)
     {
         await using var context = await _contextFactory.CreateDbContextAsync(ct);
@@ -152,10 +181,15 @@ public class LeaveRequestService : ILeaveRequestService
         context.LeaveRequests.Add(entity);
         await context.SaveChangesAsync(ct);
 
+        var teacher = await context.Teachers.FindAsync([request.TeacherId], ct);
+        var teacherName = teacher is not null ? $"{teacher.LastName}, {teacher.FirstName}" : $"Teacher#{request.TeacherId}";
+        await _auditService.LogAsync(request.TeacherId, teacherName, "TEACHER", "LeaveSubmit", "LeaveRequest", entity.Id,
+            $"Leave request submitted: {request.Category} ({request.StartDate} - {request.EndDate})");
+
         return entity;
     }
 
-    public async Task<bool> ApproveAsync(long requestId, long adminUserId, string? notes = null, CancellationToken ct = default)
+    public async Task<bool> ApproveAsync(long requestId, long adminUserId, string? notes = null, string? adminName = null, string? adminRole = null, CancellationToken ct = default)
     {
         await using var context = await _contextFactory.CreateDbContextAsync(ct);
 
@@ -168,10 +202,14 @@ public class LeaveRequestService : ILeaveRequestService
         lr.UpdatedAt = DateTime.UtcNow;
 
         await context.SaveChangesAsync(ct);
+
+        await _auditService.LogAsync(adminUserId, adminName ?? $"Admin#{adminUserId}", adminRole ?? "ADMIN", "LeaveApprove", "LeaveRequest", requestId,
+            $"Leave request #{requestId} approved.");
+
         return true;
     }
 
-    public async Task<bool> RejectAsync(long requestId, long adminUserId, string? notes = null, CancellationToken ct = default)
+    public async Task<bool> RejectAsync(long requestId, long adminUserId, string? notes = null, string? adminName = null, string? adminRole = null, CancellationToken ct = default)
     {
         await using var context = await _contextFactory.CreateDbContextAsync(ct);
 
@@ -184,10 +222,14 @@ public class LeaveRequestService : ILeaveRequestService
         lr.UpdatedAt = DateTime.UtcNow;
 
         await context.SaveChangesAsync(ct);
+
+        await _auditService.LogAsync(adminUserId, adminName ?? $"Admin#{adminUserId}", adminRole ?? "ADMIN", "LeaveReject", "LeaveRequest", requestId,
+            $"Leave request #{requestId} rejected.{(notes is not null ? $" Reason: {notes}" : "")}");
+
         return true;
     }
 
-    public async Task<bool> CancelAsync(long requestId, long teacherId, CancellationToken ct = default)
+    public async Task<bool> CancelAsync(long requestId, long teacherId, string? teacherName = null, CancellationToken ct = default)
     {
         await using var context = await _contextFactory.CreateDbContextAsync(ct);
 
@@ -196,6 +238,10 @@ public class LeaveRequestService : ILeaveRequestService
 
         context.LeaveRequests.Remove(lr);
         await context.SaveChangesAsync(ct);
+
+        await _auditService.LogAsync(teacherId, teacherName ?? $"Teacher#{teacherId}", "TEACHER", "LeaveCancel", "LeaveRequest", requestId,
+            $"Leave request #{requestId} cancelled.");
+
         return true;
     }
 

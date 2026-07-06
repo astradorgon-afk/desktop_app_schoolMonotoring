@@ -1,0 +1,346 @@
+@page "/admin/analytics"
+@layout MainLayout
+@using AttendanceUI.Data.Entities
+@using System.Text.Json
+@implements IAsyncDisposable
+@inject IAnalyticsService AnalyticsService
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+
+<PageHeader Title="Admin Analytics" Subtitle="System-wide attendance breakdown, trends, and institutional insights">
+</PageHeader>
+
+@if (_isLoading)
+{
+    <div class="loading-state">
+        <div class="spinner"></div>
+        <p>Loading analytics...</p>
+    </div>
+}
+else if (_error is not null)
+{
+    <div class="error-banner" style="margin: 0 32px 24px;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+        <span>@_error</span>
+    </div>
+}
+else if (_data is not null)
+{
+    var circumference = 326.7;
+    var overallRate = _data.OverallAttendanceRate;
+    var overallOffset = circumference * (1 - overallRate / 100);
+
+    var hasTodaySessions = _data.TotalTodayRecords > 0;
+    var todayPct = hasTodaySessions ? Math.Round((double)_data.PresentToday / _data.TotalTodayRecords * 100, 1) : 0;
+    var todayOffset = hasTodaySessions ? circumference * (1 - todayPct / 100) : circumference;
+
+    var lateOffset = circumference * (1 - _data.LateRate / 100);
+    var absentOffset = circumference * (1 - _data.AbsentRate / 100);
+
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-icon stat-icon--blue">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            </div>
+            <div class="stat-info">
+                <span class="stat-value">@_data.TotalStudents</span>
+                <span class="stat-label">Total Students</span>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon stat-icon--purple">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg>
+            </div>
+            <div class="stat-info">
+                <span class="stat-value">@_data.TotalTeachers</span>
+                <span class="stat-label">Total Teachers</span>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon stat-icon--teal">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
+            </div>
+            <div class="stat-info">
+                <span class="stat-value">@_data.TotalSections</span>
+                <span class="stat-label">Total Sections</span>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon stat-icon--indigo">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+            </div>
+            <div class="stat-info">
+                <span class="stat-value">@_data.TotalSessions</span>
+                <span class="stat-label">Total Sessions</span>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon stat-icon--green">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+            </div>
+            <div class="stat-info">
+                <span class="stat-value">@_data.TotalPresent</span>
+                <span class="stat-label">Total Present</span>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon stat-icon--yellow">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            </div>
+            <div class="stat-info">
+                <span class="stat-value">@_data.TotalLate</span>
+                <span class="stat-label">Total Late</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="analytics-grid">
+        <div class="ring-card">
+            <div class="ring-label">Overall Attendance</div>
+            <svg class="ring-svg" viewBox="0 0 120 120">
+                <circle class="ring-bg" cx="60" cy="60" r="52" />
+                <circle class="ring-fill" cx="60" cy="60" r="52" stroke-dasharray="326.7" stroke-dashoffset="@overallOffset" transform="rotate(-90 60 60)" />
+                <text x="60" y="56" text-anchor="middle" class="ring-value">@overallRate%</text>
+                <text x="60" y="72" text-anchor="middle" class="ring-sub">@_data.TotalRecords records</text>
+            </svg>
+        </div>
+        <div class="ring-card">
+            <div class="ring-label">Present Today</div>
+            <svg class="ring-svg" viewBox="0 0 120 120">
+                <circle class="ring-bg" cx="60" cy="60" r="52" />
+                <circle class="ring-fill ring-fill--green" cx="60" cy="60" r="52" stroke-dasharray="326.7" stroke-dashoffset="@todayOffset" transform="rotate(-90 60 60)" />
+                <text x="60" y="56" text-anchor="middle" class="ring-value">@(hasTodaySessions ? $"{todayPct}%" : "—")</text>
+                <text x="60" y="72" text-anchor="middle" class="ring-sub">@(hasTodaySessions ? $"{_data.PresentToday} / {_data.TotalTodayRecords}" : "No sessions")</text>
+            </svg>
+        </div>
+        <div class="ring-card">
+            <div class="ring-label">Late Rate</div>
+            <svg class="ring-svg" viewBox="0 0 120 120">
+                <circle class="ring-bg" cx="60" cy="60" r="52" />
+                <circle class="ring-fill ring-fill--yellow" cx="60" cy="60" r="52" stroke-dasharray="326.7" stroke-dashoffset="@lateOffset" transform="rotate(-90 60 60)" />
+                <text x="60" y="56" text-anchor="middle" class="ring-value">@(_data.LateRate)%</text>
+                <text x="60" y="72" text-anchor="middle" class="ring-sub">@_data.TotalLate late</text>
+            </svg>
+        </div>
+        <div class="ring-card">
+            <div class="ring-label">Absent Rate</div>
+            <svg class="ring-svg" viewBox="0 0 120 120">
+                <circle class="ring-bg" cx="60" cy="60" r="52" />
+                <circle class="ring-fill ring-fill--red" cx="60" cy="60" r="52" stroke-dasharray="326.7" stroke-dashoffset="@absentOffset" transform="rotate(-90 60 60)" />
+                <text x="60" y="56" text-anchor="middle" class="ring-value">@(_data.AbsentRate)%</text>
+                <text x="60" y="72" text-anchor="middle" class="ring-sub">@_data.TotalAbsent absent</text>
+            </svg>
+        </div>
+    </div>
+
+    <div class="analytics-content">
+        <div class="chart-card chart-card--wide">
+            <h2 class="card-heading">Attendance by Section</h2>
+            @if (_data.SectionStats.Count == 0)
+            {
+                <p style="text-align:center;padding:32px 0;" class="text-muted">No section data yet.</p>
+            }
+            else
+            {
+                <div class="chart-container" style="height:200px;">
+                    <canvas id="chart-section"></canvas>
+                </div>
+            }
+        </div>
+        <div class="chart-card">
+            <h2 class="card-heading">By Grade Level</h2>
+            @if (_data.GradeLevelStats.Count == 0)
+            {
+                <p style="text-align:center;padding:32px 0;" class="text-muted">No grade level data yet.</p>
+            }
+            else
+            {
+                <div class="chart-container" style="height:200px;">
+                    <canvas id="chart-grade"></canvas>
+                </div>
+            }
+        </div>
+    </div>
+
+    <div class="analytics-content">
+        <div class="chart-card chart-card--wide">
+            <h2 class="card-heading">Attendance by Day of Week</h2>
+            @if (_data.DayOfWeekStats.Count == 0)
+            {
+                <p style="text-align:center;padding:32px 0;" class="text-muted">No day-of-week data yet.</p>
+            }
+            else
+            {
+                <div class="chart-container" style="height:200px;">
+                    <canvas id="chart-dow"></canvas>
+                </div>
+            }
+        </div>
+        <div class="chart-card">
+            <h2 class="card-heading">Monthly Trend</h2>
+            @if (_data.MonthlyTrends.Count > 1)
+            {
+                <div class="chart-container" style="height:200px;">
+                    <canvas id="chart-trend"></canvas>
+                </div>
+            }
+            else if (_data.MonthlyTrends.Count == 1)
+            {
+                var single = _data.MonthlyTrends[0];
+                <div style="text-align:center;padding:24px 0;">
+                    <div style="font-size:48px;font-weight:700;color:#6366f1;margin-bottom:4px;">@single.Percentage%</div>
+                    <div style="font-size:14px;color:var(--clr-text-secondary);">@single.Label attendance rate</div>
+                    <div style="margin-top:12px;font-size:12px;color:var(--clr-text-muted);">More months will appear as data accumulates.</div>
+                </div>
+            }
+            else
+            {
+                <div style="text-align:center;padding:32px 0;color:var(--clr-text-muted);">
+                    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin-bottom:8px;">
+                        <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+                    </svg>
+                    <p>Not enough data for a trend yet.</p>
+                </div>
+            }
+        </div>
+    </div>
+
+    <div class="analytics-footer">
+        <div class="chart-card">
+            <h2 class="card-heading">Attendance Summary</h2>
+            @if (_data.TotalRecords > 0)
+            {
+                var pct = Math.Round((double)_data.TotalPresent / _data.TotalRecords * 100, 1);
+                var latePct = Math.Round((double)_data.TotalLate / _data.TotalRecords * 100, 1);
+                var absentPct = Math.Round((double)_data.TotalAbsent / _data.TotalRecords * 100, 1);
+
+                <div class="bar-chart" style="margin-top:16px;">
+                    <div class="bar-row">
+                        <span class="bar-label">Present</span>
+                        <div class="bar-track"><div class="bar-fill bar-fill--green" style="width:@(pct)%"></div></div>
+                        <span class="bar-value">@pct%</span>
+                    </div>
+                    <div class="bar-row">
+                        <span class="bar-label">Late</span>
+                        <div class="bar-track"><div class="bar-fill bar-fill--yellow" style="width:@(latePct)%"></div></div>
+                        <span class="bar-value">@latePct%</span>
+                    </div>
+                    <div class="bar-row">
+                        <span class="bar-label">Absent</span>
+                        <div class="bar-track"><div class="bar-fill" style="width:@(absentPct)%;background:linear-gradient(90deg,var(--clr-danger),#f87171);"></div></div>
+                        <span class="bar-value">@absentPct%</span>
+                    </div>
+                </div>
+            }
+            else
+            {
+                <p style="text-align:center;padding:32px 0;" class="text-muted">No attendance records yet.</p>
+            }
+
+            <div class="trend-summary" style="margin-top:20px;">
+                <div class="trend-stat">
+                    <span class="trend-stat-value">@_data.TotalStudentsWithRecords</span>
+                    <span class="trend-stat-label">Students w/ Records</span>
+                </div>
+                <div class="trend-stat">
+                    <span class="trend-stat-value">@_data.TotalTeachers</span>
+                    <span class="trend-stat-label">Active Teachers</span>
+                </div>
+                <div class="trend-stat">
+                    <span class="trend-stat-value">@_data.TotalSections</span>
+                    <span class="trend-stat-label">Active Sections</span>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private AdminAnalyticsData? _data;
+    private bool _isLoading = true;
+    private bool _didInit;
+    private string? _error;
+    private readonly CancellationTokenSource _cts = new();
+
+    private static readonly JsonSerializerOptions _json = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDataAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_data is not null && !_didInit)
+        {
+            _didInit = true;
+            await InitCharts();
+        }
+    }
+
+    private async Task InitCharts()
+    {
+        if (_data is null) return;
+
+        var palette = new[] { "#6366f1", "#22c55e", "#eab308", "#ef4444", "#8b5cf6", "#06b6d4", "#f97316", "#ec4899", "#14b8a6", "#f59e0b" };
+
+        if (_data.MonthlyTrends.Count > 1)
+        {
+            var labels = _data.MonthlyTrends.Select(m => m.Label).ToArray();
+            var values = _data.MonthlyTrends.Select(m => m.Percentage).ToArray();
+            await JS.InvokeVoidAsync("AttendanceCharts.initLineChart", "chart-trend", labels, values);
+        }
+
+        if (_data.DayOfWeekStats.Count > 0)
+        {
+            var labels = _data.DayOfWeekStats.Select(d => d.Day[..3]).ToArray();
+            var values = _data.DayOfWeekStats.Select(d => d.Percentage).ToArray();
+            var colors = values.Select(_ => "rgba(99, 102, 241, 0.7)").ToArray();
+            await JS.InvokeVoidAsync("AttendanceCharts.initBarChart", "chart-dow", labels, values, colors);
+        }
+
+        if (_data.SectionStats.Count > 0)
+        {
+            var labels = _data.SectionStats.Select(s => s.SectionName).ToArray();
+            var values = _data.SectionStats.Select(s => s.Percentage).ToArray();
+            var colors = values.Select((_, i) => palette[i % palette.Length]).ToArray();
+            await JS.InvokeVoidAsync("AttendanceCharts.initBarChart", "chart-section", labels, values, colors);
+        }
+
+        if (_data.GradeLevelStats.Count > 0)
+        {
+            var labels = _data.GradeLevelStats.Select(g => g.GradeLevel).ToArray();
+            var values = _data.GradeLevelStats.Select(g => g.Percentage).ToArray();
+            var colors = values.Select((_, i) => palette[(i + 2) % palette.Length]).ToArray();
+            await JS.InvokeVoidAsync("AttendanceCharts.initBarChart", "chart-grade", labels, values, colors);
+        }
+    }
+
+    private async Task LoadDataAsync()
+    {
+        _isLoading = true;
+        _error = null;
+
+        try
+        {
+            _data = await AnalyticsService.GetAdminAnalyticsAsync(_cts.Token);
+        }
+        catch (Exception ex)
+        {
+            _error = $"Failed to load analytics: {ex.Message}";
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        _cts.Cancel();
+        _cts.Dispose();
+    }
+}

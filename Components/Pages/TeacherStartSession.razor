@@ -9,63 +9,61 @@
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
 
-<div style="height:calc(100vh - 64px);display:flex;flex-direction:column;overflow:hidden;">
+<div class="ss-page">
 
     @* ── Status Bar ── *@
-    <div style="display:flex;align-items:center;gap:12px;padding:12px 24px;background:rgba(255,255,255,0.03);backdrop-filter:blur(12px);border-bottom:1px solid rgba(255,255,255,0.06);flex-shrink:0;">
+    <div class="ss-topbar">
         @if (_sessionId > 0)
         {
-            <div style="display:flex;align-items:center;gap:8px;padding:4px 12px;border-radius:20px;background:rgba(34,197,94,0.15);">
-                <span style="width:8px;height:8px;border-radius:50%;background:#4ade80;animation:_pulse 2s infinite;"></span>
-                <span style="font-size:12px;font-weight:600;color:#4ade80;text-transform:uppercase;letter-spacing:0.5px;">Live</span>
+            <div class="ss-live-badge">
+                <span class="ss-live-dot"></span>
+                <span>Live</span>
             </div>
-            <span style="font-size:14px;font-weight:600;color:#fff;">@_sessionState?.SectionName</span>
-            <span style="font-size:13px;color:rgba(255,255,255,0.5);">· @_sessionState?.SubjectName</span>
+            <span class="ss-top-label">@_sessionState?.SectionName</span>
+            <span class="ss-top-sub">· @_sessionState?.SubjectName</span>
             @if (!string.IsNullOrEmpty(_sessionState?.Room))
             {
-                <span style="font-size:13px;color:rgba(255,255,255,0.4);">· Room @_sessionState.Room</span>
+                <span class="ss-top-sub">· Room @_sessionState.Room</span>
             }
             <div style="flex:1;"></div>
-            <span style="font-size:13px;color:rgba(255,255,255,0.5);font-weight:500;padding:2px 8px;background:rgba(255,255,255,0.04);border-radius:4px;">
-                @_syncQueue events
-            </span>
-            <button class="btn btn-ghost" @onclick="OpenScanner" title="Scan QR">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+            <span class="ss-event-count">@_syncQueue events</span>
+            <button class="btn btn-ghost btn-sm" @onclick="OpenScanner" title="Scan QR">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
                 <span>Scan</span>
             </button>
-            <button class="btn btn-danger btn-xs" @onclick="EndSessionAsync" disabled="@_saving">
+            <button class="btn btn-danger btn-sm" @onclick="EndSessionAsync" disabled="@_saving">
                 <span>End</span>
             </button>
         }
         else
         {
-            <div style="display:flex;align-items:center;gap:8px;padding:4px 12px;border-radius:20px;background:rgba(255,255,255,0.04);">
-                <span style="width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,0.4);"></span>
-                <span style="font-size:12px;font-weight:600;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:0.5px;">No Session</span>
+            <div class="ss-idle-badge">
+                <span class="ss-idle-dot"></span>
+                <span>No Session</span>
             </div>
-            <span style="font-size:14px;color:rgba(255,255,255,0.5);">Scan a QR code or select a class below</span>
+            <span class="ss-top-sub">Scan a QR code or select a class below</span>
             <div style="flex:1;"></div>
         }
     </div>
 
     @if (_loading)
     {
-        <div style="flex:1;display:flex;align-items:center;justify-content:center;padding:32px;background:transparent;">
-            <div style="max-width:560px;width:100%;">
-                <h2 style="font-size:22px;font-weight:700;color:#fff;text-align:center;margin-bottom:8px;">Start a Session</h2>
-                <p style="font-size:14px;color:rgba(255,255,255,0.5);text-align:center;margin-bottom:24px;">Loading your classes...</p>
-                <div style="display:flex;flex-direction:column;gap:12px;">
+        <div class="ss-loading">
+            <div class="ss-loading-inner">
+                <h2 class="ss-loading-title">Start a Session</h2>
+                <p class="ss-loading-sub">Loading your classes...</p>
+                <div class="ss-skeleton-list">
                     @for (var i = 0; i < 3; i++)
                     {
-                        <div style="padding:16px 20px;border:1px solid rgba(255,255,255,0.06);border-radius:8px;background:rgba(255,255,255,0.03);">
-                            <div style="display:flex;align-items:center;justify-content:space-between;width:100%;">
-                                <div style="flex:1;">
-                                    <div style="width:180px;height:16px;background:linear-gradient(90deg,rgba(255,255,255,0.06) 25%,rgba(255,255,255,0.1) 50%,rgba(255,255,255,0.06) 75%);background-size:200% 100%;animation:_shimmer 1.5s infinite;border-radius:4px;margin-bottom:8px;"></div>
-                                    <div style="width:100px;height:12px;background:linear-gradient(90deg,rgba(255,255,255,0.06) 25%,rgba(255,255,255,0.1) 50%,rgba(255,255,255,0.06) 75%);background-size:200% 100%;animation:_shimmer 1.5s infinite;border-radius:4px;"></div>
+                        <div class="ss-skeleton-card">
+                            <div class="ss-skeleton-row">
+                                <div>
+                                    <div class="ss-skeleton-line" style="width:180px;height:15px;"></div>
+                                    <div class="ss-skeleton-line" style="width:100px;height:11px;margin-top:8px;"></div>
                                 </div>
                                 <div style="text-align:right;">
-                                    <div style="width:50px;height:16px;background:linear-gradient(90deg,rgba(255,255,255,0.06) 25%,rgba(255,255,255,0.1) 50%,rgba(255,255,255,0.06) 75%);background-size:200% 100%;animation:_shimmer 1.5s infinite;border-radius:4px;margin-bottom:8px;margin-left:auto;"></div>
-                                    <div style="width:70px;height:12px;background:linear-gradient(90deg,rgba(255,255,255,0.06) 25%,rgba(255,255,255,0.1) 50%,rgba(255,255,255,0.06) 75%);background-size:200% 100%;animation:_shimmer 1.5s infinite;border-radius:4px;margin-left:auto;"></div>
+                                    <div class="ss-skeleton-line" style="width:50px;height:15px;margin-left:auto;"></div>
+                                    <div class="ss-skeleton-line" style="width:70px;height:11px;margin-top:8px;margin-left:auto;"></div>
                                 </div>
                             </div>
                         </div>
@@ -76,8 +74,8 @@
     }
     else if (_error is not null)
     {
-        <div style="flex:1;display:flex;align-items:center;justify-content:center;padding:32px;background:transparent;">
-            <div style="max-width:400px;width:100%;text-align:center;">
+        <div class="ss-error">
+            <div class="ss-error-inner">
                 <div class="error-banner">@_error</div>
                 <button class="btn btn-primary" @onclick="LoadDataAsync" style="margin-top:12px;">Retry</button>
             </div>
@@ -85,73 +83,65 @@
     }
     else
     {
-        @* ── Unified Layout: Viewfinder + optional Roster ── *@
-        <div style="flex:1;display:flex;overflow:hidden;background:transparent;">
+        <div class="ss-main">
 
             @* ── Viewfinder Zone ── *@
-            <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px;position:relative;">
+            <div class="ss-viewfinder">
                 @if (_sessionId > 0 && _showScanner)
                 {
-                    <div style="width:320px;max-width:100%;position:relative;">
-                        <div style="width:100%;height:240px;border-radius:12px;overflow:hidden;background:#000;position:relative;">
+                    <div class="ss-scanner-card">
+                        <div class="ss-scanner-video">
                             <div id="qr-reader" style="width:100%;height:100%;"></div>
                             <style>
                                 #qr-reader video { width: 100% !important; height: 100% !important; object-fit: cover !important; }
                                 #qr-reader img { display: none; }
                             </style>
-                            @if (_cameraStarted)
-                            {
-                                <div style="position:absolute;left:10%;right:10%;height:2px;background:linear-gradient(90deg,transparent,#22c55e,transparent);box-shadow:0 0 8px rgba(34,197,94,0.6);animation:_scanLine 2s ease-in-out infinite;border-radius:1px;"></div>
-                            }
                             @if (!string.IsNullOrEmpty(_cameraError))
                             {
-                                <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;">
-                                    <p style="color:rgba(255,255,255,0.5);font-size:14px;">@_cameraError</p>
+                                <div class="ss-scanner-overlay">
+                                    <p class="ss-scanner-error-text">@_cameraError</p>
                                 </div>
                             }
                             else if (!_cameraStarted)
                             {
-                                <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;">
-                                    <span style="font-size:48px;color:rgba(255,255,255,0.15);">◻</span>
+                                <div class="ss-scanner-overlay">
+                                    <span class="ss-qr-placeholder-icon">◻</span>
                                 </div>
                             }
                         </div>
-                        <div style="display:flex;gap:8px;margin-top:12px;">
-                            <input style="flex:1;padding:10px 14px;border:1px solid rgba(255,255,255,0.1);border-radius:8px;font-size:13px;text-align:center;outline:none;background:rgba(255,255,255,0.05);color:#fff;"
+                        <div class="ss-scanner-input-row">
+                            <input class="ss-scanner-input"
                                    placeholder="Paste QR token..."
                                    @bind="_qrInput" @bind:event="oninput" />
                             <button class="btn btn-primary" @onclick="ProcessQrInput" disabled="@_saving">Go</button>
                         </div>
                         @if (!string.IsNullOrEmpty(_qrFeedback))
                         {
-                            <p style="text-align:center;margin-top:6px;font-size:13px;color:@(_qrFeedback.Contains("✓") || _qrFeedback.Contains("marked") ? "#4ade80" : "#f87171");">@_qrFeedback</p>
+                            <p class="ss-scanner-feedback" style="color:@(_qrFeedback.Contains("✓") || _qrFeedback.Contains("marked") ? "#4ade80" : "#f87171");">@_qrFeedback</p>
                         }
                     </div>
-                    <button class="btn" @onclick="CloseScanner" style="margin-top:16px;background:rgba(255,255,255,0.04);color:rgba(255,255,255,0.6);border-color:rgba(255,255,255,0.1);">
+                    <button class="btn ss-stop-btn" @onclick="CloseScanner">
                         Stop Camera
                     </button>
                 }
                 else
                 {
-                    <div style="width:320px;height:320px;position:relative;display:flex;align-items:center;justify-content:center;">
-                        <svg width="100%" height="100%" viewBox="0 0 320 320" style="position:absolute;inset:0;">
-                            <rect x="2" y="2" width="60" height="20" rx="4" fill="none" stroke="#6366f1" stroke-width="4"/>
-                            <rect x="2" y="2" width="20" height="60" rx="4" fill="none" stroke="#6366f1" stroke-width="4"/>
-                            <rect x="258" y="2" width="60" height="20" rx="4" fill="none" stroke="#6366f1" stroke-width="4"/>
-                            <rect x="298" y="2" width="20" height="60" rx="4" fill="none" stroke="#6366f1" stroke-width="4"/>
-                            <rect x="2" y="258" width="60" height="20" rx="4" fill="none" stroke="#6366f1" stroke-width="4"/>
-                            <rect x="2" y="298" width="20" height="60" rx="4" fill="none" stroke="#6366f1" stroke-width="4"/>
-                            <rect x="258" y="258" width="60" height="20" rx="4" fill="none" stroke="#6366f1" stroke-width="4"/>
-                            <rect x="298" y="258" width="20" height="60" rx="4" fill="none" stroke="#6366f1" stroke-width="4"/>
-                        </svg>
-                        <div style="position:absolute;left:10%;right:10%;height:2px;background:linear-gradient(90deg,transparent,#6366f1,transparent);box-shadow:0 0 8px rgba(99,102,241,0.5);animation:_scanLine 2s ease-in-out infinite;border-radius:1px;"></div>
-                        <div style="width:160px;height:160px;border-radius:50%;border:2px dashed #c7d2fe;animation:_scanPulse 3s ease-in-out infinite;"></div>
-                        <div style="position:absolute;bottom:0;text-align:center;">
-                            <p style="font-size:14px;color:rgba(255,255,255,0.5);font-weight:500;">Point camera at a QR code</p>
+                    <div class="ss-placeholder-card">
+                        <div class="ss-placeholder-icon">
+                            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="color:var(--clr-accent);opacity:0.5;">
+                                <rect x="3" y="3" width="7" height="7" rx="1"/>
+                                <rect x="14" y="3" width="7" height="7" rx="1"/>
+                                <rect x="14" y="14" width="7" height="7" rx="1"/>
+                                <rect x="3" y="14" width="7" height="7" rx="1"/>
+                                <line x1="10" y1="12" x2="14" y2="12" stroke-width="1.5"/>
+                                <line x1="12" y1="10" x2="12" y2="14" stroke-width="1.5"/>
+                            </svg>
                         </div>
+                        <p class="ss-placeholder-text">Point camera at a QR code</p>
+                        <p class="ss-placeholder-hint">Scan a room QR to start, or a student QR to mark attendance</p>
                     </div>
 
-                    <button class="btn btn-primary" @onclick="OpenScanner" style="margin-top:24px;">
+                    <button class="btn btn-primary" @onclick="OpenScanner">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
                         <span>Scan QR Code</span>
                     </button>
@@ -159,33 +149,59 @@
 
                 @if (_sessionId == 0)
                 {
-                    <div style="display:flex;align-items:center;gap:16px;margin-top:32px;width:400px;">
-                        <div style="flex:1;height:1px;background:rgba(255,255,255,0.06);"></div>
-                        <span style="font-size:13px;color:rgba(255,255,255,0.3);font-weight:500;text-transform:uppercase;letter-spacing:1px;">or</span>
-                        <div style="flex:1;height:1px;background:rgba(255,255,255,0.06);"></div>
+                    <div class="ss-divider">
+                        <div class="ss-divider-line"></div>
+                        <span class="ss-divider-text">or</span>
+                        <div class="ss-divider-line"></div>
                     </div>
 
-                    <div style="margin-top:20px;text-align:center;">
-                        <p style="font-size:13px;color:rgba(255,255,255,0.5);margin-bottom:10px;">Select a section to start a class session</p>
+                    <div class="ss-section-area">
+                        <p class="ss-section-label">Select a section to start a class session</p>
                         @if (_sections.Count == 0)
                         {
-                            <p style="font-size:13px;color:rgba(255,255,255,0.3);">No classes scheduled for today.</p>
+                            <div class="ss-empty-sections">
+                                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="color:var(--clr-text-muted);">
+                                    <rect x="3" y="3" width="18" height="18" rx="2"/>
+                                    <line x1="9" y1="9" x2="15" y2="9"/>
+                                    <line x1="9" y1="13" x2="15" y2="13"/>
+                                    <line x1="9" y1="17" x2="12" y2="17"/>
+                                </svg>
+                                <p>No classes scheduled for today.</p>
+                            </div>
                         }
                         else
                         {
-                            <div style="display:flex;gap:8px;max-width:420px;width:100%;">
-                                <select style="flex:1;padding:10px 12px;border:1px solid rgba(255,255,255,0.1);border-radius:8px;font-size:13px;color:#fff;background:rgba(255,255,255,0.05);outline:none;"
-                                        @bind="_selectedOfferingId" @bind:after="StartFromDropdown">
-                                    <option style="background:#141E3A;color:#fff;" value="0">Choose a section...</option>
-                                    @foreach (var sec in _sections)
-                                    {
-                                        <option style="background:#141E3A;color:#fff;" value="@(sec.OfferingId?.ToString() ?? "0")">
-                                            @sec.SectionName — @sec.Subject (@sec.TimeDisplay)
-                                        </option>
-                                    }
-                                </select>
-                                <button class="btn btn-primary" @onclick="StartFromDropdown" disabled="@_saving || _selectedOfferingId == 0">
-                                    Start
+                            <div class="ss-section-picker">
+                                <div @ref="_triggerRef" @onclick="ToggleDropdown" class="ss-select-trigger">
+                                    <span class="ss-select-label" style="color:@(_selectedOfferingId == 0 ? "var(--clr-text-muted)" : "var(--clr-text)");">
+                                        @(_selectedOfferingId == 0 ? "Choose a section..." : _selectedSectionText)
+                                    </span>
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--clr-text-muted);transition:transform .2s;transform:@(_showDropdown ? "rotate(180deg)" : "rotate(0)");">
+                                        <polyline points="6 9 12 15 18 9"/>
+                                    </svg>
+                                </div>
+                                @if (_showDropdown)
+                                {
+                                    <div class="ss-dropdown" style="@(_dropUp ? "bottom:calc(100% + 6px)" : "top:calc(100% + 6px)");">
+                                        @foreach (var sec in _sections)
+                                        {
+                                            var isSelected = (sec.OfferingId ?? 0) == _selectedOfferingId;
+                                            <div class="@($"ss-dd-opt {(isSelected ? "ss-dd-opt-sel" : "")}")" @onclick="() => SelectSection(sec)">
+                                                <div class="ss-dd-opt-info">
+                                                    <span class="ss-dd-opt-name">@sec.SectionName</span>
+                                                    <span class="ss-dd-opt-sub">@sec.Subject · @sec.TimeDisplay</span>
+                                                </div>
+                                                @if (isSelected)
+                                                {
+                                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--clr-accent)" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+                                                }
+                                            </div>
+                                        }
+                                    </div>
+                                }
+                                <button class="btn btn-primary" @onclick="StartFromDropdown" disabled="@_saving">
+                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="5 12 10 17 19 8"/></svg>
+                                    <span>Start</span>
                                 </button>
                             </div>
                         }
@@ -195,85 +211,92 @@
                 @* Floating notifications *@
                 @if (_notifications.Count > 0)
                 {
-                    <div style="position:absolute;bottom:32px;left:50%;transform:translateX(-50%);display:flex;flex-direction:column;gap:8px;width:320px;">
+                    <div class="ss-notifications">
                         @foreach (var n in _notifications)
                         {
-                            <div style="padding:10px 14px;border-radius:8px;font-size:13px;font-weight:500;display:flex;align-items:center;gap:8px;box-shadow:0 4px 12px rgba(0,0,0,0.3);animation:_slideUp 0.3s ease;background:@(n.Type == "present" ? "rgba(34,197,94,0.15)" : n.Type == "late" ? "rgba(234,179,8,0.15)" : "rgba(239,68,68,0.15)");color:@(n.Type == "present" ? "#4ade80" : n.Type == "late" ? "#facc15" : "#f87171");">
+                            <div class="ss-notification ss-notify-@n.Type">
                                 <span>@n.Text</span>
-                                <button style="margin-left:auto;background:none;border:none;cursor:pointer;color:inherit;padding:2px;" @onclick="() => DismissNotification(n)">✕</button>
+                                <button class="ss-notify-dismiss" @onclick="() => DismissNotification(n)">✕</button>
                             </div>
                         }
                     </div>
                 }
             </div>
 
-            @* ── Roster Panel (only when session active) ── *@
+            @* ── Roster Panel ── *@
             @if (_sessionId > 0)
             {
-                <div style="width:384px;border-left:1px solid rgba(255,255,255,0.06);background:rgba(255,255,255,0.03);backdrop-filter:blur(12px);display:flex;flex-direction:column;flex-shrink:0;">
-                    <div style="padding:16px;border-bottom:1px solid rgba(255,255,255,0.04);box-shadow:inset 3px 0 0 #4ade80;">
-                        <div style="display:flex;align-items:center;justify-content:space-between;">
-                            <h3 style="font-size:15px;font-weight:700;color:#fff;">@_sessionState?.SectionName</h3>
-                            <div style="display:flex;gap:12px;font-size:12px;">
-                                <span style="color:#4ade80;font-weight:600;">@(_sessionState?.PresentCount ?? 0) P</span>
-                                <span style="color:#facc15;font-weight:600;">@(_sessionState?.LateCount ?? 0) L</span>
-                                <span style="color:#f87171;font-weight:600;">@(_sessionState?.AbsentCount ?? 0) A</span>
+                <div class="ss-roster">
+                    <div class="ss-roster-header">
+                        <div class="ss-roster-title-row">
+                            <h3 class="ss-roster-title">@_sessionState?.SectionName</h3>
+                            <div class="ss-roster-stats">
+                                <span class="ss-stat ss-stat-present">@(_sessionState?.PresentCount ?? 0) P</span>
+                                <span class="ss-stat ss-stat-late">@(_sessionState?.LateCount ?? 0) L</span>
+                                <span class="ss-stat ss-stat-absent">@(_sessionState?.AbsentCount ?? 0) A</span>
                             </div>
                         </div>
-
-                        <div style="position:relative;margin-top:12px;">
-                            <svg style="position:absolute;left:10px;top:50%;transform:translateY(-50%);" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.3)" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-                            <input style="width:100%;padding:8px 10px 8px 30px;border:1px solid rgba(255,255,255,0.1);border-radius:6px;font-size:13px;outline:none;background:rgba(255,255,255,0.05);color:#fff;"
-                                   placeholder="Search by name or ID..."
+                        <div class="ss-roster-search">
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--clr-text-muted);flex-shrink:0;"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                            <input placeholder="Search by name or ID..."
                                    @bind="_rosterSearch" @bind:event="oninput" />
                         </div>
                     </div>
 
-                    <div style="flex:1;overflow-y:auto;">
+                    <div class="ss-roster-body">
                         @if (_students.Count == 0)
                         {
-                            <div style="text-align:center;padding:48px 16px;color:rgba(255,255,255,0.4);font-size:13px;">No students found.</div>
+                            <div class="ss-roster-empty">
+                                <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="color:var(--clr-text-muted);">
+                                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                                    <circle cx="9" cy="7" r="4"/>
+                                    <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                                    <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                                </svg>
+                                <p>No students found.</p>
+                            </div>
                         }
                         else
                         {
-                            @foreach (var s in _filteredStudents)
+                            @for (var __fi = 0; __fi < _filteredStudents.Count; __fi++)
                             {
+                                var s = _filteredStudents[__fi];
                                 var avatarBg = s.Status switch
                                 {
                                     "PRESENT" => "#22c55e",
                                     "LATE" => "#eab308",
                                     "ABSENT" => "#ef4444",
-                                    _ => "rgba(255,255,255,0.1)"
+                                    _ => "var(--clr-surface-alt)"
                                 };
                                 var avatarText = s.Status switch
                                 {
                                     "PRESENT" => "#fff",
                                     "LATE" => "#fff",
                                     "ABSENT" => "#fff",
-                                    _ => "rgba(255,255,255,0.5)"
+                                    _ => "var(--clr-text-muted)"
                                 };
 
-                                <div style="display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid rgba(255,255,255,0.04);">
-                                    <div style="width:32px;height:32px;border-radius:50%;background:@avatarBg;color:@avatarText;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;flex-shrink:0;">
+                                <div class="ss-roster-item" style="--i: @__fi">
+                                    <div class="ss-avatar" style="background:@avatarBg;color:@avatarText;">
                                         @s.FullName[..1].ToUpper()
                                     </div>
-                                    <div style="flex:1;min-width:0;">
-                                        <div style="font-size:13px;font-weight:500;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">@s.FullName</div>
-                                        <div style="font-size:11px;color:rgba(255,255,255,0.4);">@s.StudentNumber</div>
+                                    <div class="ss-student-info">
+                                        <div class="ss-student-name">@s.FullName</div>
+                                        <div class="ss-student-id">@s.StudentNumber</div>
                                     </div>
                                     @if (s.Status is not null)
                                     {
                                         var badgeBg = s.Status == "PRESENT" ? "rgba(34,197,94,0.15)" : s.Status == "LATE" ? "rgba(234,179,8,0.15)" : "rgba(239,68,68,0.15)";
                                         var badgeText = s.Status == "PRESENT" ? "#4ade80" : s.Status == "LATE" ? "#facc15" : "#f87171";
-                                        <span style="font-size:11px;font-weight:600;padding:2px 8px;border-radius:4px;background:@badgeBg;color:@badgeText;cursor:pointer;" @onclick="() => UndoMarkAsync(s.StudentId)" title="Click to undo">
-                                            @s.Status @(s.ScannedAt.HasValue ? s.ScannedAt.Value.ToString("h:mm tt") : "")
+                                        var badgeTime = s.ScannedAt.HasValue ? s.ScannedAt.Value.ToString("h:mm tt") : "";
+                                        <span class="ss-badge ss-badge-@s.Status.ToLower()" @onclick="() => UndoMarkAsync(s.StudentId)" title="Click to undo">
+                                            @s.Status @badgeTime
                                         </span>
                                     }
                                     else
                                     {
-                                        <button class="btn btn-xs btn-ghost" @onclick="() => MarkStudentAsync(s.StudentId)"
-                                                disabled="@_saving" title="Mark Present"
-                                                style="border:2px dashed rgba(255,255,255,0.2);border-radius:50%;width:32px;height:32px;padding:0;display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,0.4);">
+                                        <button class="ss-mark-btn" @onclick="() => MarkStudentAsync(s.StudentId)"
+                                                disabled="@_saving" title="Mark Present">
                                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
                                         </button>
                                     }
@@ -282,7 +305,7 @@
                         }
                     </div>
 
-                    <div style="padding:12px 16px;border-top:1px solid rgba(255,255,255,0.04);font-size:12px;color:rgba(255,255,255,0.4);display:flex;justify-content:space-between;">
+                    <div class="ss-roster-footer">
                         <span>@_filteredStudents.Count visible</span>
                         <span>@_students.Count(s => s.Status is not null) / @_students.Count marked</span>
                     </div>
@@ -291,12 +314,12 @@
         </div>
     }
 
-    @* ── Scanner Overlay Modal (only when no session) ── *@
+    @* ── Scanner Overlay Modal ── *@
     @if (_sessionId == 0 && _showScanner)
     {
-        <div style="position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:2000;display:flex;flex-direction:column;align-items:center;justify-content:center;">
-            <div style="width:320px;position:relative;">
-                <div style="width:100%;height:240px;border-radius:12px;overflow:hidden;background:#000;position:relative;">
+        <div class="ss-modal-overlay">
+            <div class="ss-modal-card">
+                <div class="ss-modal-video">
                     <div id="qr-reader" style="width:100%;height:100%;"></div>
                     <style>
                         #qr-reader video { width: 100% !important; height: 100% !important; object-fit: cover !important; }
@@ -304,64 +327,329 @@
                     </style>
                     @if (!string.IsNullOrEmpty(_cameraError))
                     {
-                        <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;">
-                            <p style="color:rgba(255,255,255,0.5);font-size:14px;text-align:center;">@_cameraError</p>
-                            <p style="color:rgba(255,255,255,0.3);font-size:12px;">Enter token manually below</p>
+                        <div class="ss-modal-video-overlay">
+                            <p class="ss-modal-error-text">@_cameraError</p>
+                            <p class="ss-modal-error-hint">Enter token manually below</p>
                         </div>
                     }
                     else if (!_cameraStarted)
                     {
-                        <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;">
-                            <span style="font-size:48px;color:rgba(255,255,255,0.15);">◻</span>
+                        <div class="ss-modal-video-overlay">
+                            <span class="ss-qr-placeholder-icon">◻</span>
                         </div>
                     }
                 </div>
-                <svg width="344" height="264" viewBox="0 0 344 264" style="position:absolute;top:-12px;left:-12px;pointer-events:none;">
-                    <rect x="12" y="0" width="60" height="16" rx="4" fill="none" stroke="#22c55e" stroke-width="4"/>
-                    <rect x="0" y="12" width="16" height="60" rx="4" fill="none" stroke="#22c55e" stroke-width="4"/>
-                    <rect x="272" y="0" width="60" height="16" rx="4" fill="none" stroke="#22c55e" stroke-width="4"/>
-                    <rect x="332" y="12" width="12" height="60" rx="4" fill="none" stroke="#22c55e" stroke-width="4"/>
-                    <rect x="12" y="248" width="60" height="16" rx="4" fill="none" stroke="#22c55e" stroke-width="4"/>
-                    <rect x="0" y="192" width="16" height="60" rx="4" fill="none" stroke="#22c55e" stroke-width="4"/>
-                    <rect x="272" y="248" width="60" height="16" rx="4" fill="none" stroke="#22c55e" stroke-width="4"/>
-                    <rect x="332" y="192" width="12" height="60" rx="4" fill="none" stroke="#22c55e" stroke-width="4"/>
-                </svg>
-                <div style="margin-top:12px;width:100%;">
-                    <p style="color:rgba(255,255,255,0.6);font-size:12px;text-align:center;margin-bottom:8px;">
+                <div class="ss-modal-body">
+                    <p class="ss-modal-body-text">
                         @(_sessionId > 0 ? "Scan a student QR to mark attendance" : "Scan a room QR to start a session")
-                        <span style="color:rgba(255,255,255,0.3);">or type it below</span>
+                        <span class="ss-modal-body-hint">or type it below</span>
                     </p>
-                    <div style="display:flex;gap:8px;">
-                        <input id="qrInput" style="flex:1;padding:10px 14px;border:1px solid rgba(255,255,255,0.2);border-radius:8px;background:rgba(255,255,255,0.1);color:#fff;font-size:14px;text-align:center;outline:none;"
+                    <div class="ss-modal-input-row">
+                        <input id="qrInput" class="ss-modal-input"
                                placeholder="Paste or type QR token..."
                                @bind="_qrInput" @bind:event="oninput" />
                         <button class="btn btn-primary" @onclick="ProcessQrInput" disabled="@_saving">Go</button>
                     </div>
                     @if (!string.IsNullOrEmpty(_qrFeedback))
                     {
-                        <p style="text-align:center;margin-top:6px;font-size:13px;color:@(_qrFeedback.Contains("✓") || _qrFeedback.Contains("marked") ? "#22c55e" : "#ef4444");">@_qrFeedback</p>
+                        <p class="ss-modal-feedback" style="color:@(_qrFeedback.Contains("✓") || _qrFeedback.Contains("marked") ? "#22c55e" : "#ef4444");">@_qrFeedback</p>
                     }
                 </div>
             </div>
-            <button class="btn" @onclick="CloseScanner" style="margin-top:20px;background:rgba(255,255,255,0.1);color:rgba(255,255,255,0.7);border-color:rgba(255,255,255,0.2);padding:8px 32px;">Cancel</button>
+            <button class="btn ss-modal-cancel" @onclick="CloseScanner">Cancel</button>
         </div>
     }
 </div>
 
-@* ── Animations ── *@
+@* ── Page Styles ── *@
 <style>
+    /* ── Page Container ── */
+    .ss-page { height:calc(100vh - 64px); display:flex; flex-direction:column; overflow:hidden; background:var(--clr-bg); animation:_fadeIn 0.3s ease; }
+
+    /* ── Top Bar ── */
+    .ss-topbar {
+        display:flex; align-items:center; gap:12px; padding:10px 24px;
+        background:var(--clr-surface); border-bottom:1px solid var(--clr-border);
+        flex-shrink:0;
+    }
+    .ss-live-badge {
+        display:flex; align-items:center; gap:7px; padding:4px 12px 4px 10px;
+        border-radius:20px; background:rgba(34,197,94,0.12);
+    }
+    .ss-live-dot {
+        width:7px; height:7px; border-radius:50%; background:#4ade80;
+        animation:_pulse 2s infinite;
+    }
+    .ss-live-badge + span { font-size:13px; font-weight:600; color:var(--clr-text); }
+    .ss-top-sub { font-size:13px; color:var(--clr-text-secondary); }
+    .ss-idle-badge {
+        display:flex; align-items:center; gap:7px; padding:4px 12px 4px 10px;
+        border-radius:20px; background:var(--clr-surface-alt);
+    }
+    .ss-idle-dot { width:7px; height:7px; border-radius:50%; background:var(--clr-text-muted); }
+    .ss-idle-badge + span { font-size:12px; font-weight:600; color:var(--clr-text-muted); text-transform:uppercase; letter-spacing:0.5px; }
+    .ss-event-count {
+        font-size:12px; color:var(--clr-text-muted); font-weight:500;
+        padding:2px 8px; background:var(--clr-surface-alt); border-radius:4px;
+    }
+
+    /* ── Loading State ── */
+    .ss-loading { flex:1; display:flex; align-items:center; justify-content:center; padding:32px; }
+    .ss-loading-inner { max-width:540px; width:100%; }
+    .ss-loading-title { font-size:20px; font-weight:700; color:var(--clr-text); text-align:center; margin-bottom:6px; }
+    .ss-loading-sub { font-size:13px; color:var(--clr-text-secondary); text-align:center; margin-bottom:24px; }
+    .ss-skeleton-list { display:flex; flex-direction:column; gap:12px; }
+    .ss-skeleton-card {
+        padding:16px 20px; border:1px solid var(--clr-border); border-radius:10px;
+        background:var(--clr-surface);
+    }
+    .ss-skeleton-row { display:flex; align-items:center; justify-content:space-between; width:100%; }
+    .ss-skeleton-line {
+        background:linear-gradient(90deg,rgba(128,128,128,0.06) 25%,rgba(128,128,128,0.12) 50%,rgba(128,128,128,0.06) 75%);
+        background-size:200% 100%; animation:_shimmer 1.5s infinite; border-radius:4px;
+    }
+
+    /* ── Error State ── */
+    .ss-error { flex:1; display:flex; align-items:center; justify-content:center; padding:32px; }
+    .ss-error-inner { max-width:400px; width:100%; text-align:center; }
+
+    /* ── Main Layout ── */
+    .ss-main { flex:1; display:flex; overflow:hidden; }
+
+    /* ── Viewfinder ── */
+    .ss-viewfinder {
+        flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center;
+        padding:32px; position:relative; min-width:0;
+    }
+
+    /* ── Placeholder Card ── */
+    .ss-placeholder-card {
+        width:320px; padding:40px 32px;
+        display:flex; flex-direction:column; align-items:center; gap:16px;
+        background:var(--clr-surface); border:1px solid var(--clr-border);
+        border-radius:16px; box-shadow:var(--shadow-card);
+        animation:_fadeUp 0.45s ease;
+    }
+    .ss-placeholder-icon {
+        width:72px; height:72px; border-radius:16px;
+        background:var(--clr-accent-bg); display:flex; align-items:center; justify-content:center;
+    }
+    .ss-placeholder-text { font-size:14px; font-weight:600; color:var(--clr-text); text-align:center; margin:0; }
+    .ss-placeholder-hint { font-size:12px; color:var(--clr-text-muted); text-align:center; margin:0; }
+
+    /* ── Scanner (in-page, session active) ── */
+    .ss-scanner-card { width:320px; max-width:100%; animation:_fadeUp 0.35s ease; }
+    .ss-scanner-video {
+        width:100%; height:240px; border-radius:12px; overflow:hidden;
+        background:#000; position:relative;
+    }
+    .ss-scanner-overlay {
+        position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    }
+    .ss-scanner-error-text { color:rgba(255,255,255,0.5); font-size:13px; text-align:center; padding:0 16px; }
+    .ss-qr-placeholder-icon { font-size:42px; color:rgba(255,255,255,0.12); }
+    .ss-scanner-input-row { display:flex; gap:8px; margin-top:10px; animation:_slideDown 0.25s ease; }
+    .ss-scanner-input {
+        flex:1; padding:9px 12px; border:1px solid var(--clr-border); border-radius:8px;
+        font-size:13px; text-align:center; outline:none;
+        background:var(--clr-surface); color:var(--clr-text);
+    }
+    .ss-scanner-input:focus { border-color:var(--clr-accent); box-shadow:0 0 0 3px var(--clr-accent-bg); }
+    .ss-scanner-feedback { text-align:center; margin-top:6px; font-size:13px; }
+    .ss-stop-btn {
+        margin-top:14px; background:var(--clr-surface); color:var(--clr-text-secondary);
+        border-color:var(--clr-border); position:relative; z-index:9999; pointer-events:auto;
+    }
+
+    /* ── Divider ── */
+    .ss-divider {
+        display:flex; align-items:center; gap:16px; margin-top:32px; width:380px;
+        animation:_fadeIn 0.5s ease 0.15s both;
+    }
+    .ss-divider-line { flex:1; height:1px; background:linear-gradient(90deg,transparent,var(--clr-border),transparent); }
+    .ss-divider-text {
+        font-size:11px; color:var(--clr-text-muted); font-weight:600;
+        text-transform:uppercase; letter-spacing:1.5px; flex-shrink:0;
+    }
+
+    /* ── Section Picker ── */
+    .ss-section-area { margin-top:24px; text-align:center; width:100%; max-width:460px; animation:_fadeUp 0.45s ease 0.1s both; }
+    .ss-section-label { font-size:13px; color:var(--clr-text-secondary); margin-bottom:14px; }
+    .ss-empty-sections {
+        display:flex; flex-direction:column; align-items:center; gap:10px;
+        padding:24px; color:var(--clr-text-muted); font-size:13px;
+    }
+    .ss-empty-sections p { margin:0; }
+    .ss-section-picker { display:flex; gap:10px; width:100%; position:relative; }
+    .ss-select-trigger {
+        flex:1; padding:10px 14px;
+        border:1px solid var(--clr-border-strong); border-radius:10px;
+        font-size:13px; color:var(--clr-text); background:var(--clr-surface);
+        outline:none; cursor:pointer; display:flex; align-items:center;
+        justify-content:space-between; user-select:none; gap:8px;
+        transition:border-color .15s, box-shadow .15s;
+    }
+    .ss-select-trigger:hover { border-color:var(--clr-accent); }
+    .ss-select-label { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .ss-dropdown {
+        position:absolute; left:0; right:70px;
+        background:var(--clr-surface); border:1px solid var(--clr-border-strong);
+        border-radius:10px; box-shadow:var(--shadow-lg); z-index:100;
+        max-height:220px; overflow-y:auto; padding:4px;
+        animation:_fadeUp 0.18s ease;
+        transform-origin:top center;
+    }
+    .ss-dd-opt {
+        display:flex; align-items:center; justify-content:space-between; gap:8px;
+        padding:9px 12px; cursor:pointer; border-radius:7px;
+        transition:background .12s;
+    }
+    .ss-dd-opt:hover { background:var(--clr-surface-alt); }
+    .ss-dd-opt-sel { background:var(--clr-accent-bg); }
+    .ss-dd-opt-sel:hover { background:var(--clr-accent-bg); }
+    .ss-dd-opt-info { display:flex; flex-direction:column; gap:2px; min-width:0; }
+    .ss-dd-opt-name { font-size:13px; font-weight:500; color:var(--clr-text); }
+    .ss-dd-opt-sub { font-size:11px; color:var(--clr-text-muted); }
+
+    /* ── Notifications ── */
+    .ss-notifications {
+        position:absolute; bottom:32px; left:50%; transform:translateX(-50%);
+        display:flex; flex-direction:column; gap:8px; width:320px; pointer-events:none;
+    }
+    .ss-notification {
+        padding:10px 14px; border-radius:8px; font-size:13px; font-weight:500;
+        display:flex; align-items:center; gap:8px;
+        box-shadow:0 4px 16px rgba(0,0,0,0.2); animation:_slideUp 0.3s ease;
+        pointer-events:auto;
+    }
+    .ss-notify-present { background:rgba(34,197,94,0.15); color:#4ade80; }
+    .ss-notify-late { background:rgba(234,179,8,0.15); color:#facc15; }
+    .ss-notify-error { background:rgba(239,68,68,0.15); color:#f87171; }
+    .ss-notify-dismiss {
+        margin-left:auto; background:none; border:none; cursor:pointer;
+        color:inherit; padding:2px; font-size:14px; line-height:1;
+    }
+
+    /* ── Roster Panel ── */
+    .ss-roster {
+        width:384px; border-left:1px solid var(--clr-border);
+        background:var(--clr-surface); display:flex; flex-direction:column; flex-shrink:0;
+        animation:_slideInRight 0.4s cubic-bezier(0.16,1,0.3,1);
+    }
+    .ss-roster-header {
+        padding:16px; border-bottom:1px solid var(--clr-border);
+        box-shadow:inset 3px 0 0 #4ade80;
+    }
+    .ss-roster-title-row {
+        display:flex; align-items:center; justify-content:space-between;
+    }
+    .ss-roster-title { font-size:14px; font-weight:700; color:var(--clr-text); margin:0; }
+    .ss-roster-stats { display:flex; gap:10px; font-size:12px; }
+    .ss-stat { font-weight:600; padding:2px 6px; border-radius:4px; }
+    .ss-stat-present { color:#4ade80; }
+    .ss-stat-late { color:#facc15; }
+    .ss-stat-absent { color:#f87171; }
+    .ss-roster-search {
+        display:flex; align-items:center; gap:8px; margin-top:12px;
+        padding:8px 10px; border:1px solid var(--clr-border); border-radius:8px;
+        background:var(--clr-surface-alt); transition:border-color .15s;
+    }
+    .ss-roster-search:focus-within { border-color:var(--clr-accent); }
+    .ss-roster-search input {
+        flex:1; border:none; outline:none; background:transparent;
+        font-size:13px; color:var(--clr-text);
+    }
+    .ss-roster-search input::placeholder { color:var(--clr-text-muted); }
+    .ss-roster-body { flex:1; overflow-y:auto; }
+    .ss-roster-empty {
+        display:flex; flex-direction:column; align-items:center; gap:10px;
+        padding:48px 16px; color:var(--clr-text-muted); font-size:13px;
+    }
+    .ss-roster-empty p { margin:0; }
+    .ss-roster-item {
+        display:flex; align-items:center; gap:10px; padding:10px 16px;
+        border-bottom:1px solid var(--clr-border); transition:background .12s;
+        animation:_fadeUp 0.3s ease both;
+        animation-delay:calc(var(--i,0) * 25ms);
+    }
+    .ss-roster-item:hover { background:var(--clr-surface-alt); }
+    .ss-avatar {
+        width:32px; height:32px; border-radius:50%;
+        display:flex; align-items:center; justify-content:center;
+        font-size:12px; font-weight:600; flex-shrink:0;
+    }
+    .ss-student-info { flex:1; min-width:0; }
+    .ss-student-name { font-size:13px; font-weight:500; color:var(--clr-text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .ss-student-id { font-size:11px; color:var(--clr-text-muted); }
+    .ss-badge {
+        font-size:11px; font-weight:600; padding:3px 8px; border-radius:5px;
+        cursor:pointer; transition:opacity .15s; white-space:nowrap;
+        animation:_popIn 0.35s cubic-bezier(0.34,1.56,0.64,1);
+    }
+    .ss-badge:hover { opacity:0.8; }
+    .ss-badge-present { background:rgba(34,197,94,0.15); color:#4ade80; }
+    .ss-badge-late { background:rgba(234,179,8,0.15); color:#facc15; }
+    .ss-badge-absent { background:rgba(239,68,68,0.15); color:#f87171; }
+    .ss-mark-btn {
+        border:2px dashed var(--clr-border-strong); border-radius:50%; width:32px; height:32px;
+        padding:0; display:flex; align-items:center; justify-content:center;
+        color:var(--clr-text-muted); cursor:pointer; background:transparent;
+        transition:border-color .2s, color .2s, background .2s, transform .15s cubic-bezier(0.34,1.56,0.64,1);
+    }
+    .ss-mark-btn:hover:not(:disabled) { border-color:var(--clr-accent); color:var(--clr-accent); background:var(--clr-accent-bg); transform:scale(1.15); }
+    .ss-mark-btn:active:not(:disabled) { transform:scale(0.85); }
+    .ss-mark-btn:disabled { opacity:0.4; cursor:default; }
+    .ss-roster-footer {
+        padding:10px 16px; border-top:1px solid var(--clr-border);
+        font-size:11px; color:var(--clr-text-muted); display:flex; justify-content:space-between;
+    }
+
+    /* ── Overlay Modal ── */
+    .ss-modal-overlay {
+        position:fixed; inset:0; background:rgba(0,0,0,0.8);
+        z-index:2000; display:flex; flex-direction:column;
+        align-items:center; justify-content:center; gap:20px;
+        backdrop-filter:blur(4px);
+        animation:_fadeIn 0.2s ease;
+    }
+    .ss-modal-card {
+        width:340px; background:var(--clr-surface); border-radius:16px;
+        overflow:hidden; box-shadow:var(--shadow-modal);
+        animation:_scaleIn 0.3s ease;
+    }
+    .ss-modal-video {
+        width:100%; height:240px; background:#000; position:relative;
+    }
+    .ss-modal-video-overlay {
+        position:absolute; inset:0; display:flex; flex-direction:column;
+        align-items:center; justify-content:center; gap:6px;
+    }
+    .ss-modal-error-text { color:rgba(255,255,255,0.5); font-size:13px; text-align:center; padding:0 16px; margin:0; }
+    .ss-modal-error-hint { color:rgba(255,255,255,0.25); font-size:12px; margin:0; }
+    .ss-modal-body { padding:16px; }
+    .ss-modal-body-text {
+        color:var(--clr-text-secondary); font-size:12px; text-align:center; margin:0 0 10px;
+    }
+    .ss-modal-body-hint { color:var(--clr-text-muted); }
+    .ss-modal-input-row { display:flex; gap:8px; }
+    .ss-modal-input {
+        flex:1; padding:10px 14px; border:1px solid var(--clr-border); border-radius:8px;
+        font-size:13px; text-align:center; outline:none; background:var(--clr-surface-alt);
+        color:var(--clr-text); transition:border-color .15s;
+    }
+    .ss-modal-input:focus { border-color:var(--clr-accent); }
+    .ss-modal-feedback { text-align:center; margin-top:8px; font-size:13px; }
+    .ss-modal-cancel {
+        background:rgba(255,255,255,0.08); color:rgba(255,255,255,0.65);
+        border-color:rgba(255,255,255,0.12); padding:8px 36px;
+        position:relative; z-index:9999; pointer-events:auto;
+        animation:_fadeUp 0.3s ease 0.1s both;
+    }
+
+    /* ── Keyframe Animations ── */
     @@keyframes _pulse {
         0%, 100% { opacity: 1; }
         50% { opacity: 0.4; }
-    }
-    @@keyframes _scanPulse {
-        0%, 100% { transform: scale(1); opacity: 0.6; }
-        50% { transform: scale(1.1); opacity: 0.3; }
-    }
-    @@keyframes _scanLine {
-        0% { top: 8%; }
-        50% { top: 88%; }
-        100% { top: 8%; }
     }
     @@keyframes _slideUp {
         from { opacity: 0; transform: translateY(8px); }
@@ -370,6 +658,42 @@
     @@keyframes _shimmer {
         0% { background-position: 200% 0; }
         100% { background-position: -200% 0; }
+    }
+    @@keyframes _fadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+    }
+    @@keyframes _fadeUp {
+        from { opacity: 0; transform: translateY(16px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    @@keyframes _scaleIn {
+        from { opacity: 0; transform: scale(0.92); }
+        to { opacity: 1; transform: scale(1); }
+    }
+    @@keyframes _slideInRight {
+        from { transform: translateX(100%); }
+        to { transform: translateX(0); }
+    }
+    @@keyframes _popIn {
+        0% { opacity: 0; transform: scale(0.5); }
+        70% { transform: scale(1.1); }
+        100% { opacity: 1; transform: scale(1); }
+    }
+    @@keyframes _slideDown {
+        from { opacity: 0; transform: translateY(-10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ── Accessibility: Reduce motion ── */
+    @@media (prefers-reduced-motion: reduce) {
+        .ss-page, .ss-placeholder-card, .ss-scanner-card, .ss-roster,
+        .ss-roster-item, .ss-badge, .ss-modal-overlay, .ss-modal-card,
+        .ss-modal-cancel, .ss-dropdown, .ss-divider, .ss-section-area,
+        .ss-scanner-input-row,
+        .ss-notification, .ss-skeleton-line { animation: none !important; }
+        .ss-mark-btn { transform: none !important; }
+        .ss-live-dot { animation: none !important; }
     }
 </style>
 
@@ -382,6 +706,10 @@
 
     private List<SectionSelectItem> _sections = [];
     private long _selectedOfferingId;
+    private string _selectedSectionText = "";
+    private bool _showDropdown;
+    private bool _dropUp;
+    private ElementReference _triggerRef;
     private List<RosterStudentItem> _students = [];
     private List<RosterStudentItem> _filteredStudents => string.IsNullOrWhiteSpace(_rosterSearch)
         ? _students
@@ -473,20 +801,53 @@
         }
     }
 
+    private async Task ToggleDropdown()
+    {
+        if (!_showDropdown)
+        {
+            try
+            {
+                var spaceBelow = await JS.InvokeAsync<double>("__dropdownSpaceBelow", _triggerRef);
+                _dropUp = spaceBelow < 200;
+            }
+            catch { _dropUp = false; }
+        }
+        _showDropdown = !_showDropdown;
+    }
+
+    private void CloseDropdown() => _showDropdown = false;
+
+    private async Task SelectSection(SectionSelectItem sec)
+    {
+        _selectedOfferingId = sec.OfferingId ?? 0;
+        _selectedSectionText = $"{sec.SectionName} — {sec.Subject} ({sec.TimeDisplay})";
+        _showDropdown = false;
+        await InvokeAsync(StateHasChanged);
+    }
+
     private async Task StartFromDropdown()
     {
-        if (_selectedOfferingId == 0) return;
+        _showDropdown = false;
         _saving = true;
         try
         {
+            _notifications.Clear();
+            if (_selectedOfferingId == 0)
+            {
+                _notifications.Add(new NotificationCard("Choose a section first.", "error"));
+                return;
+            }
             var state = await SessionService.StartManualSessionAsync(_teacherId, _userId, _selectedOfferingId, _cts.Token);
+            var roster = await SessionService.GetRosterAsync(state.SessionId, _cts.Token);
             _sessionId = state.SessionId;
             _sessionState = state;
-            _students = await SessionService.GetRosterAsync(_sessionId, _cts.Token);
-            _notifications.Clear();
+            _students = roster;
             _ = PollLiveScansAsync();
         }
-        catch (Exception ex) { _error = ex.Message; }
+        catch (Exception ex)
+        {
+            _notifications.Add(new NotificationCard(ex.Message, "error"));
+        }
         finally { _saving = false; }
     }
 
@@ -536,14 +897,21 @@
         _saving = true;
         try
         {
-            await SessionService.EndSessionAsync(_sessionId, _cts.Token);
+            await SessionService.EndSessionAsync(_sessionId, userId: _userId, cancellationToken: CancellationToken.None);
             _sessionId = 0;
             _sessionState = null;
             _students = [];
             _notifications.Clear();
-            await LoadDataAsync();
+            _qrInput = "";
+            _qrFeedback = null;
+            try { await CloseScanner(); } catch { }
+            try { await LoadDataAsync(); } catch { }
         }
-        finally { _saving = false; }
+        finally
+        {
+            _saving = false;
+            await InvokeAsync(StateHasChanged);
+        }
     }
 
     private async Task ProcessQrInput()
@@ -567,8 +935,15 @@
                     _showScanner = false;
                     _qrInput = "";
                     _qrFeedback = null;
-                    await LoadDataAsync();
-                    await RefreshActiveSessionAsync();
+                    var state = await SessionService.GetActiveSessionForTeacherAsync(_teacherId, _cts.Token);
+                    if (state is not null)
+                    {
+                        var roster = await SessionService.GetRosterAsync(state.SessionId, _cts.Token);
+                        _sessionId = state.SessionId;
+                        _sessionState = state;
+                        _students = roster;
+                        _ = PollLiveScansAsync();
+                    }
                 }
             }
             else
@@ -610,8 +985,8 @@
     private string QrButtonStyle(QrScanMode mode)
     {
         if (_scanMode == mode)
-            return "background:#6366f1;color:#fff;border-color:#6366f1;";
-        return "background:rgba(255,255,255,0.1);color:rgba(255,255,255,0.8);border-color:rgba(255,255,255,0.3);";
+            return "background:var(--clr-accent);color:#fff;border-color:var(--clr-accent);";
+        return "background:var(--clr-surface-alt);color:var(--clr-text-secondary);border-color:var(--clr-border);";
     }
 
     private void SwitchScanModeRoom()
@@ -667,6 +1042,7 @@
     {
         _qrInput = decodedText;
         await ProcessQrInput();
+        await InvokeAsync(StateHasChanged);
     }
 
     [JSInvokable]

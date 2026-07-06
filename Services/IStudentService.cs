@@ -11,4 +11,10 @@ public interface IStudentService
     Task<StudentQr?> GetQrCodeAsync(long studentId, CancellationToken cancellationToken = default);
 
     Task<StudentQr> GenerateQrCodeAsync(long studentId, CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<Section>> GetSectionsAsync(CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<GradeLevel>> GetGradeLevelsAsync(CancellationToken cancellationToken = default);
+
+    Task<Dictionary<long, (long? SectionId, long? GradeLevelId)>> GetStudentEnrollmentMapAsync(CancellationToken cancellationToken = default);
 }

@@ -17,11 +17,13 @@ public class SchoolDbContext(DbContextOptions<SchoolDbContext> options) : DbCont
     public DbSet<GradeLevel> GradeLevels => Set<GradeLevel>();
     public DbSet<Enrollment> Enrollments => Set<Enrollment>();
     public DbSet<Room> Rooms => Set<Room>();
+    public DbSet<RoomQr> RoomQrCodes => Set<RoomQr>();
     public DbSet<SchoolYear> SchoolYears => Set<SchoolYear>();
     public DbSet<AttendanceSession> AttendanceSessions => Set<AttendanceSession>();
     public DbSet<AttendanceRecord> AttendanceRecords => Set<AttendanceRecord>();
     public DbSet<QrToken> QrTokens => Set<QrToken>();
     public DbSet<LeaveRequest> LeaveRequests => Set<LeaveRequest>();
+    public DbSet<AuditLogEntry> AuditLogs => Set<AuditLogEntry>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -223,6 +225,20 @@ public class SchoolDbContext(DbContextOptions<SchoolDbContext> options) : DbCont
             entity.Property(e => e.Name).HasColumnName("name").IsRequired();
             entity.Property(e => e.Capacity).HasColumnName("capacity");
             entity.Property(e => e.IsActive).HasColumnName("is_active");
+            entity.HasOne(e => e.QrCode).WithOne(q => q.Room).HasForeignKey<RoomQr>(q => q.RoomId);
+        });
+
+        modelBuilder.Entity<RoomQr>(entity =>
+        {
+            entity.ToTable("room_qr_tbl");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("Id");
+            entity.Property(e => e.RoomId).HasColumnName("room_id").IsRequired();
+            entity.Property(e => e.QrContent).HasColumnName("qr_content").IsRequired();
+            entity.Property(e => e.QrCode).HasColumnName("qr_code").IsRequired();
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at");
+            entity.Property(e => e.UpdatedAt).HasColumnName("updated_at");
+            entity.HasIndex(e => e.RoomId).HasDatabaseName("idx_room_qr_room_id").IsUnique();
         });
 
         modelBuilder.Entity<SchoolYear>(entity =>
@@ -310,6 +326,25 @@ public class SchoolDbContext(DbContextOptions<SchoolDbContext> options) : DbCont
                 .HasForeignKey(e => e.ReviewedByUserId)
                 .HasConstraintName("fk_leave_requests_reviewed_by")
                 .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<AuditLogEntry>(entity =>
+        {
+            entity.ToTable("audit_logs");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.ActorId).HasColumnName("actor_id").IsRequired();
+            entity.Property(e => e.ActorName).HasColumnName("actor_name").HasMaxLength(100).IsRequired();
+            entity.Property(e => e.ActorRole).HasColumnName("actor_role").HasMaxLength(20).IsRequired();
+            entity.Property(e => e.Action).HasColumnName("action").HasMaxLength(50).IsRequired();
+            entity.Property(e => e.EntityType).HasColumnName("entity_type").HasMaxLength(50).IsRequired();
+            entity.Property(e => e.EntityId).HasColumnName("entity_id");
+            entity.Property(e => e.Summary).HasColumnName("summary").HasMaxLength(500).IsRequired();
+            entity.Property(e => e.Metadata).HasColumnName("metadata").HasColumnType("json");
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at");
+            entity.HasIndex(e => e.CreatedAt).HasDatabaseName("idx_audit_created");
+            entity.HasIndex(e => e.ActorId).HasDatabaseName("idx_audit_actor");
+            entity.HasIndex(e => e.Action).HasDatabaseName("idx_audit_action");
+            entity.HasIndex(e => new { e.EntityType, e.EntityId }).HasDatabaseName("idx_audit_entity");
         });
     }
 }

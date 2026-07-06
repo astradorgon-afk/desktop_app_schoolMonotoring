@@ -1036,7 +1036,7 @@ input::-webkit-credentials-auto-fill-button, input::-webkit-contacts-auto-fill-b
   gap: 32px;
   margin-top: 20px;
   padding-top: 20px;
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  border-top: 1px solid var(--clr-border);
 }
 .trend-stat {
   display: flex;
@@ -1045,14 +1045,14 @@ input::-webkit-credentials-auto-fill-button, input::-webkit-contacts-auto-fill-b
 .trend-stat-value {
   font-size: 20px;
   font-weight: 700;
-  color: #fff;
+  color: var(--clr-text);
 }
 .trend-stat-value--up {
   color: #22c55e;
 }
 .trend-stat-label {
   font-size: 12px;
-  color: rgba(255, 255, 255, 0.4);
+  color: var(--clr-text-secondary);
   margin-top: 2px;
 }
 .leave-layout {
@@ -1204,6 +1204,10 @@ input::-webkit-credentials-auto-fill-button, input::-webkit-contacts-auto-fill-b
 .stat-icon--teal {
   background: rgba(20, 184, 166, 0.15);
   color: #2dd4bf;
+}
+.stat-icon--indigo {
+  background: rgba(99, 102, 241, 0.15);
+  color: #818cf8;
 }
 .stat-card--selected {
   border-color: #6366f1;
@@ -1504,6 +1508,49 @@ input::-webkit-credentials-auto-fill-button, input::-webkit-contacts-auto-fill-b
   padding: 48px 16px !important;
   color: rgba(255, 255, 255, 0.4);
   font-size: 14px;
+}
+.tab-btn {
+  padding: 7px 18px;
+  border: none;
+  background: transparent;
+  color: var(--clr-text-secondary);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  border-radius: 8px;
+  transition: all 0.15s;
+  font-family: inherit;
+}
+.tab-btn--active {
+  background: var(--clr-accent);
+  color: #fff;
+}
+.btn-sm {
+  padding: 6px 14px;
+  border: none;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+  font-family: inherit;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.btn-sm--green {
+  background: rgba(34, 197, 94, 0.15);
+  color: #4ade80;
+}
+.btn-sm--green:hover {
+  background: rgba(34, 197, 94, 0.25);
+}
+.btn-sm--red {
+  background: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+}
+.btn-sm--red:hover {
+  background: rgba(239, 68, 68, 0.25);
 }
 .modal-overlay {
   position: fixed;

@@ -1,8 +1,354 @@
 @page "/audit-log"
 @layout MainLayout
+@using AttendanceUI.Data.Entities
+@using AttendanceUI.Services
+@inject IAuditService AuditService
+@inject IAuthService AuthService
+@inject NavigationManager Navigation
 
-<PageHeader Title="Audit Log" Subtitle="View change history and system activity tracking" />
+<PageHeader Title="Audit Log" Subtitle="View change history and system activity tracking">
+    <div class="header-actions">
+        <button class="btn btn-ghost" @onclick="RefreshAsync" title="Refresh">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+            <span>Refresh</span>
+        </button>
+    </div>
+</PageHeader>
 
-<div class="page-card">
-    <p class="text-muted">Audit log module — coming soon.</p>
-</div>
+@if (_loading)
+{
+    <div class="loading-state">
+        <span class="spinner"></span>
+        <p>Loading audit log…</p>
+    </div>
+}
+else
+{
+    @* ── Stats Row ── *@
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-icon stat-icon--blue">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+            </div>
+            <div class="stat-info">
+                <span class="stat-value">@_todayCount</span>
+                <span class="stat-label">Today's Events</span>
+            </div>
+        </div>
+        @if (_actionStats.Count > 0)
+        {
+            var colors = new[] { "purple", "green", "yellow", "red" };
+            var ix = 0;
+            foreach (var stat in _actionStats.Take(4))
+            {
+                <div class="stat-card">
+                    <div class="stat-icon stat-icon--@colors[ix % colors.Length]">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                    </div>
+                    <div class="stat-info">
+                        <span class="stat-value">@stat.Count</span>
+                        <span class="stat-label">@FormatAction(stat.Action)</span>
+                    </div>
+                </div>
+                ix++;
+            }
+        }
+    </div>
+
+    @* ── Filters ── *@
+    <div class="students-toolbar">
+        <div class="search-wrapper">
+            <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input class="search-input" placeholder="Search by actor name…" @bind="_searchQuery" @bind:after="OnFilterChanged" />
+        </div>
+        <input class="filter-select audit-date-input" type="date" @bind="@_dateFromValue" @bind:after="OnFilterChanged" />
+        <input class="filter-select audit-date-input" type="date" @bind="@_dateToValue" @bind:after="OnFilterChanged" />
+        <select class="filter-select" @bind="_actionFilter" @bind:after="OnFilterChanged">
+            <option value="">All Actions</option>
+            @foreach (var a in _availableActions)
+            {
+                <option value="@a">@FormatAction(a)</option>
+            }
+        </select>
+        <select class="filter-select" @bind="_entityTypeFilter" @bind:after="OnFilterChanged">
+            <option value="">All Entity Types</option>
+            @foreach (var t in _availableEntityTypes)
+            {
+                <option value="@t">@t</option>
+            }
+        </select>
+        <span class="audit-count">@_totalCount entries</span>
+    </div>
+
+    @* ── Audit Table ── *@
+    <div class="students-table-wrapper">
+        <table class="students-table">
+            <thead>
+                <tr>
+                    <th>Timestamp</th>
+                    <th>Actor</th>
+                    <th>Action</th>
+                    <th>Entity</th>
+                    <th>Summary</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (_entries.Count == 0)
+                {
+                    <tr>
+                        <td colspan="6" class="empty-cell">No audit entries found.</td>
+                    </tr>
+                }
+                @foreach (var entry in _entries)
+                {
+                    <tr class="audit-row" @onclick="() => OpenDetail(entry)">
+                        <td class="audit-timestamp">@entry.CreatedAt.ToLocalTime().ToString("MMM dd, yyyy h:mm:ss tt")</td>
+                        <td>
+                            <div class="audit-actor">
+                                <span class="audit-actor-name">@entry.ActorName</span>
+                                <span class="role-badge @GetRoleBadgeClass(entry.ActorRole)">@entry.ActorRole</span>
+                            </div>
+                        </td>
+                        <td><span class="audit-action-badge @GetActionBadgeClass(entry.Action)">@FormatAction(entry.Action)</span></td>
+                        <td><span class="entity-ref">@entry.EntityType</span>@(entry.EntityId.HasValue ? $" #{entry.EntityId}" : "")</td>
+                        <td class="audit-summary">@entry.Summary</td>
+                        <td>
+                            <button class="btn btn-xs btn-ghost" @onclick:stopPropagation @onclick="() => OpenDetail(entry)">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                            </button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+
+    @* ── Pagination ── *@
+    @if (_totalPages > 1)
+    {
+        <div class="audit-pagination">
+            <button class="btn btn-sm btn-ghost" disabled="@(_currentPage <= 1)" @onclick="() => GoToPage(_currentPage - 1)">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+                Prev
+            </button>
+            @for (var p = 1; p <= _totalPages; p++)
+            {
+                <button class="btn btn-sm @(p == _currentPage ? "btn-primary" : "btn-ghost")" @onclick="() => GoToPage(p)">@p</button>
+            }
+            <button class="btn btn-sm btn-ghost" disabled="@(_currentPage >= _totalPages)" @onclick="() => GoToPage(_currentPage + 1)">
+                Next
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+            </button>
+        </div>
+    }
+}
+
+@* ── Detail Modal ── *@
+@if (_detailEntry is not null)
+{
+    <div class="modal-overlay" @onclick="CloseDetail">
+        <div class="modal-content modal-content--wide" @onclick:stopPropagation>
+            <div class="modal-header">
+                <h3>Audit Entry Detail</h3>
+                <button class="modal-close" @onclick="CloseDetail">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="detail-grid">
+                    <div class="detail-field">
+                        <label>Timestamp</label>
+                        <span>@_detailEntry.CreatedAt.ToLocalTime().ToString("MMM dd, yyyy h:mm:ss tt")</span>
+                    </div>
+                    <div class="detail-field">
+                        <label>Actor</label>
+                        <span>@_detailEntry.ActorName <span class="role-badge @GetRoleBadgeClass(_detailEntry.ActorRole)">@_detailEntry.ActorRole</span></span>
+                    </div>
+                    <div class="detail-field">
+                        <label>Actor ID</label>
+                        <span>@_detailEntry.ActorId</span>
+                    </div>
+                    <div class="detail-field">
+                        <label>Action</label>
+                        <span><span class="audit-action-badge @GetActionBadgeClass(_detailEntry.Action)">@FormatAction(_detailEntry.Action)</span></span>
+                    </div>
+                    <div class="detail-field">
+                        <label>Entity</label>
+                        <span>@_detailEntry.EntityType@(_detailEntry.EntityId.HasValue ? $" #{_detailEntry.EntityId}" : "")</span>
+                    </div>
+                    <div class="detail-field detail-field--full">
+                        <label>Summary</label>
+                        <span>@_detailEntry.Summary</span>
+                    </div>
+                    @if (!string.IsNullOrEmpty(_detailEntry.Metadata))
+                    {
+                        <div class="detail-field detail-field--full">
+                            <label>Metadata</label>
+                            <pre class="audit-metadata">@_detailEntry.Metadata</pre>
+                        </div>
+                    }
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-ghost" @onclick="CloseDetail">Close</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<AuditLogEntry> _entries = [];
+    private int _currentPage = 1;
+    private int _totalPages = 1;
+    private int _totalCount;
+    private int _todayCount;
+    private bool _loading = true;
+
+    private string? _searchQuery;
+    private DateTime? _dateFromValue;
+    private DateTime? _dateToValue;
+    private string? _actionFilter;
+    private string? _entityTypeFilter;
+
+    private List<AuditActionStats> _actionStats = [];
+    private readonly List<string> _availableActions = ["Login", "Logout", "UserCreate", "UserUpdate", "UserDelete", "UserToggleLock", "UserResetPassword", "LeaveSubmit", "LeaveApprove", "LeaveReject", "LeaveCancel", "SessionStart", "SessionEnd", "AttendanceMark", "AttendanceUndo"];
+    private readonly List<string> _availableEntityTypes = ["User", "LeaveRequest", "AttendanceSession", "AttendanceRecord"];
+
+    private AuditLogEntry? _detailEntry;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var session = await AuthService.GetCurrentSessionAsync();
+            if (session is null)
+            {
+                Navigation.NavigateTo("/login");
+                return;
+            }
+
+            _todayCount = await AuditService.GetTodayCountAsync();
+            _actionStats = await AuditService.GetActionBreakdownAsync();
+            await LoadDataAsync();
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task LoadDataAsync()
+    {
+        var query = BuildQuery();
+        var result = await AuditService.QueryAsync(query);
+        _entries = result.Entries;
+        _totalCount = result.TotalCount;
+        _totalPages = result.TotalPages;
+    }
+
+    private AuditLogQuery BuildQuery()
+    {
+        DateOnly? from = _dateFromValue.HasValue ? DateOnly.FromDateTime(_dateFromValue.Value) : null;
+        DateOnly? to = _dateToValue.HasValue ? DateOnly.FromDateTime(_dateToValue.Value) : null;
+
+        return new AuditLogQuery
+        {
+            DateFrom = from,
+            DateTo = to,
+            ActorSearch = _searchQuery,
+            Action = string.IsNullOrWhiteSpace(_actionFilter) ? null : _actionFilter,
+            EntityType = string.IsNullOrWhiteSpace(_entityTypeFilter) ? null : _entityTypeFilter,
+            Page = _currentPage,
+            PageSize = 50
+        };
+    }
+
+    private void OnFilterChanged()
+    {
+        _currentPage = 1;
+        _ = LoadDataAsync();
+    }
+
+    private async Task ApplyFilters()
+    {
+        _currentPage = 1;
+        await LoadDataAsync();
+    }
+
+    private async Task GoToPage(int page)
+    {
+        _currentPage = page;
+        await LoadDataAsync();
+    }
+
+    private async Task RefreshAsync()
+    {
+        _loading = true;
+        try
+        {
+            _todayCount = await AuditService.GetTodayCountAsync();
+            _actionStats = await AuditService.GetActionBreakdownAsync();
+            await LoadDataAsync();
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private void OpenDetail(AuditLogEntry entry)
+    {
+        _detailEntry = entry;
+    }
+
+    private void CloseDetail()
+    {
+        _detailEntry = null;
+    }
+
+    private static string FormatAction(string action) => action switch
+    {
+        "Login" => "Login",
+        "Logout" => "Logout",
+        "UserCreate" => "User Created",
+        "UserUpdate" => "User Updated",
+        "UserDelete" => "User Deleted",
+        "UserToggleLock" => "Lock Toggled",
+        "UserResetPassword" => "Password Reset",
+        "LeaveSubmit" => "Leave Submitted",
+        "LeaveApprove" => "Leave Approved",
+        "LeaveReject" => "Leave Rejected",
+        "LeaveCancel" => "Leave Cancelled",
+        "SessionStart" => "Session Started",
+        "SessionEnd" => "Session Ended",
+        "AttendanceMark" => "Attendance Marked",
+        "AttendanceUndo" => "Attendance Undone",
+        _ => action
+    };
+
+    private static string GetActionBadgeClass(string action) => action switch
+    {
+        "Login" or "SessionStart" => "action-badge--success",
+        "Logout" or "SessionEnd" => "action-badge--info",
+        "UserCreate" or "LeaveSubmit" => "action-badge--primary",
+        "UserDelete" or "LeaveReject" => "action-badge--danger",
+        "LeaveApprove" => "action-badge--success",
+        "UserToggleLock" => "action-badge--warning",
+        "UserResetPassword" => "action-badge--warning",
+        "AttendanceMark" => "action-badge--success",
+        "AttendanceUndo" => "action-badge--warning",
+        "UserUpdate" => "action-badge--info",
+        "LeaveCancel" => "action-badge--muted",
+        _ => "action-badge--muted"
+    };
+
+    private static string GetRoleBadgeClass(string role) => role switch
+    {
+        "SUPERADMIN" => "role-badge--superadmin",
+        "ADMIN" => "role-badge--superadmin",
+        "TEACHER" => "role-badge--teacher",
+        "STUDENT" => "role-badge--student",
+        _ => ""
+    };
+}

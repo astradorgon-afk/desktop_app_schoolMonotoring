@@ -343,6 +343,7 @@ else
         try
         {
             _rooms = (await MonitorService.GetTodayStatusAsync()).ToList();
+            SortRooms();
         }
         finally
         {
@@ -356,12 +357,32 @@ else
         {
             var rooms = await MonitorService.GetTodayStatusAsync();
             _rooms = rooms.ToList();
+            SortRooms();
             await InvokeAsync(StateHasChanged);
         }
         catch
         {
             // Silently ignore refresh errors
         }
+    }
+
+    private void SortRooms()
+    {
+        var now = DateTime.Now.TimeOfDay;
+
+        _rooms = [.. _rooms.OrderBy(r =>
+            {
+                if (r.SectionName is null) return 3;
+                if (r.StartTime is null || r.EndTime is null) return 2;
+
+                var start = r.StartTime.Value.ToTimeSpan();
+                var end = r.EndTime.Value.ToTimeSpan();
+
+                if (now >= start && now < end) return 0;
+                if (now < start) return 1;
+                return 2;
+            })
+            .ThenBy(r => r.StartTime?.ToTimeSpan() ?? TimeSpan.MaxValue)];
     }
 
     private async Task RefreshAsync()

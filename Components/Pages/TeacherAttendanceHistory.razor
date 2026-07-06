@@ -11,27 +11,27 @@
 <div style="height:100%;display:flex;flex-direction:column;">
 
     @* ── Header ── *@
-    <div style="background:linear-gradient(135deg,#1e293b 0%,#334155 50%,#475569 100%);padding:32px 40px 28px;flex-shrink:0;">
+    <div style="background:var(--clr-surface);border-bottom:1px solid var(--clr-border);box-shadow:var(--shadow-card);padding:32px 40px 28px;flex-shrink:0;">
         <div style="display:flex;align-items:center;justify-content:space-between;">
             <div>
-                <h1 style="font-size:26px;font-weight:700;color:#fff;margin:0 0 4px;">Attendance History</h1>
-                <p style="font-size:14px;color:rgba(255,255,255,0.6);margin:0;">Review past sessions and student attendance records</p>
+                <h1 style="font-size:26px;font-weight:700;color:var(--clr-text);margin:0 0 4px;">Attendance History</h1>
+                <p style="font-size:14px;color:var(--clr-text-secondary);margin:0;">Review past sessions and student attendance records</p>
             </div>
             <div style="display:flex;gap:12px;align-items:center;">
                 <div style="display:flex;gap:8px;align-items:center;">
-                    <div style="background:rgba(255,255,255,0.1);border-radius:8px;padding:6px 12px;display:flex;align-items:center;gap:8px;">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.5)" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-                        <input type="date" style="background:transparent;border:none;color:#fff;font-size:13px;outline:none;width:120px;"
+                    <div style="background:var(--clr-surface-alt);border-radius:8px;padding:6px 12px;display:flex;align-items:center;gap:8px;">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" style="stroke:var(--clr-text-muted)" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                        <input type="date" style="background:transparent;border:none;color:var(--clr-text);font-size:13px;outline:none;width:120px;"
                                @bind="_fromDate" @bind:after="LoadHistoryAsync" />
                     </div>
-                    <span style="color:rgba(255,255,255,0.4);font-size:13px;">—</span>
-                    <div style="background:rgba(255,255,255,0.1);border-radius:8px;padding:6px 12px;display:flex;align-items:center;gap:8px;">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.5)" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-                        <input type="date" style="background:transparent;border:none;color:#fff;font-size:13px;outline:none;width:120px;"
+                    <span style="color:var(--clr-text-muted);font-size:13px;">—</span>
+                    <div style="background:var(--clr-surface-alt);border-radius:8px;padding:6px 12px;display:flex;align-items:center;gap:8px;">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" style="stroke:var(--clr-text-muted)" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                        <input type="date" style="background:transparent;border:none;color:var(--clr-text);font-size:13px;outline:none;width:120px;"
                                @bind="_toDate" @bind:after="LoadHistoryAsync" />
                     </div>
                 </div>
-                <button class="btn" @onclick="ResetFilter" style="background:rgba(255,255,255,0.1);color:rgba(255,255,255,0.7);border:1px solid rgba(255,255,255,0.15);padding:6px 16px;font-size:13px;border-radius:8px;">
+                <button class="btn" @onclick="ResetFilter" style="background:var(--clr-surface-alt);color:var(--clr-text-secondary);border:1px solid var(--clr-border);padding:6px 16px;font-size:13px;border-radius:8px;">
                     Reset
                 </button>
             </div>
@@ -40,49 +40,49 @@
         @if (_summary is not null)
         {
             <div style="display:flex;gap:16px;margin-top:20px;">
-                <div style="flex:1;background:rgba(255,255,255,0.06);border-radius:10px;padding:14px 18px;display:flex;align-items:center;gap:12px;">
+                <div style="flex:1;background:var(--clr-surface);border:1px solid var(--clr-border);border-radius:10px;padding:14px 18px;display:flex;align-items:center;gap:12px;box-shadow:var(--shadow-card);">
                     <div style="width:36px;height:36px;border-radius:8px;background:rgba(99,102,241,0.2);display:flex;align-items:center;justify-content:center;">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#818cf8" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" style="stroke:var(--clr-accent-light)" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
                     </div>
                     <div>
-                        <span style="font-size:20px;font-weight:700;color:#fff;display:block;">@_summary.TotalSessions</span>
-                        <span style="font-size:12px;color:rgba(255,255,255,0.5);">Sessions</span>
+                        <span style="font-size:20px;font-weight:700;color:var(--clr-text);display:block;">@_summary.TotalSessions</span>
+                        <span style="font-size:12px;color:var(--clr-text-secondary);">Sessions</span>
                     </div>
                 </div>
-                <div style="flex:1;background:rgba(255,255,255,0.06);border-radius:10px;padding:14px 18px;display:flex;align-items:center;gap:12px;">
+                <div style="flex:1;background:var(--clr-surface);border:1px solid var(--clr-border);border-radius:10px;padding:14px 18px;display:flex;align-items:center;gap:12px;box-shadow:var(--shadow-card);">
                     <div style="width:36px;height:36px;border-radius:8px;background:rgba(34,197,94,0.15);display:flex;align-items:center;justify-content:center;">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
                     </div>
                     <div>
-                        <span style="font-size:20px;font-weight:700;color:#fff;display:block;">@_summary.TotalPresent</span>
-                        <span style="font-size:12px;color:rgba(255,255,255,0.5);">Present</span>
+                        <span style="font-size:20px;font-weight:700;color:var(--clr-text);display:block;">@_summary.TotalPresent</span>
+                        <span style="font-size:12px;color:var(--clr-text-secondary);">Present</span>
                     </div>
                 </div>
-                <div style="flex:1;background:rgba(255,255,255,0.06);border-radius:10px;padding:14px 18px;display:flex;align-items:center;gap:12px;">
+                <div style="flex:1;background:var(--clr-surface);border:1px solid var(--clr-border);border-radius:10px;padding:14px 18px;display:flex;align-items:center;gap:12px;box-shadow:var(--shadow-card);">
                     <div style="width:36px;height:36px;border-radius:8px;background:rgba(251,191,36,0.15);display:flex;align-items:center;justify-content:center;">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fbbf24" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
                     </div>
                     <div>
-                        <span style="font-size:20px;font-weight:700;color:#fff;display:block;">@_summary.TotalLate</span>
-                        <span style="font-size:12px;color:rgba(255,255,255,0.5);">Late</span>
+                        <span style="font-size:20px;font-weight:700;color:var(--clr-text);display:block;">@_summary.TotalLate</span>
+                        <span style="font-size:12px;color:var(--clr-text-secondary);">Late</span>
                     </div>
                 </div>
-                <div style="flex:1;background:rgba(255,255,255,0.06);border-radius:10px;padding:14px 18px;display:flex;align-items:center;gap:12px;">
+                <div style="flex:1;background:var(--clr-surface);border:1px solid var(--clr-border);border-radius:10px;padding:14px 18px;display:flex;align-items:center;gap:12px;box-shadow:var(--shadow-card);">
                     <div style="width:36px;height:36px;border-radius:8px;background:rgba(239,68,68,0.15);display:flex;align-items:center;justify-content:center;">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
                     </div>
                     <div>
-                        <span style="font-size:20px;font-weight:700;color:#fff;display:block;">@_summary.TotalAbsent</span>
-                        <span style="font-size:12px;color:rgba(255,255,255,0.5);">Absent</span>
+                        <span style="font-size:20px;font-weight:700;color:var(--clr-text);display:block;">@_summary.TotalAbsent</span>
+                        <span style="font-size:12px;color:var(--clr-text-secondary);">Absent</span>
                     </div>
                 </div>
-                <div style="flex:1;background:rgba(255,255,255,0.06);border-radius:10px;padding:14px 18px;display:flex;align-items:center;gap:12px;">
-                    <div style="width:36px;height:36px;border-radius:8px;background:rgba(255,255,255,0.08);display:flex;align-items:center;justify-content:center;">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.7)" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+                <div style="flex:1;background:var(--clr-surface);border:1px solid var(--clr-border);border-radius:10px;padding:14px 18px;display:flex;align-items:center;gap:12px;box-shadow:var(--shadow-card);">
+                    <div style="width:36px;height:36px;border-radius:8px;background:var(--clr-surface-alt);display:flex;align-items:center;justify-content:center;">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" style="stroke:var(--clr-text-secondary)" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
                     </div>
                     <div>
-                        <span style="font-size:20px;font-weight:700;color:#fff;display:block;">@_summary.AttendanceRate%</span>
-                        <span style="font-size:12px;color:rgba(255,255,255,0.5);">Rate</span>
+                        <span style="font-size:20px;font-weight:700;color:var(--clr-text);display:block;">@_summary.AttendanceRate%</span>
+                        <span style="font-size:12px;color:var(--clr-text-secondary);">Rate</span>
                     </div>
                 </div>
             </div>
@@ -90,12 +90,12 @@
     </div>
 
     @* ── Body ── *@
-    <div style="flex:1;overflow-y:auto;background:transparent;padding:24px 40px;">
+    <div style="flex:1;overflow-y:auto;background:var(--clr-bg);padding:24px 40px;">
         @if (_loading)
         {
             <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:80px 0;gap:16px;">
                 <div class="spinner" style="width:32px;height:32px;"></div>
-                <p style="color:rgba(255,255,255,0.5);font-size:14px;">Loading history...</p>
+                <p style="color:var(--clr-text-secondary);font-size:14px;">Loading history...</p>
             </div>
         }
         else if (_error is not null)
@@ -105,9 +105,9 @@
         else if (_items.Count == 0)
         {
             <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:80px 0;gap:12px;">
-                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.2)" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
-                <p style="font-size:15px;color:rgba(255,255,255,0.4);font-weight:500;">No sessions found</p>
-                <p style="font-size:13px;color:rgba(255,255,255,0.25);">No attendance sessions in the selected date range.</p>
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" style="stroke:var(--clr-text-muted)" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
+                <p style="font-size:15px;color:var(--clr-text-muted);font-weight:500;">No sessions found</p>
+                <p style="font-size:13px;color:var(--clr-text-muted);">No attendance sessions in the selected date range.</p>
             </div>
         }
         else
@@ -116,26 +116,26 @@
                 @foreach (var item in _items)
                 {
                     var isExpanded = _expandedId == item.SessionId;
-                    var bg = item.Status == "ENDED" ? "rgba(255,255,255,0.04)" : "rgba(34,197,94,0.06)";
-                    var border = item.Status == "ENDED" ? "rgba(255,255,255,0.06)" : "rgba(34,197,94,0.2)";
-                    var statusColor = item.Status == "ACTIVE" ? "#4ade80" : "rgba(255,255,255,0.4)";
+                    var bg = item.Status == "ENDED" ? "var(--clr-surface)" : "rgba(34,197,94,0.06)";
+                    var border = item.Status == "ENDED" ? "var(--clr-border)" : "rgba(34,197,94,0.2)";
+                    var statusColor = item.Status == "ACTIVE" ? "#4ade80" : "var(--clr-text-muted)";
                     var rateColor = item.AttendanceRate >= 90 ? "#16a34a" : item.AttendanceRate >= 75 ? "#ca8a04" : "#dc2626";
 
-                    <div style="background:@bg;border:1px solid @border;border-radius:12px;overflow:hidden;transition:all 0.2s;animation:_slideUp 0.3s ease;">
+                    <div style="background:@bg;border:1px solid @border;border-radius:12px;overflow:hidden;transition:all 0.2s;animation:_slideUp 0.3s ease;box-shadow:var(--shadow-card);" onmouseover="this.style.boxShadow='var(--shadow-lg)';this.style.transform='translateY(-1px)'" onmouseout="this.style.boxShadow='var(--shadow-card)';this.style.transform='translateY(0)'">
                         <div @onclick="() => ToggleExpand(item.SessionId)" style="display:flex;align-items:center;padding:16px 20px;cursor:pointer;gap:16px;">
-                            <div style="width:40px;height:40px;border-radius:10px;background:@(item.Status == "ACTIVE" ? "#f0fdf4" : "#f8fafc");display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="@(item.Status == "ACTIVE" ? "#22c55e" : "#94a3b8")" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+                            <div style="width:40px;height:40px;border-radius:10px;background:@(item.Status == "ACTIVE" ? "#f0fdf4" : "var(--clr-surface-alt)");display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="@(item.Status == "ACTIVE" ? "#22c55e" : "var(--clr-text-muted)")" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
                             </div>
                             <div style="flex:1;min-width:0;">
                                 <div style="display:flex;align-items:center;gap:8px;margin-bottom:2px;">
-                            <span style="font-size:14px;font-weight:600;color:#fff;">@item.SectionName</span>
-                            <span style="font-size:12px;color:rgba(255,255,255,0.5);">· @item.SubjectName</span>
+                            <span style="font-size:14px;font-weight:600;color:var(--clr-text);">@item.SectionName</span>
+                            <span style="font-size:12px;color:var(--clr-text-secondary);">· @item.SubjectName</span>
                             @if (!string.IsNullOrEmpty(item.Room))
                             {
-                                <span style="font-size:11px;color:rgba(255,255,255,0.4);background:rgba(255,255,255,0.06);padding:1px 6px;border-radius:4px;">Room @item.Room</span>
+                                <span style="font-size:11px;color:var(--clr-text-muted);background:var(--clr-surface-alt);padding:1px 6px;border-radius:4px;">Room @item.Room</span>
                             }
                                 </div>
-                                <div style="display:flex;align-items:center;gap:12px;font-size:12px;color:rgba(255,255,255,0.4);">
+                                <div style="display:flex;align-items:center;gap:12px;font-size:12px;color:var(--clr-text-muted);">
                                     <span>@item.SessionDate.ToLocalTime().ToString("MMM dd, yyyy · h:mm tt")</span>
                                     <span style="display:flex;align-items:center;gap:4px;">
                                         <span style="width:6px;height:6px;border-radius:50%;background:@statusColor;"></span>
@@ -147,21 +147,21 @@
                                 <div style="display:flex;gap:12px;align-items:center;">
                                     <div style="text-align:center;">
                                         <span style="font-size:13px;font-weight:600;color:#16a34a;">@item.Present</span>
-                                        <div style="font-size:10px;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;">Present</div>
+                                        <div style="font-size:10px;color:var(--clr-text-muted);text-transform:uppercase;letter-spacing:0.5px;">Present</div>
                                     </div>
                                     <div style="text-align:center;">
                                         <span style="font-size:13px;font-weight:600;color:#ca8a04;">@item.Late</span>
-                                        <div style="font-size:10px;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;">Late</div>
+                                        <div style="font-size:10px;color:var(--clr-text-muted);text-transform:uppercase;letter-spacing:0.5px;">Late</div>
                                     </div>
                                     <div style="text-align:center;">
                                         <span style="font-size:13px;font-weight:600;color:#dc2626;">@item.Absent</span>
-                                        <div style="font-size:10px;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;">Absent</div>
+                                        <div style="font-size:10px;color:var(--clr-text-muted);text-transform:uppercase;letter-spacing:0.5px;">Absent</div>
                                     </div>
-                                    <div style="background:rgba(255,255,255,0.04);padding:4px 10px;border-radius:6px;text-align:center;">
+                                    <div style="background:var(--clr-surface-alt);padding:4px 10px;border-radius:6px;text-align:center;">
                                         <span style="font-size:14px;font-weight:700;color:@rateColor;">@item.AttendanceRate%</span>
                                     </div>
                                 </div>
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2" style="transform:rotate(@(isExpanded ? 180 : 0)deg);transition:transform 0.2s;">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--clr-text-muted)" stroke-width="2" style="transform:rotate(@(isExpanded ? 180 : 0)deg);transition:transform 0.2s;">
                                     <polyline points="6 9 12 15 18 9"/>
                                 </svg>
                             </div>
@@ -169,10 +169,10 @@
 
                         @if (isExpanded)
                         {
-                            <div style="border-top:1px solid rgba(255,255,255,0.04);animation:_slideUp 0.2s ease;">
-                                <div style="padding:4px 20px;background:rgba(255,255,255,0.02);display:flex;gap:8px;align-items:center;">
-                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.4)" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-                                    <input style="flex:1;padding:8px 0;border:none;background:transparent;font-size:13px;color:#fff;outline:none;"
+                            <div style="border-top:1px solid var(--clr-border);animation:_slideUp 0.2s ease;">
+                                <div style="padding:4px 20px;background:var(--clr-surface-alt);display:flex;gap:8px;align-items:center;">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" style="stroke:var(--clr-text-muted)" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                                    <input style="flex:1;padding:8px 0;border:none;background:transparent;font-size:13px;color:var(--clr-text);outline:none;"
                                            placeholder="Search students..."
                                            @bind="_searchText" @bind:event="oninput" />
                                 </div>
@@ -190,37 +190,37 @@
                                             : _sessionStudents.Where(s => s.FullName.Contains(_searchText, StringComparison.OrdinalIgnoreCase) || s.Lrn.Contains(_searchText)).ToList();
                                         if (filtered.Count == 0)
                                         {
-                                            <div style="padding:24px;text-align:center;color:#94a3b8;font-size:13px;">No matching students</div>
+                                            <div style="padding:24px;text-align:center;color:var(--clr-text-muted);font-size:13px;">No matching students</div>
                                         }
                                         else
                                         {
                                             <table style="width:100%;border-collapse:collapse;">
                                                 <thead>
-                                                    <tr style="font-size:11px;color:rgba(255,255,255,0.4);text-transform:uppercase;letter-spacing:0.5px;">
-                                                        <th style="padding:8px 20px;text-align:left;font-weight:500;">Student</th>
-                                                        <th style="padding:8px 20px;text-align:left;font-weight:500;">LRN</th>
-                                                        <th style="padding:8px 20px;text-align:center;font-weight:500;width:100px;">Status</th>
-                                                        <th style="padding:8px 20px;text-align:right;font-weight:500;width:100px;">Time</th>
+                                                    <tr style="font-size:11px;color:var(--clr-text-secondary);text-transform:uppercase;letter-spacing:0.5px;">
+                                                        <th style="padding:8px 20px;text-align:left;font-weight:600;">Student</th>
+                                                        <th style="padding:8px 20px;text-align:left;font-weight:600;">LRN</th>
+                                                        <th style="padding:8px 20px;text-align:center;font-weight:600;width:100px;">Status</th>
+                                                        <th style="padding:8px 20px;text-align:right;font-weight:600;width:100px;">Time</th>
                                                     </tr>
                                                 </thead>
                                                 <tbody>
                                                     @foreach (var stu in filtered)
                                                     {
-                                                        var sbg = stu.Status == "PRESENT" ? "rgba(34,197,94,0.15)" : stu.Status == "LATE" ? "rgba(234,179,8,0.15)" : stu.Status is null ? "rgba(255,255,255,0.03)" : "rgba(239,68,68,0.15)";
-                                                        var stxt = stu.Status == "PRESENT" ? "#4ade80" : stu.Status == "LATE" ? "#facc15" : stu.Status is null ? "rgba(255,255,255,0.4)" : "#f87171";
+                                                        var sbg = stu.Status == "PRESENT" ? "rgba(34,197,94,0.15)" : stu.Status == "LATE" ? "rgba(234,179,8,0.15)" : stu.Status is null ? "var(--clr-surface-alt)" : "rgba(239,68,68,0.15)";
+                                                        var stxt = stu.Status == "PRESENT" ? "#4ade80" : stu.Status == "LATE" ? "#facc15" : stu.Status is null ? "var(--clr-text-muted)" : "#f87171";
                                                         var slbl = stu.Status ?? "Unmarked";
-                                                        <tr style="border-top:1px solid rgba(255,255,255,0.04);">
+                                                        <tr style="border-top:1px solid var(--clr-border);">
                                                             <td style="padding:10px 20px;">
-                                                                <span style="font-size:13px;font-weight:500;color:#fff;">@stu.FullName</span>
+                                                                <span style="font-size:13px;font-weight:500;color:var(--clr-text);">@stu.FullName</span>
                                                             </td>
                                                             <td style="padding:10px 20px;">
-                                                                <span style="font-size:12px;color:rgba(255,255,255,0.4);">@stu.Lrn</span>
+                                                                <span style="font-size:12px;color:var(--clr-text-muted);">@stu.Lrn</span>
                                                             </td>
                                                             <td style="padding:10px 20px;text-align:center;">
                                                                 <span style="display:inline-block;padding:2px 10px;border-radius:6px;font-size:11px;font-weight:600;background:@sbg;color:@stxt;">@slbl</span>
                                                             </td>
                                                             <td style="padding:10px 20px;text-align:right;">
-                                                                <span style="font-size:12px;color:rgba(255,255,255,0.4);">@(stu.ScannedAt?.ToLocalTime().ToString("h:mm tt") ?? "—")</span>
+                                                                <span style="font-size:12px;color:var(--clr-text-muted);">@(stu.ScannedAt?.ToLocalTime().ToString("h:mm tt") ?? "—")</span>
                                                             </td>
                                                         </tr>
                                                     }
@@ -246,8 +246,8 @@
     }
     .spinner {
         display: inline-block;
-        border: 2px solid #e2e8f0;
-        border-top-color: #6366f1;
+        border: 2px solid var(--clr-border);
+        border-top-color: var(--clr-accent);
         border-radius: 50%;
         animation: _spin 0.6s linear infinite;
     }

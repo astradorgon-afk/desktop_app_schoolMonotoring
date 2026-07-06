@@ -22,8 +22,43 @@
         <span class="dismiss">🗙</span>
     </div>
 
+    <script>
+        window.__theme = {
+            get: function () {
+                return localStorage.getItem('theme') || 'light';
+            },
+            set: function (theme) {
+                if (theme === 'dark') {
+                    document.documentElement.setAttribute('data-theme', 'dark');
+                } else {
+                    document.documentElement.removeAttribute('data-theme');
+                }
+                localStorage.setItem('theme', theme);
+            },
+            toggle: function () {
+                var current = this.get();
+                this.set(current === 'dark' ? 'light' : 'dark');
+                return this.get();
+            },
+            init: function () {
+                var theme = this.get();
+                if (theme === 'dark') {
+                    document.documentElement.setAttribute('data-theme', 'dark');
+                }
+            }
+        };
+        window.__theme.init();
+    </script>
+
+    <script>
+        window.__dropdownSpaceBelow = function (el) {
+            var rect = el.getBoundingClientRect();
+            return window.innerHeight - rect.bottom;
+        };
+    </script>
     <script src="_framework/blazor.webview.js" autostart="false"></script>
     <script src="students.js"></script>
+    <script src="rooms.js"></script>
     <script src="js/html5-qrcode.min.js"></script>
     <script src="js/qrScanner.js"></script>
     <script src="js/chart.umd.js"></script>

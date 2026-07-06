@@ -27,7 +27,7 @@ window.qrScanner = {
 
             html5QrCode.start(
                 { facingMode: "environment" },
-                { fps: 10, qrbox: { width: 250, height: 250 } },
+                { fps: 24, qrbox: { width: 280, height: 180 } },
                 onScanSuccess,
                 onScanFailure
             ).catch(err => {

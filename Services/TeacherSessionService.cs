@@ -10,6 +10,7 @@ namespace AttendanceUI.Services;
 public class TeacherSessionService : ITeacherSessionService
 {
     private readonly IDbContextFactory<SchoolDbContext> _contextFactory;
+    private readonly IAuditService _auditService;
 
     private static readonly ConcurrentDictionary<string, CacheEntry<List<SectionSelectItem>>> _sectionCache = new();
 
@@ -18,9 +19,10 @@ public class TeacherSessionService : ITeacherSessionService
         public bool IsExpired => (DateTime.UtcNow - CreatedAt).TotalSeconds > 30;
     }
 
-    public TeacherSessionService(IDbContextFactory<SchoolDbContext> contextFactory)
+    public TeacherSessionService(IDbContextFactory<SchoolDbContext> contextFactory, IAuditService auditService)
     {
         _contextFactory = contextFactory;
+        _auditService = auditService;
     }
 
     public async Task<List<SectionSelectItem>> GetTeacherSectionsAsync(long teacherId, CancellationToken cancellationToken = default)
@@ -159,6 +161,11 @@ public class TeacherSessionService : ITeacherSessionService
         context.AttendanceSessions.Add(session);
         await context.SaveChangesAsync(cancellationToken);
 
+        var teacher = await context.Teachers.FindAsync([teacherId], cancellationToken);
+        var teacherName = teacher is not null ? $"{teacher.LastName}, {teacher.FirstName}" : $"Teacher#{teacherId}";
+        await _auditService.LogAsync(userId, teacherName, "TEACHER", "SessionStart", "AttendanceSession", session.Id,
+            $"Session started: {offering.Name} - {offering.Title}");
+
         return await BuildSessionStateAsync(session.Id, context, cancellationToken)
             ?? throw new InvalidOperationException("Failed to build session state.");
     }
@@ -167,17 +174,38 @@ public class TeacherSessionService : ITeacherSessionService
     {
         await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
 
-        var qrToken = await context.QrTokens
-            .Where(q => q.Token == token && !q.IsRevoked && q.ExpiresAt > DateTime.UtcNow)
-            .FirstOrDefaultAsync(cancellationToken);
+        long roomId;
+        {
+            var qrToken = await context.QrTokens
+                .Where(q => q.Token == token && !q.IsRevoked && q.ExpiresAt > DateTime.UtcNow)
+                .FirstOrDefaultAsync(cancellationToken);
 
-        if (qrToken is null)
-            return new ScanResult { Success = false, Message = "Invalid or expired QR code." };
-
-        if (qrToken.ModelType != QrTokenModelType.ROOM)
-            return new ScanResult { Success = false, Message = "This QR code is not a room code." };
-
-        var roomId = qrToken.ModelId;
+            if (qrToken is not null)
+            {
+                if (qrToken.ModelType != QrTokenModelType.ROOM)
+                    return new ScanResult { Success = false, Message = "This QR code is not a room code." };
+                roomId = qrToken.ModelId;
+            }
+            else
+            {
+                var roomQr = await context.RoomQrCodes
+                    .Where(q => q.QrContent == token)
+                    .FirstOrDefaultAsync(cancellationToken);
+                if (roomQr is not null)
+                {
+                    roomId = roomQr.RoomId;
+                }
+                else
+                {
+                    var studentQr = await context.StudentQrCodes
+                        .Where(q => q.QrContent == token)
+                        .FirstOrDefaultAsync(cancellationToken);
+                    if (studentQr is not null)
+                        return new ScanResult { Success = false, Message = "Start a session first before scanning student QR codes." };
+                    return new ScanResult { Success = false, Message = "Invalid or expired QR code." };
+                }
+            }
+        }
         var room = await context.Rooms.FindAsync([roomId], cancellationToken);
         if (room is null)
             return new ScanResult { Success = false, Message = "Room not found." };
@@ -295,6 +323,24 @@ public class TeacherSessionService : ITeacherSessionService
         if (session is null || session.Status != "ACTIVE")
             return new ScanResult { Success = false, Message = "No active session." };
 
+        var offering = await context.ClassOfferings.FindAsync([session.ClassOfferingId], cancellationToken);
+        if (offering is null)
+            return new ScanResult { Success = false, Message = "Class offering not found." };
+
+        var activeYear = await context.SchoolYears
+            .Where(sy => sy.Status == "ACTIVE")
+            .Select(sy => sy.Id)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        var isEnrolled = await context.Enrollments
+            .AnyAsync(e => e.StudentId == studentId
+                && e.SectionId == offering.SectionId
+                && e.SchoolYearId == activeYear
+                && e.Status == "ACTIVE", cancellationToken);
+
+        if (!isEnrolled)
+            return new ScanResult { Success = false, Message = "Student is not enrolled in this class section." };
+
         var recent = await context.AttendanceRecords
             .Where(r => r.AttendanceSessionId == sessionId && r.StudentId == studentId)
             .OrderByDescending(r => r.CreatedAt)
@@ -326,6 +372,9 @@ public class TeacherSessionService : ITeacherSessionService
 
         await context.SaveChangesAsync(cancellationToken);
 
+        await _auditService.LogAsync(userId, $"User#{userId}", "TEACHER", "AttendanceMark", "AttendanceRecord", record.Id,
+            $"{fullName} marked {status} in session #{sessionId}");
+
         return new ScanResult
         {
             Success = true,
@@ -344,13 +393,22 @@ public class TeacherSessionService : ITeacherSessionService
             .Where(q => q.Token == token && !q.IsRevoked && q.ExpiresAt > DateTime.UtcNow)
             .FirstOrDefaultAsync(cancellationToken);
 
-        if (qrToken is null)
-            return new ScanResult { Success = false, Message = "Invalid or expired QR code." };
+        if (qrToken is not null)
+        {
+            if (qrToken.ModelType != QrTokenModelType.STUDENT)
+                return new ScanResult { Success = false, Message = "This is not a student QR code." };
 
-        if (qrToken.ModelType != QrTokenModelType.STUDENT)
-            return new ScanResult { Success = false, Message = "This is not a student QR code." };
+            return await MarkAttendanceAsync(sessionId, userId, qrToken.ModelId, cancellationToken);
+        }
 
-        return await MarkAttendanceAsync(sessionId, userId, qrToken.ModelId, cancellationToken);
+        var studentQr = await context.StudentQrCodes
+            .Where(q => q.QrContent == token)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (studentQr is not null)
+            return await MarkAttendanceAsync(sessionId, userId, studentQr.StudentId, cancellationToken);
+
+        return new ScanResult { Success = false, Message = "Invalid or expired QR code." };
     }
 
     public async Task<ScanResult> UndoAttendanceAsync(long sessionId, long userId, long studentId, CancellationToken cancellationToken = default)
@@ -375,6 +433,9 @@ public class TeacherSessionService : ITeacherSessionService
         context.AttendanceRecords.Remove(mostRecent);
         await context.SaveChangesAsync(cancellationToken);
 
+        await _auditService.LogAsync(userId, $"User#{userId}", "TEACHER", "AttendanceUndo", "AttendanceRecord", mostRecent.Id,
+            $"Removed {mostRecent.Status} mark for {fullName} in session #{sessionId}");
+
         return new ScanResult
         {
             Success = true,
@@ -383,7 +444,7 @@ public class TeacherSessionService : ITeacherSessionService
         };
     }
 
-    public async Task EndSessionAsync(long sessionId, CancellationToken cancellationToken = default)
+    public async Task EndSessionAsync(long sessionId, long? userId = null, CancellationToken cancellationToken = default)
     {
         await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
 
@@ -393,6 +454,9 @@ public class TeacherSessionService : ITeacherSessionService
         session.Status = "ENDED";
         session.UpdatedAt = DateTime.UtcNow;
         await context.SaveChangesAsync(cancellationToken);
+
+        await _auditService.LogAsync(userId ?? 0, userId is not null ? $"User#{userId}" : "System", "TEACHER", "SessionEnd", "AttendanceSession", sessionId,
+            $"Session #{sessionId} ended ({session.SectionName} - {session.SubjectName}).");
     }
 
     public async Task<List<LiveScanEvent>> GetLiveScansAsync(long sessionId, CancellationToken cancellationToken = default)

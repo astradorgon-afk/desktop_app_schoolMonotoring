@@ -84,4 +84,41 @@ public class StudentService : IStudentService
 
         return qr;
     }
+
+    public async Task<IReadOnlyList<Section>> GetSectionsAsync(CancellationToken cancellationToken = default)
+    {
+        await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
+        return await context.Sections
+            .Where(s => !s.IsArchived)
+            .OrderBy(s => s.Name)
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<GradeLevel>> GetGradeLevelsAsync(CancellationToken cancellationToken = default)
+    {
+        await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
+        return await context.GradeLevels
+            .OrderBy(g => g.Name)
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<Dictionary<long, (long? SectionId, long? GradeLevelId)>> GetStudentEnrollmentMapAsync(CancellationToken cancellationToken = default)
+    {
+        await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
+
+        var activeYear = await context.SchoolYears
+            .Where(y => y.Status == "ACTIVE")
+            .Select(y => y.Id)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (activeYear == 0)
+            return [];
+
+        var enrollments = await context.Enrollments
+            .Where(e => e.SchoolYearId == activeYear && e.Status == "ACTIVE")
+            .Select(e => new { e.StudentId, e.SectionId, e.GradeLevelId })
+            .ToListAsync(cancellationToken);
+
+        return enrollments.ToDictionary(e => e.StudentId, e => ((long?)e.SectionId, (long?)e.GradeLevelId));
+    }
 }

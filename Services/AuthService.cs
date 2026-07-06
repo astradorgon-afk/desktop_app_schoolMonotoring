@@ -10,6 +10,7 @@ namespace AttendanceUI.Services;
 public class AuthService : IAuthService
 {
     private readonly IUserService _userService;
+    private readonly IAuditService _auditService;
     private readonly ILogger<AuthService> _logger;
     private readonly ResourceManager _errorMessages = new(typeof(ErrorMessages));
     private readonly ResourceManager _logMessages = new(typeof(LogMessages));
@@ -18,9 +19,10 @@ public class AuthService : IAuthService
 
     private const string SessionPrefKey = "auth_session";
 
-    public AuthService(IUserService userService, ILogger<AuthService> logger)
+    public AuthService(IUserService userService, IAuditService auditService, ILogger<AuthService> logger)
     {
         _userService = userService ?? throw new ArgumentNullException(nameof(userService));
+        _auditService = auditService ?? throw new ArgumentNullException(nameof(auditService));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -104,6 +106,9 @@ public class AuthService : IAuthService
             ClearPersistedSession();
         }
 
+        await _auditService.LogAsync(user.Id, user.Username, user.Role.ToString(), "Login", "User", user.Id,
+            $"User '{user.Username}' logged in successfully.");
+
         _logger.LogInformation(
             _logMessages.GetString("Auth_LoginSuccess") ?? "User '{Username}' logged in successfully.",
             request.Username);
@@ -111,10 +116,13 @@ public class AuthService : IAuthService
         return LoginResponse.Ok(_currentSession);
     }
 
-    public Task LogoutAsync()
+    public async Task LogoutAsync()
     {
         if (_currentSession is not null)
         {
+            await _auditService.LogAsync(_currentSession.UserId, _currentSession.Username, _currentSession.Role.ToString(), "Logout", "User", _currentSession.UserId,
+                $"User '{_currentSession.Username}' logged out.");
+
             _logger.LogInformation(
                 _logMessages.GetString("Auth_Logout") ?? "User '{Username}' logged out.",
                 _currentSession.Username);
@@ -122,7 +130,6 @@ public class AuthService : IAuthService
 
         _currentSession = null;
         ClearPersistedSession();
-        return Task.CompletedTask;
     }
 
     public Task<UserSession?> GetCurrentSessionAsync()

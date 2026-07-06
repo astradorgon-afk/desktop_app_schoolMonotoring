@@ -1,6 +1,17 @@
 window.AttendanceCharts = {
     _instances: {},
 
+    _themeColors: function () {
+        var isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+        return {
+            grid: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.15)',
+            tick: isDark ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.55)',
+            tooltipBg: isDark ? 'rgba(15, 12, 41, 0.9)' : 'rgba(30, 30, 40, 0.95)',
+            tooltipTitle: isDark ? 'rgba(255,255,255,0.7)' : 'rgba(255,255,255,0.85)',
+            tooltipBorder: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'
+        };
+    },
+
     initLineChart: function (canvasId, labels, data) {
         var existing = this._instances[canvasId];
         if (existing) {
@@ -9,6 +20,8 @@ window.AttendanceCharts = {
 
         var ctx = document.getElementById(canvasId);
         if (!ctx) return;
+
+        var tc = this._themeColors();
 
         this._instances[canvasId] = new Chart(ctx, {
             type: 'line',
@@ -42,10 +55,10 @@ window.AttendanceCharts = {
                 plugins: {
                     legend: { display: false },
                     tooltip: {
-                        backgroundColor: 'rgba(15, 12, 41, 0.9)',
-                        titleColor: 'rgba(255,255,255,0.7)',
+                        backgroundColor: tc.tooltipBg,
+                        titleColor: tc.tooltipTitle,
                         bodyColor: '#fff',
-                        borderColor: 'rgba(255,255,255,0.1)',
+                        borderColor: tc.tooltipBorder,
                         borderWidth: 1,
                         cornerRadius: 8,
                         padding: 12,
@@ -62,7 +75,7 @@ window.AttendanceCharts = {
                             display: false
                         },
                         ticks: {
-                            color: 'rgba(255,255,255,0.35)',
+                            color: tc.tick,
                             font: { size: 11 }
                         }
                     },
@@ -70,11 +83,11 @@ window.AttendanceCharts = {
                         min: 0,
                         max: 100,
                         grid: {
-                            color: 'rgba(255,255,255,0.06)',
+                            color: tc.grid,
                             drawBorder: false
                         },
                         ticks: {
-                            color: 'rgba(255,255,255,0.35)',
+                            color: tc.tick,
                             font: { size: 11 },
                             callback: function (value) {
                                 return value + '%';
@@ -88,6 +101,8 @@ window.AttendanceCharts = {
                 }
             }
         });
+
+        this._store('line', canvasId, labels, data);
     },
 
     initBarChart: function (canvasId, labels, data, colors) {
@@ -100,6 +115,7 @@ window.AttendanceCharts = {
         if (!ctx) return;
 
         var bgColors = colors || data.map(function () { return '#6366f1'; });
+        var tc = this._themeColors();
 
         this._instances[canvasId] = new Chart(ctx, {
             type: 'bar',
@@ -120,10 +136,10 @@ window.AttendanceCharts = {
                 plugins: {
                     legend: { display: false },
                     tooltip: {
-                        backgroundColor: 'rgba(15, 12, 41, 0.9)',
-                        titleColor: 'rgba(255,255,255,0.7)',
+                        backgroundColor: tc.tooltipBg,
+                        titleColor: tc.tooltipTitle,
                         bodyColor: '#fff',
-                        borderColor: 'rgba(255,255,255,0.1)',
+                        borderColor: tc.tooltipBorder,
                         borderWidth: 1,
                         cornerRadius: 8,
                         padding: 12,
@@ -138,7 +154,7 @@ window.AttendanceCharts = {
                     x: {
                         grid: { display: false },
                         ticks: {
-                            color: 'rgba(255,255,255,0.35)',
+                            color: tc.tick,
                             font: { size: 11 }
                         }
                     },
@@ -146,11 +162,11 @@ window.AttendanceCharts = {
                         min: 0,
                         max: 100,
                         grid: {
-                            color: 'rgba(255,255,255,0.06)',
+                            color: tc.grid,
                             drawBorder: false
                         },
                         ticks: {
-                            color: 'rgba(255,255,255,0.35)',
+                            color: tc.tick,
                             font: { size: 11 },
                             callback: function (value) {
                                 return value + '%';
@@ -158,6 +174,33 @@ window.AttendanceCharts = {
                         }
                     }
                 }
+            }
+        });
+
+        this._store('bar', canvasId, labels, data, colors);
+    },
+
+    _stored: [],
+
+    _store: function (type, id, labels, data, colors) {
+        this._stored.push({ type: type, id: id, labels: labels, data: data, colors: colors });
+    },
+
+    _rebuild: function () {
+        var self = this;
+        var stored = this._stored.slice();
+        this._stored = [];
+        for (var key in this._instances) {
+            if (this._instances[key]) {
+                this._instances[key].destroy();
+            }
+        }
+        this._instances = {};
+        stored.forEach(function (cfg) {
+            if (cfg.type === 'line') {
+                self.initLineChart(cfg.id, cfg.labels, cfg.data);
+            } else if (cfg.type === 'bar') {
+                self.initBarChart(cfg.id, cfg.labels, cfg.data, cfg.colors);
             }
         });
     },
@@ -170,3 +213,13 @@ window.AttendanceCharts = {
         }
     }
 };
+
+(function () {
+    var html = document.documentElement;
+    var observer = new MutationObserver(function () {
+        if (window.AttendanceCharts) {
+            window.AttendanceCharts._rebuild();
+        }
+    });
+    observer.observe(html, { attributes: true, attributeFilter: ['data-theme'] });
+})();

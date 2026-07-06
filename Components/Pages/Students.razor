@@ -44,6 +44,20 @@ else
             <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
             <input type="text" class="search-input" placeholder="Search by name, LRN, or student number..." @bind="_searchTerm" @bind:after="ApplyFilter" />
         </div>
+        <select class="filter-select" @bind="_sectionFilter" @bind:after="ApplyFilter">
+            <option value="">All Sections</option>
+            @foreach (var section in _sections)
+            {
+                <option value="@section.Id">@section.Name</option>
+            }
+        </select>
+        <select class="filter-select" @bind="_gradeLevelFilter" @bind:after="ApplyFilter">
+            <option value="">All Grade Levels</option>
+            @foreach (var level in _gradeLevels)
+            {
+                <option value="@level.Id">@level.Name</option>
+            }
+        </select>
         <select class="filter-select" @bind="_statusFilter" @bind:after="ApplyFilter">
             <option value="">All Status</option>
             <option value="ACTIVE">Active</option>
@@ -235,11 +249,16 @@ else
 @code {
     private List<Student> _students = [];
     private List<Student> _filteredStudents = [];
+    private List<Section> _sections = [];
+    private List<GradeLevel> _gradeLevels = [];
+    private Dictionary<long, (long? SectionId, long? GradeLevelId)> _studentEnrollmentMap = [];
     private bool _isLoading = true;
     private bool _isGenerating;
     private int _generatingCount;
     private string? _error;
     private string _searchTerm = "";
+    private string _sectionFilter = "";
+    private string _gradeLevelFilter = "";
     private string _statusFilter = "";
     private HashSet<long> _selectedIds = [];
     private bool _allSelected;
@@ -259,6 +278,10 @@ else
 
         try
         {
+            _sections = (await StudentService.GetSectionsAsync(_cts.Token)).ToList();
+            _gradeLevels = (await StudentService.GetGradeLevelsAsync(_cts.Token)).ToList();
+            _studentEnrollmentMap = await StudentService.GetStudentEnrollmentMapAsync(_cts.Token);
+
             _students = (await StudentService.GetAllAsync(_cts.Token)).ToList();
 
             var missing = _students.Where(s => s.QrCode is null).ToList();
@@ -301,6 +324,24 @@ else
                 s.LastName.ToLowerInvariant().Contains(term) ||
                 s.Lrn.ToLowerInvariant().Contains(term) ||
                 s.StudentNumber.ToLowerInvariant().Contains(term));
+        }
+
+        if (!string.IsNullOrEmpty(_sectionFilter) && long.TryParse(_sectionFilter, out var sectionId))
+        {
+            var studentIds = _studentEnrollmentMap
+                .Where(e => e.Value.SectionId == sectionId)
+                .Select(e => e.Key)
+                .ToHashSet();
+            query = query.Where(s => studentIds.Contains(s.Id));
+        }
+
+        if (!string.IsNullOrEmpty(_gradeLevelFilter) && long.TryParse(_gradeLevelFilter, out var gradeLevelId))
+        {
+            var studentIds = _studentEnrollmentMap
+                .Where(e => e.Value.GradeLevelId == gradeLevelId)
+                .Select(e => e.Key)
+                .ToHashSet();
+            query = query.Where(s => studentIds.Contains(s.Id));
         }
 
         if (!string.IsNullOrEmpty(_statusFilter))

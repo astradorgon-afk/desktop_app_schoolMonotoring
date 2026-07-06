@@ -1,0 +1,663 @@
+@page "/teacher/profile"
+@layout MainLayout
+@using AttendanceUI.Data.Entities
+@using System.Globalization
+@implements IAsyncDisposable
+@inject ITeacherService TeacherService
+@inject IStudentPortalService StudentPortalService
+@inject IUserService UserService
+@inject IAuthService AuthService
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+
+<PageHeader Title="Profile Settings" Subtitle="Manage your account and personal information">
+</PageHeader>
+
+@if (_loading)
+{
+    <div style="display:flex;align-items:center;justify-content:center;padding:80px 0;">
+        <div class="spinner" style="width:32px;height:32px;"></div>
+    </div>
+}
+else if (_error is not null)
+{
+    <div style="padding:0 32px;">
+        <div class="error-banner">@_error</div>
+    </div>
+}
+else if (_user is not null)
+{
+    <div style="padding:0 32px;display:grid;grid-template-columns:1fr 1.6fr;gap:24px;">
+
+        @* ── Profile Card ── *@
+        <div class="page-card" style="text-align:center;">
+            @if (_teacher is not null)
+            {
+                <div style="position:relative;display:inline-block;margin:24px auto 16px;">
+                    <div class="profile-pic-wrap" style="width:120px;height:120px;border-radius:50%;overflow:hidden;border:3px solid var(--clr-border);box-shadow:var(--shadow-card);">
+                        @if (_teacher.ProfilePicture is not null)
+                        {
+                            <img src="data:image/jpeg;base64,@Convert.ToBase64String(_teacher.ProfilePicture)" style="width:100%;height:100%;object-fit:cover;" alt="Profile" />
+                        }
+                        else
+                        {
+                            <div style="width:100%;height:100%;background:var(--clr-surface-alt);display:flex;align-items:center;justify-content:center;">
+                                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" style="stroke:var(--clr-text-muted)" stroke-width="1.5">
+                                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                                    <circle cx="12" cy="7" r="4"/>
+                                </svg>
+                            </div>
+                        }
+                        <button class="profile-pic-overlay" @onclick="TriggerFilePicker" title="Change photo" style="position:absolute;inset:0;width:100%;height:100%;border:none;background:rgba(0,0,0,0.5);color:#fff;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;opacity:0;transition:opacity 0.2s;border-radius:50%;">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                            <span style="font-size:10px;margin-top:2px;">Change</span>
+                        </button>
+                    </div>
+                </div>
+                <input type="file" accept="image/*" style="display:none;" @onchange="HandleFileSelected" />
+
+                <h2 style="font-size:20px;font-weight:700;color:var(--clr-text);margin:0 0 2px;">@_teacher.FullName</h2>
+                @if (!string.IsNullOrEmpty(_teacher.EmployeeNo))
+                {
+                    <p style="font-size:13px;color:var(--clr-text-muted);margin:0 0 4px;">@_teacher.EmployeeNo</p>
+                }
+                <span style="display:inline-block;padding:2px 10px;border-radius:6px;font-size:11px;font-weight:600;background:rgba(99,102,241,0.12);color:var(--clr-accent);">@_teacher.Status</span>
+
+                <div style="margin-top:20px;display:flex;flex-direction:column;gap:12px;text-align:left;">
+                    <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--clr-surface-alt);border-radius:8px;">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" style="stroke:var(--clr-text-muted)" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                        <div style="flex:1;min-width:0;">
+                            <div style="font-size:11px;color:var(--clr-text-muted);text-transform:uppercase;letter-spacing:0.5px;">Email</div>
+                            <div style="font-size:13px;color:var(--clr-text);">@(!string.IsNullOrEmpty(_teacher.Email) ? _teacher.Email : "—")</div>
+                        </div>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--clr-surface-alt);border-radius:8px;">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" style="stroke:var(--clr-text-muted)" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+                        <div style="flex:1;min-width:0;">
+                            <div style="font-size:11px;color:var(--clr-text-muted);text-transform:uppercase;letter-spacing:0.5px;">Contact</div>
+                            <div style="font-size:13px;color:var(--clr-text);">@(!string.IsNullOrEmpty(_teacher.ContactNo) ? _teacher.ContactNo : "—")</div>
+                        </div>
+                    </div>
+                </div>
+            }
+            else if (_student is not null)
+            {
+                <div style="position:relative;display:inline-block;margin:24px auto 16px;">
+                    <div class="profile-pic-wrap" style="width:120px;height:120px;border-radius:50%;overflow:hidden;border:3px solid var(--clr-border);box-shadow:var(--shadow-card);">
+                        @if (_student.ProfilePicture is not null)
+                        {
+                            <img src="data:image/jpeg;base64,@Convert.ToBase64String(_student.ProfilePicture)" style="width:100%;height:100%;object-fit:cover;" alt="Profile" />
+                        }
+                        else
+                        {
+                            <div style="width:100%;height:100%;background:var(--clr-surface-alt);display:flex;align-items:center;justify-content:center;">
+                                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" style="stroke:var(--clr-text-muted)" stroke-width="1.5">
+                                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                                    <circle cx="12" cy="7" r="4"/>
+                                </svg>
+                            </div>
+                        }
+                        <button class="profile-pic-overlay" @onclick="TriggerStudentFilePicker" title="Change photo" style="position:absolute;inset:0;width:100%;height:100%;border:none;background:rgba(0,0,0,0.5);color:#fff;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;opacity:0;transition:opacity 0.2s;border-radius:50%;">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                            <span style="font-size:10px;margin-top:2px;">Change</span>
+                        </button>
+                    </div>
+                </div>
+                <input type="file" accept="image/*" style="display:none;" @onchange="HandleStudentFileSelected" />
+
+                <h2 style="font-size:20px;font-weight:700;color:var(--clr-text);margin:0 0 2px;">@_student.FullName</h2>
+                <p style="font-size:13px;color:var(--clr-text-muted);margin:0 0 4px;">@_student.Lrn</p>
+                <span style="display:inline-block;padding:2px 10px;border-radius:6px;font-size:11px;font-weight:600;background:rgba(99,102,241,0.12);color:var(--clr-accent);">@_student.Status</span>
+
+                <div style="margin-top:20px;display:flex;flex-direction:column;gap:12px;text-align:left;">
+                    <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--clr-surface-alt);border-radius:8px;">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" style="stroke:var(--clr-text-muted)" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                        <div style="flex:1;min-width:0;">
+                            <div style="font-size:11px;color:var(--clr-text-muted);text-transform:uppercase;letter-spacing:0.5px;">Student No</div>
+                            <div style="font-size:13px;color:var(--clr-text);">@_student.StudentNumber</div>
+                        </div>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--clr-surface-alt);border-radius:8px;">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" style="stroke:var(--clr-text-muted)" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+                        <div style="flex:1;min-width:0;">
+                            <div style="font-size:11px;color:var(--clr-text-muted);text-transform:uppercase;letter-spacing:0.5px;">Contact</div>
+                            <div style="font-size:13px;color:var(--clr-text);">@(!string.IsNullOrEmpty(_student.ContactNo) ? _student.ContactNo : "—")</div>
+                        </div>
+                    </div>
+                </div>
+            }
+            else
+            {
+                <div style="margin:24px auto 16px;">
+                    <div style="width:120px;height:120px;border-radius:50%;background:var(--clr-surface-alt);display:flex;align-items:center;justify-content:center;margin:0 auto;">
+                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" style="stroke:var(--clr-text-muted)" stroke-width="1.5">
+                            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                            <circle cx="12" cy="7" r="4"/>
+                        </svg>
+                    </div>
+                </div>
+                <h2 style="font-size:20px;font-weight:700;color:var(--clr-text);margin:0 0 2px;">@_user.Name</h2>
+                <span style="display:inline-block;padding:2px 10px;border-radius:6px;font-size:11px;font-weight:600;background:rgba(99,102,241,0.12);color:var(--clr-accent);">@_user.Role</span>
+            }
+        </div>
+
+        @* ── Details Card ── *@
+        <div class="page-card">
+            @if (_success is not null)
+            {
+                <div style="padding:10px 14px;background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.3);border-radius:8px;color:rgb(34,197,94);font-size:13px;font-weight:500;margin-bottom:16px;display:flex;align-items:center;gap:8px;">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                    @_success
+                </div>
+            }
+            @if (_teacher is not null)
+            {
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
+                    <h3 style="font-size:16px;font-weight:700;color:var(--clr-text);margin:0;">Personal Information</h3>
+                    @if (!_isEditing)
+                    {
+                        <button class="page-btn page-btn-outline" @onclick="EnterEditMode" style="font-size:12px;padding:6px 14px;">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:4px;"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                            Edit
+                        </button>
+                    }
+                    else
+                    {
+                        <div style="display:flex;gap:8px;">
+                            <button class="page-btn page-btn-outline" @onclick="CancelEdit" disabled="@_isSaving" style="font-size:12px;padding:6px 14px;">Cancel</button>
+                            <button class="page-btn page-btn-primary" @onclick="SaveAsync" disabled="@_isSaving" style="font-size:12px;padding:6px 14px;">
+                                @if (_isSaving)
+                                {
+                                    <span class="spinner" style="width:12px;height:12px;border-width:1.5px;display:inline-block;vertical-align:middle;margin-right:4px;"></span>
+                                }
+                                Save
+                            </button>
+                        </div>
+                    }
+                </div>
+
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+                    <div>
+                        <label style="font-size:11px;color:var(--clr-text-muted);text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:4px;">First Name</label>
+                        @if (_isEditing)
+                        {
+                            <input @bind="_editTeacher.FirstName" class="editable-input" />
+                        }
+                        else
+                        {
+                            <div style="padding:10px 14px;background:var(--clr-surface-alt);border-radius:8px;font-size:14px;color:var(--clr-text);font-weight:500;">@_teacher.FirstName</div>
+                        }
+                    </div>
+                    <div>
+                        <label style="font-size:11px;color:var(--clr-text-muted);text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:4px;">Last Name</label>
+                        @if (_isEditing)
+                        {
+                            <input @bind="_editTeacher.LastName" class="editable-input" />
+                        }
+                        else
+                        {
+                            <div style="padding:10px 14px;background:var(--clr-surface-alt);border-radius:8px;font-size:14px;color:var(--clr-text);font-weight:500;">@_teacher.LastName</div>
+                        }
+                    </div>
+                    <div>
+                        <label style="font-size:11px;color:var(--clr-text-muted);text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:4px;">Middle Name</label>
+                        @if (_isEditing)
+                        {
+                            <input @bind="_editTeacher.MiddleName" class="editable-input" />
+                        }
+                        else
+                        {
+                            <div style="padding:10px 14px;background:var(--clr-surface-alt);border-radius:8px;font-size:14px;color:var(--clr-text);">@(!string.IsNullOrEmpty(_teacher.MiddleName) ? _teacher.MiddleName : "—")</div>
+                        }
+                    </div>
+                    <div>
+                        <label style="font-size:11px;color:var(--clr-text-muted);text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:4px;">Employee No.</label>
+                        @if (_isEditing)
+                        {
+                            <input @bind="_editTeacher.EmployeeNo" class="editable-input" />
+                        }
+                        else
+                        {
+                            <div style="padding:10px 14px;background:var(--clr-surface-alt);border-radius:8px;font-size:14px;color:var(--clr-text);">@(!string.IsNullOrEmpty(_teacher.EmployeeNo) ? _teacher.EmployeeNo : "—")</div>
+                        }
+                    </div>
+                    <div>
+                        <label style="font-size:11px;color:var(--clr-text-muted);text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:4px;">Specialization</label>
+                        @if (_isEditing)
+                        {
+                            <input @bind="_editTeacher.Specialization" class="editable-input" />
+                        }
+                        else
+                        {
+                            <div style="padding:10px 14px;background:var(--clr-surface-alt);border-radius:8px;font-size:14px;color:var(--clr-text);">@(!string.IsNullOrEmpty(_teacher.Specialization) ? _teacher.Specialization : "—")</div>
+                        }
+                    </div>
+                    <div>
+                        <label style="font-size:11px;color:var(--clr-text-muted);text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:4px;">Employment Status</label>
+                        @if (_isEditing)
+                        {
+                            <input @bind="_editTeacher.EmploymentStatus" class="editable-input" />
+                        }
+                        else
+                        {
+                            <div style="padding:10px 14px;background:var(--clr-surface-alt);border-radius:8px;font-size:14px;color:var(--clr-text);">@(!string.IsNullOrEmpty(_teacher.EmploymentStatus) ? _teacher.EmploymentStatus : "—")</div>
+                        }
+                    </div>
+                    <div>
+                        <label style="font-size:11px;color:var(--clr-text-muted);text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:4px;">Hire Date</label>
+                        <div style="padding:10px 14px;background:var(--clr-surface-alt);border-radius:8px;font-size:14px;color:var(--clr-text);">@(_teacher.HireDate?.ToString("MMM dd, yyyy") ?? "—")</div>
+                    </div>
+                    <div>
+                        <label style="font-size:11px;color:var(--clr-text-muted);text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:4px;">Teacher ID</label>
+                        <div style="padding:10px 14px;background:var(--clr-surface-alt);border-radius:8px;font-size:14px;color:var(--clr-text);">@_teacher.Id</div>
+                    </div>
+                    <div>
+                        <label style="font-size:11px;color:var(--clr-text-muted);text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:4px;">Email</label>
+                        @if (_isEditing)
+                        {
+                            <input @bind="_editTeacher.Email" class="editable-input" />
+                        }
+                        else
+                        {
+                            <div style="padding:10px 14px;background:var(--clr-surface-alt);border-radius:8px;font-size:14px;color:var(--clr-text);">@(!string.IsNullOrEmpty(_teacher.Email) ? _teacher.Email : "—")</div>
+                        }
+                    </div>
+                    <div>
+                        <label style="font-size:11px;color:var(--clr-text-muted);text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:4px;">Contact No.</label>
+                        @if (_isEditing)
+                        {
+                            <input @bind="_editTeacher.ContactNo" class="editable-input" />
+                        }
+                        else
+                        {
+                            <div style="padding:10px 14px;background:var(--clr-surface-alt);border-radius:8px;font-size:14px;color:var(--clr-text);">@(!string.IsNullOrEmpty(_teacher.ContactNo) ? _teacher.ContactNo : "—")</div>
+                        }
+                    </div>
+                </div>
+            }
+            else if (_student is not null)
+            {
+                <div style="margin-bottom:20px;">
+                    <h3 style="font-size:16px;font-weight:700;color:var(--clr-text);margin:0;">Student Information</h3>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+                    <div>
+                        <label style="font-size:11px;color:var(--clr-text-muted);text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:4px;">First Name</label>
+                        <div style="padding:10px 14px;background:var(--clr-surface-alt);border-radius:8px;font-size:14px;color:var(--clr-text);font-weight:500;">@_student.FirstName</div>
+                    </div>
+                    <div>
+                        <label style="font-size:11px;color:var(--clr-text-muted);text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:4px;">Last Name</label>
+                        <div style="padding:10px 14px;background:var(--clr-surface-alt);border-radius:8px;font-size:14px;color:var(--clr-text);font-weight:500;">@_student.LastName</div>
+                    </div>
+                    <div>
+                        <label style="font-size:11px;color:var(--clr-text-muted);text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:4px;">Middle Name</label>
+                        <div style="padding:10px 14px;background:var(--clr-surface-alt);border-radius:8px;font-size:14px;color:var(--clr-text);">@(!string.IsNullOrEmpty(_student.MiddleName) ? _student.MiddleName : "—")</div>
+                    </div>
+                    <div>
+                        <label style="font-size:11px;color:var(--clr-text-muted);text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:4px;">LRN</label>
+                        <div style="padding:10px 14px;background:var(--clr-surface-alt);border-radius:8px;font-size:14px;color:var(--clr-text);">@_student.Lrn</div>
+                    </div>
+                    <div>
+                        <label style="font-size:11px;color:var(--clr-text-muted);text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:4px;">Sex</label>
+                        <div style="padding:10px 14px;background:var(--clr-surface-alt);border-radius:8px;font-size:14px;color:var(--clr-text);">@(!string.IsNullOrEmpty(_student.Sex) ? _student.Sex : "—")</div>
+                    </div>
+                    <div>
+                        <label style="font-size:11px;color:var(--clr-text-muted);text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:4px;">Birthdate</label>
+                        <div style="padding:10px 14px;background:var(--clr-surface-alt);border-radius:8px;font-size:14px;color:var(--clr-text);">@(_student.Birthdate?.ToString("MMM dd, yyyy") ?? "—")</div>
+                    </div>
+                    <div>
+                        <label style="font-size:11px;color:var(--clr-text-muted);text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:4px;">Address</label>
+                        <div style="padding:10px 14px;background:var(--clr-surface-alt);border-radius:8px;font-size:14px;color:var(--clr-text);">@(!string.IsNullOrEmpty(_student.Address) ? _student.Address : "—")</div>
+                    </div>
+                    <div>
+                        <label style="font-size:11px;color:var(--clr-text-muted);text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:4px;">Guardian</label>
+                        <div style="padding:10px 14px;background:var(--clr-surface-alt);border-radius:8px;font-size:14px;color:var(--clr-text);">@(!string.IsNullOrEmpty(_student.GuardianName) ? _student.GuardianName : "—")</div>
+                    </div>
+                    <div>
+                        <label style="font-size:11px;color:var(--clr-text-muted);text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:4px;">Guardian Contact</label>
+                        <div style="padding:10px 14px;background:var(--clr-surface-alt);border-radius:8px;font-size:14px;color:var(--clr-text);">@(!string.IsNullOrEmpty(_student.GuardianContact) ? _student.GuardianContact : "—")</div>
+                    </div>
+                    <div>
+                        <label style="font-size:11px;color:var(--clr-text-muted);text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:4px;">Contact No.</label>
+                        <div style="padding:10px 14px;background:var(--clr-surface-alt);border-radius:8px;font-size:14px;color:var(--clr-text);">@(!string.IsNullOrEmpty(_student.ContactNo) ? _student.ContactNo : "—")</div>
+                    </div>
+                    <div>
+                        <label style="font-size:11px;color:var(--clr-text-muted);text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:4px;">Previous School</label>
+                        <div style="padding:10px 14px;background:var(--clr-surface-alt);border-radius:8px;font-size:14px;color:var(--clr-text);">@(!string.IsNullOrEmpty(_student.PreviousSchool) ? _student.PreviousSchool : "—")</div>
+                    </div>
+                    <div>
+                        <label style="font-size:11px;color:var(--clr-text-muted);text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:4px;">Student ID</label>
+                        <div style="padding:10px 14px;background:var(--clr-surface-alt);border-radius:8px;font-size:14px;color:var(--clr-text);">@_student.Id</div>
+                    </div>
+                </div>
+            }
+            else
+            {
+                <div style="margin-bottom:20px;">
+                    <h3 style="font-size:16px;font-weight:700;color:var(--clr-text);margin:0;">Administrator Account</h3>
+                    <p style="font-size:13px;color:var(--clr-text-secondary);margin:8px 0 0;">You are logged in as an administrator. Profile details are managed by the system.</p>
+                </div>
+            }
+
+            @if (_user is not null)
+            {
+                <div style="margin-top:24px;padding-top:20px;border-top:1px solid var(--clr-border);">
+                    <h3 style="font-size:16px;font-weight:700;color:var(--clr-text);margin:0 0 16px;">Account</h3>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+                        <div>
+                            <label style="font-size:11px;color:var(--clr-text-muted);text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:4px;">Username</label>
+                            @if (_isEditing && _teacher is not null)
+                            {
+                                <input @bind="_editUser.Username" class="editable-input" />
+                            }
+                            else
+                            {
+                                <div style="padding:10px 14px;background:var(--clr-surface-alt);border-radius:8px;font-size:14px;color:var(--clr-text);font-weight:500;">@_user.Username</div>
+                            }
+                        </div>
+                        <div>
+                            <label style="font-size:11px;color:var(--clr-text-muted);text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:4px;">Role</label>
+                            <div style="padding:10px 14px;background:var(--clr-surface-alt);border-radius:8px;font-size:14px;color:var(--clr-accent);font-weight:600;">@_user.Role</div>
+                        </div>
+                        <div>
+                            <label style="font-size:11px;color:var(--clr-text-muted);text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:4px;">Display Name</label>
+                            @if (_isEditing && _teacher is not null)
+                            {
+                                <input @bind="_editUser.Name" class="editable-input" />
+                            }
+                            else
+                            {
+                                <div style="padding:10px 14px;background:var(--clr-surface-alt);border-radius:8px;font-size:14px;color:var(--clr-text);">@_user.Name</div>
+                            }
+                        </div>
+                        <div>
+                            <label style="font-size:11px;color:var(--clr-text-muted);text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:4px;">Status</label>
+                            <div style="padding:10px 14px;background:var(--clr-surface-alt);border-radius:8px;font-size:14px;color:var(--clr-text);">@_user.Status</div>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+}
+
+@* ── Styles ── *@
+<style>
+    .spinner {
+        display: inline-block;
+        border: 2px solid var(--clr-border);
+        border-top-color: var(--clr-accent);
+        border-radius: 50%;
+        animation: _spin 0.6s linear infinite;
+    }
+    @@keyframes _spin { to { transform: rotate(360deg); } }
+    .editable-input {
+        width: 100%;
+        padding: 10px 14px;
+        border: 1.5px solid var(--clr-border);
+        border-radius: 8px;
+        font-size: 14px;
+        color: var(--clr-text);
+        background: var(--clr-surface);
+        outline: none;
+        box-sizing: border-box;
+        transition: border-color 0.15s;
+    }
+    .editable-input:focus {
+        border-color: var(--clr-accent);
+    }
+    .page-btn {
+        display: inline-flex;
+        align-items: center;
+        cursor: pointer;
+        border-radius: 6px;
+        font-weight: 600;
+        transition: background 0.15s, border-color 0.15s, opacity 0.15s;
+    }
+    .page-btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+    .page-btn-outline {
+        background: transparent;
+        border: 1.5px solid var(--clr-border-strong);
+        color: var(--clr-text);
+    }
+    .page-btn-outline:hover:not(:disabled) {
+        background: var(--clr-surface-alt);
+        border-color: var(--clr-accent);
+        color: var(--clr-accent);
+    }
+    .page-btn-primary {
+        background: var(--clr-accent);
+        border: 1.5px solid var(--clr-accent);
+        color: var(--clr-accent-text);
+    }
+    .page-btn-primary:hover:not(:disabled) {
+        opacity: 0.9;
+    }
+    .profile-pic-wrap:hover .profile-pic-overlay {
+        opacity: 1 !important;
+    }
+</style>
+
+<script>
+    window._clickFileInput = function () {
+        const el = document.querySelector('input[type="file"][accept="image/*"]');
+        if (el) { el.value = ''; el.click(); }
+    };
+    window._readFileAsBase64 = function () {
+        const el = document.querySelector('input[type="file"][accept="image/*"]');
+        const file = el?.files?.[0];
+        if (!file) return null;
+        return new Promise(function (resolve) {
+            var reader = new FileReader();
+            reader.onload = function () { resolve(reader.result); };
+            reader.readAsDataURL(file);
+        });
+    };
+</script>
+
+@code {
+    private Teacher? _teacher;
+    private Student? _student;
+    private User? _user;
+    private bool _loading = true;
+    private bool _isEditing;
+    private bool _isSaving;
+    private bool _isUploading;
+    private string? _error;
+    private string? _success;
+    private Teacher _editTeacher = new();
+    private User _editUser = new();
+    private readonly CancellationTokenSource _cts = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        var session = await AuthService.GetCurrentSessionAsync();
+        if (session is null) { Navigation.NavigateTo("/login"); return; }
+        await LoadDataAsync();
+    }
+
+    private async Task LoadDataAsync()
+    {
+        _loading = true;
+        _error = null;
+        try
+        {
+            var session = await AuthService.GetCurrentSessionAsync();
+            if (session is null) return;
+            _user = await UserService.GetByIdAsync(session.UserId, _cts.Token);
+
+            if (_user?.Role == UserRole.TEACHER)
+            {
+                _teacher = await TeacherService.GetByUserIdAsync(session.UserId, _cts.Token);
+                if (_teacher is null) _error = "Teacher profile not found.";
+            }
+            else if (_user?.Role == UserRole.STUDENT)
+            {
+                _student = await StudentPortalService.GetStudentByUserIdAsync(session.UserId, _cts.Token);
+                if (_student is null) _error = "Student profile not found.";
+            }
+        }
+        catch (Exception ex) { _error = $"Failed to load: {ex.Message}"; }
+        finally { _loading = false; }
+    }
+
+    private async Task TriggerFilePicker()
+    {
+        if (_isUploading) return;
+        await JS.InvokeVoidAsync("_clickFileInput");
+    }
+
+    private async Task HandleFileSelected()
+    {
+        var dataUrl = await JS.InvokeAsync<string>("_readFileAsBase64");
+        if (string.IsNullOrEmpty(dataUrl)) return;
+
+        var base64 = dataUrl[(dataUrl.IndexOf(',') + 1)..];
+        byte[] bytes;
+        try { bytes = Convert.FromBase64String(base64); }
+        catch { _error = "Failed to read image file."; return; }
+
+        if (bytes.Length > 5 * 1024 * 1024)
+        {
+            _error = "Image must be smaller than 5 MB.";
+            return;
+        }
+
+        _isUploading = true;
+        _error = null;
+        _success = null;
+        try
+        {
+            var ok = await TeacherService.UpdateProfilePictureAsync(_teacher!.Id, bytes, _cts.Token);
+            if (ok)
+            {
+                _teacher = await TeacherService.GetByUserIdAsync(_teacher.UserId, _cts.Token);
+                _success = "Profile photo updated.";
+            }
+            else _error = "Failed to save photo.";
+        }
+        catch (Exception ex) { _error = $"Failed to upload photo: {ex.Message}"; }
+        finally { _isUploading = false; }
+    }
+
+    private async Task TriggerStudentFilePicker()
+    {
+        if (_isUploading) return;
+        await JS.InvokeVoidAsync("_clickFileInput");
+    }
+
+    private async Task HandleStudentFileSelected()
+    {
+        var dataUrl = await JS.InvokeAsync<string>("_readFileAsBase64");
+        if (string.IsNullOrEmpty(dataUrl)) return;
+
+        var base64 = dataUrl[(dataUrl.IndexOf(',') + 1)..];
+        byte[] bytes;
+        try { bytes = Convert.FromBase64String(base64); }
+        catch { _error = "Failed to read image file."; return; }
+
+        if (bytes.Length > 5 * 1024 * 1024)
+        {
+            _error = "Image must be smaller than 5 MB.";
+            return;
+        }
+
+        _isUploading = true;
+        _error = null;
+        _success = null;
+        try
+        {
+            var ok = await StudentPortalService.UpdateProfilePictureAsync(_student!.Id, bytes, _cts.Token);
+            if (ok)
+            {
+                _student = await StudentPortalService.GetStudentByUserIdAsync(_student.UserId, _cts.Token);
+                _success = "Profile photo updated.";
+            }
+            else _error = "Failed to save photo.";
+        }
+        catch (Exception ex) { _error = $"Failed to upload photo: {ex.Message}"; }
+        finally { _isUploading = false; }
+    }
+
+    private void EnterEditMode()
+    {
+        if (_teacher is null || _user is null) return;
+        _editTeacher = new Teacher
+        {
+            Id = _teacher.Id,
+            FirstName = _teacher.FirstName,
+            LastName = _teacher.LastName,
+            MiddleName = _teacher.MiddleName,
+            EmployeeNo = _teacher.EmployeeNo,
+            Email = _teacher.Email,
+            ContactNo = _teacher.ContactNo,
+            Specialization = _teacher.Specialization,
+            EmploymentStatus = _teacher.EmploymentStatus
+        };
+        _editUser = new User
+        {
+            Id = _user.Id,
+            Name = _user.Name,
+            Username = _user.Username
+        };
+        _isEditing = true;
+        _success = null;
+    }
+
+    private void CancelEdit()
+    {
+        _isEditing = false;
+        _editTeacher = new();
+        _editUser = new();
+    }
+
+    private async Task SaveAsync()
+    {
+        if (_teacher is null || _user is null) return;
+        _isSaving = true;
+        _error = null;
+        _success = null;
+
+        try
+        {
+            _editTeacher.Id = _teacher.Id;
+            var teacherOk = await TeacherService.UpdateAsync(_editTeacher, _cts.Token);
+
+            _editUser.Id = _user.Id;
+            _editUser.Role = _user.Role;
+            _editUser.Status = _user.Status;
+            _editUser.CanLogin = _user.CanLogin;
+            var userOk = await UserService.UpdateAsync(_editUser, cancellationToken: _cts.Token);
+
+            if (teacherOk && userOk)
+            {
+                _teacher = await TeacherService.GetByUserIdAsync(_user.Id, _cts.Token);
+                _user = await UserService.GetByIdAsync(_user.Id, _cts.Token);
+                _isEditing = false;
+                _success = "Profile updated successfully.";
+            }
+            else
+            {
+                _error = "Failed to save changes.";
+            }
+        }
+        catch (Exception ex)
+        {
+            _error = $"Failed to save: {ex.Message}";
+        }
+        finally
+        {
+            _isSaving = false;
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        _cts.Cancel();
+        _cts.Dispose();
+        await Task.CompletedTask;
+    }
+}

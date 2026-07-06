@@ -559,4 +559,46 @@ public class TeacherService : ITeacherService
             MonthlyTrends = monthlyGroups
         };
     }
+
+    public async Task<bool> UpdateAsync(Teacher teacher, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(teacher);
+
+        await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
+
+        var existing = await context.Teachers.FirstOrDefaultAsync(t => t.Id == teacher.Id, cancellationToken);
+        if (existing is null)
+            return false;
+
+        existing.FirstName = teacher.FirstName;
+        existing.LastName = teacher.LastName;
+        existing.MiddleName = teacher.MiddleName;
+        existing.Email = teacher.Email;
+        existing.ContactNo = teacher.ContactNo;
+        existing.Specialization = teacher.Specialization;
+        existing.EmploymentStatus = teacher.EmploymentStatus;
+        existing.UpdatedAt = DateTime.UtcNow;
+
+        await context.SaveChangesAsync(cancellationToken);
+
+        return true;
+    }
+
+    public async Task<bool> UpdateProfilePictureAsync(long teacherId, byte[] picture, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(picture);
+
+        await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
+
+        var existing = await context.Teachers.FirstOrDefaultAsync(t => t.Id == teacherId, cancellationToken);
+        if (existing is null)
+            return false;
+
+        existing.ProfilePicture = picture;
+        existing.UpdatedAt = DateTime.UtcNow;
+
+        await context.SaveChangesAsync(cancellationToken);
+
+        return true;
+    }
 }

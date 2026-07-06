@@ -1,0 +1,426 @@
+@page "/admin/rooms"
+@layout MainLayout
+@using AttendanceUI.Data.Entities
+@inject IRoomService RoomService
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+@implements IDisposable
+
+<PageHeader Title="Rooms" Subtitle="Manage rooms and view QR codes">
+    <div class="header-actions">
+        @if (_selectedIds.Count > 0)
+        {
+            <button class="action-btn action-btn--purple" @onclick="PrintSelected">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+                <span>Print Selected (@_selectedIds.Count)</span>
+            </button>
+            <button class="action-btn action-btn--green" @onclick="DownloadSelected">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                <span>Save as PNG (@_selectedIds.Count)</span>
+            </button>
+        }
+        <span class="header-date">@_pageDate</span>
+    </div>
+</PageHeader>
+
+@if (_loading)
+{
+    <div class="loading-state">
+        <span class="spinner"></span>
+        <p>Loading rooms...</p>
+    </div>
+}
+else if (_error is not null)
+{
+    <div class="error-banner">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+        <span>@_error</span>
+    </div>
+}
+else
+{
+    @if (_isGenerating)
+    {
+        <div class="success-banner">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            <span>Generating QR codes for @_generatingCount rooms...</span>
+        </div>
+    }
+
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-icon stat-icon--purple">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg>
+            </div>
+            <div class="stat-info">
+                <span class="stat-value">@_rooms.Count</span>
+                <span class="stat-label">Total Rooms</span>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon stat-icon--green">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+            </div>
+            <div class="stat-info">
+                <span class="stat-value">@_rooms.Count(r => r.HasSchedule)</span>
+                <span class="stat-label">With Schedule</span>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon stat-icon--red">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </div>
+            <div class="stat-info">
+                <span class="stat-value">@_rooms.Count(r => !r.HasSchedule)</span>
+                <span class="stat-label">Without Schedule</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="students-toolbar">
+        <div class="search-wrapper">
+            <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input class="search-input" placeholder="Search by room name or code…" @bind="_searchQuery" @bind:after="ApplyFilters" />
+        </div>
+        <select class="filter-select" @bind="_statusFilter" @bind:after="ApplyFilters">
+            <option value="">All</option>
+            <option value="with">With Schedule</option>
+            <option value="without">Without Schedule</option>
+        </select>
+        <button class="btn btn-ghost" @onclick="RefreshAsync" title="Refresh">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+            <span>Refresh</span>
+        </button>
+    </div>
+
+    <div class="students-table-wrapper">
+        <table class="students-table">
+            <thead>
+                <tr>
+                    <th class="col-check">
+                        <input type="checkbox" class="select-checkbox" checked="@_allSelected" @onchange="ToggleSelectAll" />
+                    </th>
+                    <th>Room</th>
+                    <th>Code</th>
+                    <th>Capacity</th>
+                    <th>Status</th>
+                    <th>QR Code</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (_filteredRooms.Count == 0)
+                {
+                    <tr><td colspan="6" class="empty-state">No rooms found.</td></tr>
+                }
+                else
+                {
+                    @foreach (var room in _filteredRooms)
+                    {
+                        <tr class="@(_selectedIds.Contains(room.Id) ? "row-selected" : "")">
+                            <td class="col-check">
+                                <input type="checkbox" class="select-checkbox" checked="@_selectedIds.Contains(room.Id)" @onchange="() => ToggleSelect(room.Id)" />
+                            </td>
+                            <td>
+                                <div class="student-info-cell">
+                                    <div class="student-avatar">@(!string.IsNullOrWhiteSpace(room.Name) ? room.Name[..1].ToUpper() : "R")</div>
+                                    <div>
+                                        <div class="student-name">@room.Name</div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td><span class="code-badge">@room.Code</span></td>
+                            <td style="font-size:13px;color:#64748b;">@room.Capacity</td>
+                            <td>
+                                <span class="status-badge status-badge--@(room.HasSchedule ? "active" : "inactive")">
+                                    @(room.HasSchedule ? "With Schedule" : "Without Schedule")
+                                </span>
+                            </td>
+                            <td class="col-qr">
+                                @if (room.QrCode is not null)
+                                {
+                                    <img src="data:image/png;base64,@_qrBase64.GetValueOrDefault(room.Id)" alt="QR Code for @room.Name" class="qr-thumb" @onclick="() => ShowQrModal(room)" style="cursor:pointer;" />
+                                }
+                                else
+                                {
+                                    <span class="text-muted">No QR code</span>
+                                }
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+@if (_selectedRoom is not null)
+{
+    <div class="modal-overlay" @onclick="CloseQrModal">
+        <div class="modal-content modal-content--wide" @onclick:stopPropagation>
+            <div class="modal-header">
+                <h3>@_selectedRoom.Name</h3>
+                <button class="modal-close" @onclick="CloseQrModal">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="profile-layout">
+                    <div class="profile-info">
+                        <div class="profile-header">
+                            <div class="profile-avatar-large">@(!string.IsNullOrWhiteSpace(_selectedRoom.Name) ? _selectedRoom.Name[..1].ToUpper() : "R")</div>
+                            <div>
+                                <div class="profile-name">@_selectedRoom.Name</div>
+                                <div class="profile-badge-row">
+                                    <span class="code-badge">@_selectedRoom.Code</span>
+                                    <span class="code-badge code-badge--alt">Capacity: @_selectedRoom.Capacity</span>
+                                    <span class="status-badge status-badge--@(_selectedRoom.HasSchedule ? "active" : "inactive")">
+                                        @(_selectedRoom.HasSchedule ? "With Schedule" : "Without Schedule")
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="profile-qr">
+                        @if (_selectedRoom.QrCode is not null)
+                        {
+                            <div class="profile-qr-card">
+                                <div class="profile-qr-label">QR Code</div>
+                                <img src="data:image/png;base64,@Convert.ToBase64String(_selectedRoom.QrCode.QrCode)" alt="QR Code" class="profile-qr-image" />
+                                <div class="profile-qr-content">@_selectedRoom.QrCode.QrContent</div>
+                                <div class="profile-qr-actions">
+                                    <button class="action-btn action-btn--purple" @onclick="() => PrintSingleQr(_selectedRoom)" style="flex:1;justify-content:center;">
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+                                        Print
+                                    </button>
+                                    <button class="action-btn action-btn--green" @onclick="() => DownloadSingleQr(_selectedRoom)" style="flex:1;justify-content:center;">
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                                        Save as PNG
+                                    </button>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="action-btn" @onclick="CloseQrModal">Close</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<Room> _rooms = [];
+    private List<Room> _filteredRooms = [];
+    private Dictionary<long, string> _qrBase64 = [];
+    private string _pageDate = "";
+    private bool _loading = true;
+    private string? _error;
+    private bool _isGenerating;
+    private int _generatingCount;
+    private string _searchQuery = "";
+    private string _statusFilter = "";
+    private HashSet<long> _selectedIds = [];
+    private bool _allSelected;
+    private Room? _selectedRoom;
+    private readonly CancellationTokenSource _cts = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        _pageDate = DateTime.Now.ToString("MMM dd, yyyy");
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _error = null;
+        try
+        {
+            _rooms = (await RoomService.GetAllAsync(_cts.Token)).ToList();
+            CacheBase64();
+            ApplyFilters();
+        }
+        catch (Exception ex) when (ex.Message.Contains("room_qr_tbl") || ex.InnerException?.Message?.Contains("room_qr_tbl") == true)
+        {
+            _error = "The room QR code table hasn't been created yet. Run the database migration to create 'room_qr_tbl'.";
+        }
+        catch (Exception ex)
+        {
+            _error = $"Failed to load rooms: {ex.InnerException?.Message ?? ex.Message}";
+        }
+        finally
+        {
+            _loading = false;
+            StateHasChanged();
+        }
+
+        if (_error is not null) return;
+
+        var missing = _rooms.Where(r => r.QrCode is null).ToList();
+        if (missing.Count > 0)
+        {
+            _isGenerating = true;
+            _generatingCount = missing.Count;
+            StateHasChanged();
+
+            try
+            {
+                await RoomService.GenerateMissingBatchAsync(missing, _cts.Token);
+                CacheBase64();
+            }
+            catch (Exception ex)
+            {
+                _error = $"Failed to generate QR codes: {ex.InnerException?.Message ?? ex.Message}";
+            }
+
+            _isGenerating = false;
+            ApplyFilters();
+            StateHasChanged();
+        }
+    }
+
+    private async Task RefreshAsync()
+    {
+        _searchQuery = "";
+        _statusFilter = "";
+        _selectedIds.Clear();
+        _allSelected = false;
+        await LoadAsync();
+    }
+
+    private void CacheBase64()
+    {
+        _qrBase64 = _rooms
+            .Where(r => r.QrCode?.QrCode is not null)
+            .ToDictionary(r => r.Id, r => Convert.ToBase64String(r.QrCode!.QrCode));
+    }
+
+    private void ApplyFilters()
+    {
+        var q = _searchQuery?.Trim().ToLowerInvariant() ?? "";
+        _filteredRooms = _rooms
+            .Where(r => string.IsNullOrEmpty(q) || r.Name.Contains(q, StringComparison.OrdinalIgnoreCase) || r.Code.Contains(q, StringComparison.OrdinalIgnoreCase))
+            .Where(r => string.IsNullOrEmpty(_statusFilter)
+                || (_statusFilter == "with" && r.HasSchedule)
+                || (_statusFilter == "without" && !r.HasSchedule))
+            .OrderBy(r => r.Name)
+            .ToList();
+        UpdateSelectAllState();
+    }
+
+    private void ToggleSelect(long id)
+    {
+        if (!_selectedIds.Remove(id))
+            _selectedIds.Add(id);
+        UpdateSelectAllState();
+    }
+
+    private void ToggleSelectAll()
+    {
+        if (_allSelected)
+        {
+            _selectedIds.Clear();
+        }
+        else
+        {
+            _selectedIds = [.. _filteredRooms.Where(r => r.QrCode is not null).Select(r => r.Id)];
+        }
+        UpdateSelectAllState();
+    }
+
+    private void UpdateSelectAllState()
+    {
+        var selectable = _filteredRooms.Where(r => r.QrCode is not null).ToList();
+        _allSelected = selectable.Count > 0 && selectable.All(s => _selectedIds.Contains(s.Id));
+    }
+
+    private void ShowQrModal(Room room)
+    {
+        _selectedRoom = room;
+    }
+
+    private void CloseQrModal()
+    {
+        _selectedRoom = null;
+    }
+
+    private async Task PrintSelected()
+    {
+        var selected = _rooms.Where(r => _selectedIds.Contains(r.Id) && r.QrCode is not null).ToList();
+        if (selected.Count == 0) return;
+
+        var data = selected.Select(r => new
+        {
+            name = r.Name,
+            code = r.Code,
+            qrBase64 = Convert.ToBase64String(r.QrCode!.QrCode)
+        });
+
+        var json = System.Text.Json.JsonSerializer.Serialize(data);
+        await JS.InvokeVoidAsync("rooms.printSelected", json);
+    }
+
+    private async Task PrintSingleQr(Room room)
+    {
+        if (room.QrCode is null) return;
+
+        var data = new[]
+        {
+            new
+            {
+                name = room.Name,
+                code = room.Code,
+                qrBase64 = Convert.ToBase64String(room.QrCode.QrCode)
+            }
+        };
+
+        var json = System.Text.Json.JsonSerializer.Serialize(data);
+        await JS.InvokeVoidAsync("rooms.printSelected", json);
+    }
+
+    private async Task DownloadSelected()
+    {
+        var selected = _rooms.Where(r => _selectedIds.Contains(r.Id) && r.QrCode is not null).ToList();
+        if (selected.Count == 0) return;
+
+        if (selected.Count == 1)
+        {
+            await DownloadSingleQr(selected[0]);
+            return;
+        }
+
+        var data = selected.Select(r => new
+        {
+            name = r.Name,
+            code = r.Code,
+            qrBase64 = Convert.ToBase64String(r.QrCode!.QrCode),
+            fileName = $"QR_{r.Name}_{r.Code}".Replace(" ", "_")
+        });
+
+        var json = System.Text.Json.JsonSerializer.Serialize(data);
+        await JS.InvokeVoidAsync("rooms.downloadSelected", json);
+    }
+
+    private async Task DownloadSingleQr(Room room)
+    {
+        if (room.QrCode is null) return;
+
+        var data = new
+        {
+            name = room.Name,
+            code = room.Code,
+            qrBase64 = Convert.ToBase64String(room.QrCode.QrCode),
+            fileName = $"QR_{room.Name}_{room.Code}".Replace(" ", "_")
+        };
+
+        var json = System.Text.Json.JsonSerializer.Serialize(data);
+        await JS.InvokeVoidAsync("rooms.downloadAsPng", json);
+    }
+
+    public void Dispose()
+    {
+        _cts.Cancel();
+        _cts.Dispose();
+    }
+}

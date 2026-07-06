@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations.Schema;
+
 namespace AttendanceUI.Data.Entities;
 
 public class Room
@@ -7,4 +9,8 @@ public class Room
     public string Name { get; set; } = string.Empty;
     public int Capacity { get; set; }
     public bool IsActive { get; set; }
+    public RoomQr? QrCode { get; set; }
+
+    [NotMapped]
+    public bool HasSchedule { get; set; }
 }
