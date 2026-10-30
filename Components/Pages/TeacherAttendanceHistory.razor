@@ -173,7 +173,7 @@
                                 <div style="padding:4px 20px;background:var(--clr-surface-alt);display:flex;gap:8px;align-items:center;">
                                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" style="stroke:var(--clr-text-muted)" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
                                     <input style="flex:1;padding:8px 0;border:none;background:transparent;font-size:13px;color:var(--clr-text);outline:none;"
-                                           placeholder="Search students..."
+                                           aria-label="Search students" placeholder="Search students..."
                                            @bind="_searchText" @bind:event="oninput" />
                                 </div>
                                 <div style="max-height:360px;overflow-y:auto;">
@@ -201,13 +201,12 @@
                                                         <th style="padding:8px 20px;text-align:left;font-weight:600;">LRN</th>
                                                         <th style="padding:8px 20px;text-align:center;font-weight:600;width:100px;">Status</th>
                                                         <th style="padding:8px 20px;text-align:right;font-weight:600;width:100px;">Time</th>
+                                                        <th style="padding:8px 20px;width:70px;" aria-label="Correct"></th>
                                                     </tr>
                                                 </thead>
                                                 <tbody>
                                                     @foreach (var stu in filtered)
                                                     {
-                                                        var sbg = stu.Status == "PRESENT" ? "rgba(34,197,94,0.15)" : stu.Status == "LATE" ? "rgba(234,179,8,0.15)" : stu.Status is null ? "var(--clr-surface-alt)" : "rgba(239,68,68,0.15)";
-                                                        var stxt = stu.Status == "PRESENT" ? "#4ade80" : stu.Status == "LATE" ? "#facc15" : stu.Status is null ? "var(--clr-text-muted)" : "#f87171";
                                                         var slbl = stu.Status ?? "Unmarked";
                                                         <tr style="border-top:1px solid var(--clr-border);">
                                                             <td style="padding:10px 20px;">
@@ -217,10 +216,13 @@
                                                                 <span style="font-size:12px;color:var(--clr-text-muted);">@stu.Lrn</span>
                                                             </td>
                                                             <td style="padding:10px 20px;text-align:center;">
-                                                                <span style="display:inline-block;padding:2px 10px;border-radius:6px;font-size:11px;font-weight:600;background:@sbg;color:@stxt;">@slbl</span>
+                                                                <span class="att-badge att-badge--sm @RosterBadgeClass(stu.Status)">@slbl</span>
                                                             </td>
                                                             <td style="padding:10px 20px;text-align:right;">
                                                                 <span style="font-size:12px;color:var(--clr-text-muted);">@(stu.ScannedAt?.ToLocalTime().ToString("h:mm tt") ?? "—")</span>
+                                                            </td>
+                                                            <td style="padding:10px 20px 10px 0;text-align:right;">
+                                                                <button class="btn btn-ghost btn-sm" title="Correct this student's status" @onclick="() => OpenCorrection(item.SessionId, stu)">Edit</button>
                                                             </td>
                                                         </tr>
                                                     }
@@ -237,6 +239,41 @@
         }
     </div>
 </div>
+
+@if (_correcting is not null)
+{
+    <Modal Title="Correct attendance" ContentStyle="max-width:440px;" OnClose="CloseCorrection">
+        <div class="modal-header">
+            <h3>Correct attendance</h3>
+            <button class="modal-close" aria-label="Close" @onclick="CloseCorrection">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+        </div>
+        <div class="modal-body">
+            <p style="margin:0 0 14px;"><strong>@_correcting.FullName</strong> · currently <span class="att-badge att-badge--sm @RosterBadgeClass(_correcting.Status)">@(_correcting.Status ?? "Unmarked")</span></p>
+            @if (_correctionError is not null)
+            {
+                <div class="error-banner" style="margin-bottom:12px;">@_correctionError</div>
+            }
+            <label class="form-label" for="ah-status">New status</label>
+            <select id="ah-status" class="form-input" @bind="_correctionStatus" style="margin-bottom:12px;">
+                <option value="PRESENT">Present</option>
+                <option value="LATE">Late</option>
+                <option value="ABSENT">Absent</option>
+                <option value="EXCUSED">Excused</option>
+            </select>
+            <label class="form-label" for="ah-reason">Reason</label>
+            <textarea id="ah-reason" class="form-input" rows="3" maxlength="200" placeholder="e.g. Student was present but forgot their ID card." @bind="_correctionReason" style="resize:vertical;font-family:inherit;"></textarea>
+        </div>
+        <div class="modal-footer">
+            <button class="action-btn" @onclick="CloseCorrection" disabled="@_correctionSaving">Cancel</button>
+            <button class="btn btn-primary" @onclick="SaveCorrectionAsync" disabled="@_correctionSaving">
+                @if (_correctionSaving) { <span class="spinner-sm"></span> }
+                Save
+            </button>
+        </div>
+    </Modal>
+}
 
 @* ── Animations ── *@
 <style>
@@ -256,6 +293,72 @@
 
 @code {
     private sealed record HistorySummary(int TotalSessions, int TotalPresent, int TotalLate, int TotalAbsent, int AttendanceRate);
+
+    private static string RosterBadgeClass(string? status) => status switch
+    {
+        "PRESENT" => "att-badge--present",
+        "LATE" => "att-badge--late",
+        null => "att-badge--unmarked",
+        "EXCUSED" => "att-badge--excused",
+        _ => "att-badge--absent"
+    };
+
+    private long _userId;
+    private long _correctionSessionId;
+    private SessionHistoryStudent? _correcting;
+    private string _correctionStatus = "PRESENT";
+    private string _correctionReason = "";
+    private string? _correctionError;
+    private bool _correctionSaving;
+
+    private void OpenCorrection(long sessionId, SessionHistoryStudent student)
+    {
+        _correctionSessionId = sessionId;
+        _correcting = student;
+        _correctionStatus = student.Status is "ABSENT" or null ? "PRESENT" : student.Status;
+        _correctionReason = "";
+        _correctionError = null;
+    }
+
+    private void CloseCorrection()
+    {
+        if (!_correctionSaving) _correcting = null;
+    }
+
+    private async Task SaveCorrectionAsync()
+    {
+        if (_correcting is null) return;
+        _correctionSaving = true;
+        _correctionError = null;
+        try
+        {
+            var result = await SessionService.OverrideStatusAsync(_correctionSessionId, _teacherId, _userId,
+                _correcting.StudentId, _correctionStatus, _correctionReason, _cts.Token);
+            if (!result.Success)
+            {
+                _correctionError = result.Message;
+                return;
+            }
+
+            _correcting = null;
+            var expanded = _expandedId;
+            await LoadHistoryAsync();
+            if (expanded is { } id && _items.Any(i => i.SessionId == id))
+            {
+                _expandedId = id;
+                _sessionStudents = await SessionService.GetSessionStudentsAsync(id, _cts.Token);
+            }
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception ex)
+        {
+            _correctionError = $"Failed to save: {ex.Message}";
+        }
+        finally
+        {
+            _correctionSaving = false;
+        }
+    }
 
     private List<SessionHistoryItem> _items = [];
     private List<SessionHistoryStudent>? _sessionStudents;
@@ -278,6 +381,7 @@
         if (teacher is null) { _error = "Teacher profile not found."; return; }
 
         _teacherId = teacher.Id;
+        _userId = session.UserId;
         await LoadHistoryAsync();
     }
 

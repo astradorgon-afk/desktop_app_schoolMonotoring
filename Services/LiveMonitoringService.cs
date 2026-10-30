@@ -40,10 +40,21 @@ public class LiveMonitoringService : ILiveMonitoringService
                 OfferingRoom = cs.ClassOffering!.Room ?? "",
                 OfferingSectionId = cs.ClassOffering!.SectionId,
                 SectionName = cs.ClassOffering!.Section!.Name,
+                TeacherId = cs.ClassOffering!.Teacher!.Id,
                 TeacherName = cs.ClassOffering!.Teacher!.FirstName + " " + cs.ClassOffering!.Teacher!.LastName,
                 SubjectTitle = cs.ClassOffering!.Subject!.Title
             })
             .ToListAsync(ct);
+
+        // Load teacher profile pictures once (kept out of the projection above so the
+        // image blobs aren't duplicated across every schedule row).
+        var teacherIds = todaySchedules.Select(s => s.TeacherId).Distinct().ToList();
+        var teacherPhotos = teacherIds.Count > 0
+            ? await context.Teachers
+                .Where(t => teacherIds.Contains(t.Id) && t.ProfilePicture != null)
+                .Select(t => new { t.Id, t.ProfilePicture })
+                .ToDictionaryAsync(t => t.Id, t => t.ProfilePicture, ct)
+            : [];
 
         // Group by room (offerings can have multiple schedules, one per day)
         var schedulesByRoom = todaySchedules
@@ -63,6 +74,7 @@ public class LiveMonitoringService : ILiveMonitoringService
         // Get today's attendance sessions and their record counts
         var attendanceSessions = await context.AttendanceSessions
             .Where(s => s.SessionDate >= todayStart && s.SessionDate < todayEnd)
+            .Where(s => s.Status == "ACTIVE")
             .Select(s => new
             {
                 s.Id,
@@ -95,8 +107,16 @@ public class LiveMonitoringService : ILiveMonitoringService
                 continue;
             }
 
-            // Pick the schedule that's currently happening or the first one
-            var schedule = schedules.First();
+            // Pick the schedule most relevant to right now, so a room with several
+            // classes today surfaces the one that matches the current time:
+            //   1. a class currently in session (start <= now < end)
+            //   2. otherwise the next class still to come today
+            //   3. otherwise the most recent class that already finished
+            var now = TimeOnly.FromDateTime(DateTime.Now);
+            var schedule =
+                schedules.FirstOrDefault(s => now >= s.StartTime && now < s.EndTime)
+                ?? schedules.Where(s => s.StartTime > now).OrderBy(s => s.StartTime).FirstOrDefault()
+                ?? schedules.OrderByDescending(s => s.EndTime).First();
             var totalStudents = enrollmentCounts.GetValueOrDefault(schedule.OfferingSectionId, 0);
             var hasSession = sessionByOffering.TryGetValue(schedule.ClassOfferingId, out var session);
 
@@ -108,7 +128,9 @@ public class LiveMonitoringService : ILiveMonitoringService
                 Capacity = room.Capacity,
                 OfferingId = schedule.ClassOfferingId,
                 SectionName = schedule.SectionName,
+                TeacherId = schedule.TeacherId,
                 TeacherName = schedule.TeacherName,
+                TeacherPhoto = teacherPhotos.GetValueOrDefault(schedule.TeacherId),
                 SubjectTitle = schedule.SubjectTitle,
                 StartTime = schedule.StartTime,
                 EndTime = schedule.EndTime,

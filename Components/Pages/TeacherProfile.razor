@@ -5,6 +5,8 @@
 @implements IAsyncDisposable
 @inject ITeacherService TeacherService
 @inject IStudentPortalService StudentPortalService
+@inject IStudentService StudentService
+@inject IAuditService AuditService
 @inject IUserService UserService
 @inject IAuthService AuthService
 @inject NavigationManager Navigation
@@ -178,10 +180,10 @@ else if (_user is not null)
 
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
                     <div>
-                        <label style="font-size:11px;color:var(--clr-text-muted);text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:4px;">First Name</label>
+                        <label class="field-label" for="tp-editteacher-firstname">First Name</label>
                         @if (_isEditing)
                         {
-                            <input @bind="_editTeacher.FirstName" class="editable-input" />
+                            <input id="tp-editteacher-firstname" @bind="_editTeacher.FirstName" class="editable-input" />
                         }
                         else
                         {
@@ -189,10 +191,10 @@ else if (_user is not null)
                         }
                     </div>
                     <div>
-                        <label style="font-size:11px;color:var(--clr-text-muted);text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:4px;">Last Name</label>
+                        <label class="field-label" for="tp-editteacher-lastname">Last Name</label>
                         @if (_isEditing)
                         {
-                            <input @bind="_editTeacher.LastName" class="editable-input" />
+                            <input id="tp-editteacher-lastname" @bind="_editTeacher.LastName" class="editable-input" />
                         }
                         else
                         {
@@ -200,10 +202,10 @@ else if (_user is not null)
                         }
                     </div>
                     <div>
-                        <label style="font-size:11px;color:var(--clr-text-muted);text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:4px;">Middle Name</label>
+                        <label class="field-label" for="tp-editteacher-middlename">Middle Name</label>
                         @if (_isEditing)
                         {
-                            <input @bind="_editTeacher.MiddleName" class="editable-input" />
+                            <input id="tp-editteacher-middlename" @bind="_editTeacher.MiddleName" class="editable-input" />
                         }
                         else
                         {
@@ -211,10 +213,10 @@ else if (_user is not null)
                         }
                     </div>
                     <div>
-                        <label style="font-size:11px;color:var(--clr-text-muted);text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:4px;">Employee No.</label>
+                        <label class="field-label" for="tp-editteacher-employeeno">Employee No.</label>
                         @if (_isEditing)
                         {
-                            <input @bind="_editTeacher.EmployeeNo" class="editable-input" />
+                            <input id="tp-editteacher-employeeno" @bind="_editTeacher.EmployeeNo" class="editable-input" />
                         }
                         else
                         {
@@ -222,10 +224,10 @@ else if (_user is not null)
                         }
                     </div>
                     <div>
-                        <label style="font-size:11px;color:var(--clr-text-muted);text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:4px;">Specialization</label>
+                        <label class="field-label" for="tp-editteacher-specialization">Specialization</label>
                         @if (_isEditing)
                         {
-                            <input @bind="_editTeacher.Specialization" class="editable-input" />
+                            <input id="tp-editteacher-specialization" @bind="_editTeacher.Specialization" class="editable-input" />
                         }
                         else
                         {
@@ -233,10 +235,10 @@ else if (_user is not null)
                         }
                     </div>
                     <div>
-                        <label style="font-size:11px;color:var(--clr-text-muted);text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:4px;">Employment Status</label>
+                        <label class="field-label" for="tp-editteacher-employmentstatus">Employment Status</label>
                         @if (_isEditing)
                         {
-                            <input @bind="_editTeacher.EmploymentStatus" class="editable-input" />
+                            <input id="tp-editteacher-employmentstatus" @bind="_editTeacher.EmploymentStatus" class="editable-input" />
                         }
                         else
                         {
@@ -244,18 +246,18 @@ else if (_user is not null)
                         }
                     </div>
                     <div>
-                        <label style="font-size:11px;color:var(--clr-text-muted);text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:4px;">Hire Date</label>
+                        <span class="field-label">Hire Date</span>
                         <div style="padding:10px 14px;background:var(--clr-surface-alt);border-radius:8px;font-size:14px;color:var(--clr-text);">@(_teacher.HireDate?.ToString("MMM dd, yyyy") ?? "—")</div>
                     </div>
                     <div>
-                        <label style="font-size:11px;color:var(--clr-text-muted);text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:4px;">Teacher ID</label>
+                        <span class="field-label">Teacher ID</span>
                         <div style="padding:10px 14px;background:var(--clr-surface-alt);border-radius:8px;font-size:14px;color:var(--clr-text);">@_teacher.Id</div>
                     </div>
                     <div>
-                        <label style="font-size:11px;color:var(--clr-text-muted);text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:4px;">Email</label>
+                        <label class="field-label" for="tp-editteacher-email">Email</label>
                         @if (_isEditing)
                         {
-                            <input @bind="_editTeacher.Email" class="editable-input" />
+                            <input id="tp-editteacher-email" @bind="_editTeacher.Email" class="editable-input" />
                         }
                         else
                         {
@@ -263,10 +265,10 @@ else if (_user is not null)
                         }
                     </div>
                     <div>
-                        <label style="font-size:11px;color:var(--clr-text-muted);text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:4px;">Contact No.</label>
+                        <label class="field-label" for="tp-editteacher-contactno">Contact No.</label>
                         @if (_isEditing)
                         {
-                            <input @bind="_editTeacher.ContactNo" class="editable-input" />
+                            <input id="tp-editteacher-contactno" @bind="_editTeacher.ContactNo" class="editable-input" />
                         }
                         else
                         {
@@ -282,51 +284,51 @@ else if (_user is not null)
                 </div>
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
                     <div>
-                        <label style="font-size:11px;color:var(--clr-text-muted);text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:4px;">First Name</label>
+                        <span class="field-label">First Name</span>
                         <div style="padding:10px 14px;background:var(--clr-surface-alt);border-radius:8px;font-size:14px;color:var(--clr-text);font-weight:500;">@_student.FirstName</div>
                     </div>
                     <div>
-                        <label style="font-size:11px;color:var(--clr-text-muted);text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:4px;">Last Name</label>
+                        <span class="field-label">Last Name</span>
                         <div style="padding:10px 14px;background:var(--clr-surface-alt);border-radius:8px;font-size:14px;color:var(--clr-text);font-weight:500;">@_student.LastName</div>
                     </div>
                     <div>
-                        <label style="font-size:11px;color:var(--clr-text-muted);text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:4px;">Middle Name</label>
+                        <span class="field-label">Middle Name</span>
                         <div style="padding:10px 14px;background:var(--clr-surface-alt);border-radius:8px;font-size:14px;color:var(--clr-text);">@(!string.IsNullOrEmpty(_student.MiddleName) ? _student.MiddleName : "—")</div>
                     </div>
                     <div>
-                        <label style="font-size:11px;color:var(--clr-text-muted);text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:4px;">LRN</label>
+                        <span class="field-label">LRN</span>
                         <div style="padding:10px 14px;background:var(--clr-surface-alt);border-radius:8px;font-size:14px;color:var(--clr-text);">@_student.Lrn</div>
                     </div>
                     <div>
-                        <label style="font-size:11px;color:var(--clr-text-muted);text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:4px;">Sex</label>
+                        <span class="field-label">Sex</span>
                         <div style="padding:10px 14px;background:var(--clr-surface-alt);border-radius:8px;font-size:14px;color:var(--clr-text);">@(!string.IsNullOrEmpty(_student.Sex) ? _student.Sex : "—")</div>
                     </div>
                     <div>
-                        <label style="font-size:11px;color:var(--clr-text-muted);text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:4px;">Birthdate</label>
+                        <span class="field-label">Birthdate</span>
                         <div style="padding:10px 14px;background:var(--clr-surface-alt);border-radius:8px;font-size:14px;color:var(--clr-text);">@(_student.Birthdate?.ToString("MMM dd, yyyy") ?? "—")</div>
                     </div>
                     <div>
-                        <label style="font-size:11px;color:var(--clr-text-muted);text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:4px;">Address</label>
+                        <span class="field-label">Address</span>
                         <div style="padding:10px 14px;background:var(--clr-surface-alt);border-radius:8px;font-size:14px;color:var(--clr-text);">@(!string.IsNullOrEmpty(_student.Address) ? _student.Address : "—")</div>
                     </div>
                     <div>
-                        <label style="font-size:11px;color:var(--clr-text-muted);text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:4px;">Guardian</label>
+                        <span class="field-label">Guardian</span>
                         <div style="padding:10px 14px;background:var(--clr-surface-alt);border-radius:8px;font-size:14px;color:var(--clr-text);">@(!string.IsNullOrEmpty(_student.GuardianName) ? _student.GuardianName : "—")</div>
                     </div>
                     <div>
-                        <label style="font-size:11px;color:var(--clr-text-muted);text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:4px;">Guardian Contact</label>
+                        <span class="field-label">Guardian Contact</span>
                         <div style="padding:10px 14px;background:var(--clr-surface-alt);border-radius:8px;font-size:14px;color:var(--clr-text);">@(!string.IsNullOrEmpty(_student.GuardianContact) ? _student.GuardianContact : "—")</div>
                     </div>
                     <div>
-                        <label style="font-size:11px;color:var(--clr-text-muted);text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:4px;">Contact No.</label>
+                        <span class="field-label">Contact No.</span>
                         <div style="padding:10px 14px;background:var(--clr-surface-alt);border-radius:8px;font-size:14px;color:var(--clr-text);">@(!string.IsNullOrEmpty(_student.ContactNo) ? _student.ContactNo : "—")</div>
                     </div>
                     <div>
-                        <label style="font-size:11px;color:var(--clr-text-muted);text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:4px;">Previous School</label>
+                        <span class="field-label">Previous School</span>
                         <div style="padding:10px 14px;background:var(--clr-surface-alt);border-radius:8px;font-size:14px;color:var(--clr-text);">@(!string.IsNullOrEmpty(_student.PreviousSchool) ? _student.PreviousSchool : "—")</div>
                     </div>
                     <div>
-                        <label style="font-size:11px;color:var(--clr-text-muted);text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:4px;">Student ID</label>
+                        <span class="field-label">Student ID</span>
                         <div style="padding:10px 14px;background:var(--clr-surface-alt);border-radius:8px;font-size:14px;color:var(--clr-text);">@_student.Id</div>
                     </div>
                 </div>
@@ -345,10 +347,10 @@ else if (_user is not null)
                     <h3 style="font-size:16px;font-weight:700;color:var(--clr-text);margin:0 0 16px;">Account</h3>
                     <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
                         <div>
-                            <label style="font-size:11px;color:var(--clr-text-muted);text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:4px;">Username</label>
+                            <label class="field-label" for="tp-edituser-username">Username</label>
                             @if (_isEditing && _teacher is not null)
                             {
-                                <input @bind="_editUser.Username" class="editable-input" />
+                                <input id="tp-edituser-username" @bind="_editUser.Username" class="editable-input" />
                             }
                             else
                             {
@@ -356,14 +358,14 @@ else if (_user is not null)
                             }
                         </div>
                         <div>
-                            <label style="font-size:11px;color:var(--clr-text-muted);text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:4px;">Role</label>
+                            <span class="field-label">Role</span>
                             <div style="padding:10px 14px;background:var(--clr-surface-alt);border-radius:8px;font-size:14px;color:var(--clr-accent);font-weight:600;">@_user.Role</div>
                         </div>
                         <div>
-                            <label style="font-size:11px;color:var(--clr-text-muted);text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:4px;">Display Name</label>
+                            <label class="field-label" for="tp-edituser-name">Display Name</label>
                             @if (_isEditing && _teacher is not null)
                             {
-                                <input @bind="_editUser.Name" class="editable-input" />
+                                <input id="tp-edituser-name" @bind="_editUser.Name" class="editable-input" />
                             }
                             else
                             {
@@ -371,12 +373,75 @@ else if (_user is not null)
                             }
                         </div>
                         <div>
-                            <label style="font-size:11px;color:var(--clr-text-muted);text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:4px;">Status</label>
+                            <span class="field-label">Status</span>
                             <div style="padding:10px 14px;background:var(--clr-surface-alt);border-radius:8px;font-size:14px;color:var(--clr-text);">@_user.Status</div>
                         </div>
                     </div>
                 </div>
             }
+        </div>
+    </div>
+
+    <div style="padding:24px 32px 32px;display:grid;grid-template-columns:@(_student is not null ? "1fr 1.6fr" : "1fr");gap:24px;">
+
+        @* ── My QR Code (students) ── *@
+        @if (_student is not null)
+        {
+            <div class="page-card" style="text-align:center;">
+                <h3 style="font-size:16px;font-weight:700;color:var(--clr-text);margin:0 0 4px;text-align:left;">My QR Code</h3>
+                <p style="font-size:12px;color:var(--clr-text-muted);margin:0 0 16px;text-align:left;">Show this to your teacher's scanner to mark your attendance.</p>
+                @if (_studentQr is not null)
+                {
+                    <img src="data:image/png;base64,@Convert.ToBase64String(_studentQr.QrCode)" alt="My attendance QR code"
+                         style="width:100%;max-width:220px;image-rendering:pixelated;background:#fff;padding:8px;border-radius:12px;border:1px solid var(--clr-border);" />
+                    <div style="font-size:11px;color:var(--clr-text-muted);margin-top:8px;font-family:Consolas,monospace;word-break:break-all;">@_studentQr.QrContent</div>
+                    <button class="page-btn page-btn-outline" style="margin-top:14px;padding:8px 16px;font-size:13px;gap:6px;" @onclick="DownloadMyQrAsync">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                        Save as PNG
+                    </button>
+                    <p style="font-size:11px;color:var(--clr-text-muted);margin:12px 0 0;">Lost your printed card? Ask the school admin to reissue it — the old card will stop working.</p>
+                }
+                else
+                {
+                    <p style="font-size:13px;color:var(--clr-text-secondary);margin:24px 0;">No QR code has been issued to you yet. Please contact the school admin.</p>
+                }
+            </div>
+        }
+
+        @* ── Change Password ── *@
+        <div class="page-card">
+            <h3 style="font-size:16px;font-weight:700;color:var(--clr-text);margin:0 0 4px;">Change Password</h3>
+            <p style="font-size:12px;color:var(--clr-text-muted);margin:0 0 16px;">Use at least 8 characters. You'll keep using your current username.</p>
+
+            @if (_pwSuccess is not null)
+            {
+                <div style="padding:10px 14px;background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.3);border-radius:8px;color:rgb(34,197,94);font-size:13px;font-weight:500;margin-bottom:16px;">@_pwSuccess</div>
+            }
+            @if (_pwError is not null)
+            {
+                <div class="error-banner" style="margin-bottom:16px;">@_pwError</div>
+            }
+
+            <div style="display:grid;grid-template-columns:1fr;gap:12px;max-width:420px;">
+                <div>
+                    <label class="field-label" for="tp-pw-current">Current password</label>
+                    <input id="tp-pw-current" type="password" autocomplete="current-password" class="editable-input" @bind="_pwCurrent" />
+                </div>
+                <div>
+                    <label class="field-label" for="tp-pw-new">New password</label>
+                    <input id="tp-pw-new" type="password" autocomplete="new-password" class="editable-input" @bind="_pwNew" />
+                </div>
+                <div>
+                    <label class="field-label" for="tp-pw-confirm">Confirm new password</label>
+                    <input id="tp-pw-confirm" type="password" autocomplete="new-password" class="editable-input" @bind="_pwConfirm" />
+                </div>
+                <div>
+                    <button class="page-btn page-btn-primary" style="padding:9px 18px;font-size:13px;gap:6px;" @onclick="ChangePasswordAsync" disabled="@_pwSaving">
+                        @if (_pwSaving) { <span class="spinner" style="width:14px;height:14px;"></span> }
+                        Update Password
+                    </button>
+                </div>
+            </div>
         </div>
     </div>
 }
@@ -470,6 +535,13 @@ else if (_user is not null)
     private string? _success;
     private Teacher _editTeacher = new();
     private User _editUser = new();
+    private StudentQr? _studentQr;
+    private string _pwCurrent = "";
+    private string _pwNew = "";
+    private string _pwConfirm = "";
+    private bool _pwSaving;
+    private string? _pwError;
+    private string? _pwSuccess;
     private readonly CancellationTokenSource _cts = new();
 
     protected override async Task OnInitializedAsync()
@@ -498,6 +570,7 @@ else if (_user is not null)
             {
                 _student = await StudentPortalService.GetStudentByUserIdAsync(session.UserId, _cts.Token);
                 if (_student is null) _error = "Student profile not found.";
+                else _studentQr = await StudentService.GetQrCodeAsync(_student.Id, _cts.Token);
             }
         }
         catch (Exception ex) { _error = $"Failed to load: {ex.Message}"; }
@@ -651,6 +724,74 @@ else if (_user is not null)
         finally
         {
             _isSaving = false;
+        }
+    }
+
+    private async Task DownloadMyQrAsync()
+    {
+        if (_student is null || _studentQr is null) return;
+        var data = new
+        {
+            name = _student.FullName,
+            lrn = _student.Lrn,
+            studentNumber = _student.StudentNumber,
+            qrBase64 = Convert.ToBase64String(_studentQr.QrCode),
+            fileName = $"QR_{_student.LastName}_{_student.FirstName}_{_student.Lrn}".Replace(" ", "_")
+        };
+        await JS.InvokeVoidAsync("students.downloadQrAsPng", System.Text.Json.JsonSerializer.Serialize(data));
+    }
+
+    private async Task ChangePasswordAsync()
+    {
+        _pwError = null;
+        _pwSuccess = null;
+
+        if (_user is null) return;
+        if (string.IsNullOrEmpty(_pwCurrent) || string.IsNullOrEmpty(_pwNew))
+        {
+            _pwError = "Enter your current and new password.";
+            return;
+        }
+        if (_pwNew.Length < 8)
+        {
+            _pwError = "New password must be at least 8 characters.";
+            return;
+        }
+        if (_pwNew != _pwConfirm)
+        {
+            _pwError = "New password and confirmation do not match.";
+            return;
+        }
+        if (_pwNew == _pwCurrent)
+        {
+            _pwError = "New password must be different from the current one.";
+            return;
+        }
+
+        _pwSaving = true;
+        try
+        {
+            var ok = await UserService.ChangePasswordAsync(_user.Id, _pwCurrent, _pwNew, _cts.Token);
+            if (!ok)
+            {
+                _pwError = "Current password is incorrect.";
+                return;
+            }
+
+            await AuditService.LogAsync(_user.Id, _user.Username, _user.Role.ToString(), "PasswordChange", "User", _user.Id,
+                $"{_user.Username} changed their password.", ct: _cts.Token);
+
+            _pwCurrent = _pwNew = _pwConfirm = "";
+            _pwSuccess = "Password updated. Use your new password next time you sign in.";
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception ex)
+        {
+            _pwError = $"Failed to change password: {ex.Message}";
+        }
+        finally
+        {
+            _pwSaving = false;
         }
     }
 

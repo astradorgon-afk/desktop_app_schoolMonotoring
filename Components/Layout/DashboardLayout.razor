@@ -1,0 +1,40 @@
+@using AttendanceUI.Models.Auth
+@using AttendanceUI.Services
+@using Microsoft.JSInterop
+@inject IAuthService AuthService
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+
+@inherits LayoutComponentBase
+
+@if (_isReady)
+{
+    <div class="dash-shell">
+        @Body
+    </div>
+}
+
+@code {
+    private bool _isReady;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var session = await AuthService.GetCurrentSessionAsync();
+
+        if (session is null)
+        {
+            Navigation.NavigateTo("/login");
+            return;
+        }
+
+        _isReady = true;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await JS.InvokeVoidAsync("window.__theme.init");
+        }
+    }
+}

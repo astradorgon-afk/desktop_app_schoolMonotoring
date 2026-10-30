@@ -10,20 +10,30 @@ public static class PasswordHelper
     private const int SaltSize = 16;
     private const int HashSize = 32;
 
-    public static string Hash(string password)
+    /// <summary>
+    /// Hashes a password with PBKDF2-SHA256.
+    /// </summary>
+    /// <param name="password">The plaintext password.</param>
+    /// <param name="iterationCount">
+    /// Work factor. Leave at the default for any real credential. It is only lowered
+    /// for throwaway demo data (see <c>SqliteSeeder</c>), where hashing hundreds of
+    /// accounts at full cost would stall the app. <see cref="Verify"/> reads the count
+    /// back out of the stored hash, so records written at any cost still verify.
+    /// </param>
+    public static string Hash(string password, int iterationCount = DefaultIterationCount)
     {
         var salt = RandomNumberGenerator.GetBytes(SaltSize);
         var hash = Rfc2898DeriveBytes.Pbkdf2(
             password,
             salt,
-            DefaultIterationCount,
+            iterationCount,
             HashAlgorithmName.SHA256,
             HashSize);
 
         return string.Join(
             Delimiter,
             Algorithm,
-            DefaultIterationCount,
+            iterationCount,
             Convert.ToBase64String(salt),
             Convert.ToBase64String(hash));
     }

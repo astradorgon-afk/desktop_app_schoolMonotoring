@@ -1,0 +1,175 @@
+@page "/at-risk"
+@layout MainLayout
+@using AttendanceUI.Data.Entities
+@using AttendanceUI.Models.Auth
+@inject IAtRiskService AtRiskService
+@inject IAuthService AuthService
+@inject NavigationManager Navigation
+@implements IDisposable
+
+<PageHeader Title="At-Risk Students" Subtitle="@(_isTeacher ? "Students in your sections whose attendance needs follow-up" : "Students whose attendance needs follow-up this school year")">
+    <div class="header-actions">
+        <button class="btn btn-ghost" @onclick="LoadAsync" title="Refresh" disabled="@_isLoading">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+            <span>Refresh</span>
+        </button>
+    </div>
+</PageHeader>
+
+@if (_isLoading)
+{
+    <div class="loading-state">
+        <div class="spinner"></div>
+        <p>Checking attendance...</p>
+    </div>
+}
+else if (_error is not null)
+{
+    <div class="error-banner" style="margin: 0 32px 24px;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+        <span>@_error</span>
+    </div>
+}
+else
+{
+    <p class="text-muted" style="padding:0 32px;margin:0 0 16px;font-size:13px;">
+        Flagged when a student has @(AttendanceUI.Services.AtRiskService.StreakThreshold) or more absences in a row, @(AttendanceUI.Services.AtRiskService.AbsenceThreshold) or more absences this year,
+        or attendance below @(AttendanceUI.Services.AtRiskService.RateThreshold)% after @(AttendanceUI.Services.AtRiskService.MinSessionsForRate) classes. Excused absences don't count against a student.
+    </p>
+
+    <div class="students-toolbar">
+        <div class="search-wrapper">
+            <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input type="text" class="search-input" aria-label="Search student or section" placeholder="Search student, LRN or section..." @bind="_search" @bind:after="ApplyFilter" />
+        </div>
+        <select class="filter-select" aria-label="Section" @bind="_section" @bind:after="ApplyFilter">
+            <option value="">All Sections</option>
+            @foreach (var s in _all.Select(a => a.SectionName).Where(n => n is not null).Distinct().OrderBy(n => n))
+            {
+                <option value="@s">@s</option>
+            }
+        </select>
+    </div>
+
+    <div class="students-table-wrapper">
+        <table class="students-table">
+            <thead>
+                <tr>
+                    <th>Student</th>
+                    <th>Section</th>
+                    <th>Why flagged</th>
+                    <th style="text-align:center;">Absent</th>
+                    <th style="text-align:center;">Rate</th>
+                    <th>Last absence</th>
+                    <th>Guardian</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (_filtered.Count == 0)
+                {
+                    <tr><td colspan="7" class="empty-state">@(_all.Count == 0 ? "No students need follow-up right now." : "No students match your filters.")</td></tr>
+                }
+                else
+                {
+                    @foreach (var s in _filtered)
+                    {
+                        <tr>
+                            <td>
+                                <div class="student-name">@s.FullName</div>
+                                <div class="student-meta">LRN @s.Lrn</div>
+                            </td>
+                            <td>@(s.SectionName ?? "—")</td>
+                            <td>
+                                <div style="display:flex;flex-wrap:wrap;gap:4px;">
+                                    @foreach (var r in s.Reasons)
+                                    {
+                                        <span class="excuse-status excuse-status--rejected" style="font-weight:600;">@r</span>
+                                    }
+                                </div>
+                            </td>
+                            <td style="text-align:center;">@s.Absent<span class="text-muted"> / @s.Sessions</span></td>
+                            <td style="text-align:center;font-weight:700;color:@(s.AttendanceRate >= 90 ? "#16a34a" : s.AttendanceRate >= 80 ? "#ca8a04" : "#dc2626");">@s.AttendanceRate.ToString("0.#")%</td>
+                            <td class="text-muted" style="white-space:nowrap;">@(s.LastAbsence?.ToLocalTime().ToString("MMM dd, yyyy") ?? "—")</td>
+                            <td>
+                                <div>@(s.GuardianName ?? "—")</div>
+                                @if (!string.IsNullOrWhiteSpace(s.GuardianContact))
+                                {
+                                    <div class="student-meta">@s.GuardianContact</div>
+                                }
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+@code {
+    private readonly CancellationTokenSource _cts = new();
+    private UserSession? _session;
+    private bool _isTeacher;
+    private bool _isLoading = true;
+    private string? _error;
+    private List<AtRiskStudent> _all = [];
+    private List<AtRiskStudent> _filtered = [];
+    private string _search = "";
+    private string _section = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        _session = await AuthService.GetCurrentSessionAsync();
+        if (_session is null) { Navigation.NavigateTo("/login"); return; }
+        _isTeacher = _session.Role == UserRole.TEACHER;
+        if (_session.Role is not (UserRole.SUPERADMIN or UserRole.TEACHER))
+        {
+            _error = "Only teachers and administrators can view this page.";
+            _isLoading = false;
+            return;
+        }
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        if (_session is null) return;
+        _isLoading = true;
+        _error = null;
+        try
+        {
+            _all = await AtRiskService.GetAtRiskAsync(_session, _cts.Token);
+            ApplyFilter();
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception ex)
+        {
+            _error = $"Failed to load: {ex.Message}";
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private void ApplyFilter()
+    {
+        var query = _all.AsEnumerable();
+        if (!string.IsNullOrEmpty(_section))
+            query = query.Where(s => s.SectionName == _section);
+        if (!string.IsNullOrWhiteSpace(_search))
+        {
+            var term = _search.Trim();
+            query = query.Where(s =>
+                s.FullName.Contains(term, StringComparison.OrdinalIgnoreCase) ||
+                s.Lrn.Contains(term, StringComparison.OrdinalIgnoreCase) ||
+                (s.SectionName?.Contains(term, StringComparison.OrdinalIgnoreCase) ?? false));
+        }
+        _filtered = query.ToList();
+    }
+
+    public void Dispose()
+    {
+        _cts.Cancel();
+        _cts.Dispose();
+    }
+}

@@ -1,0 +1,364 @@
+﻿================================================================================
+        EDUATTEND - SCHOOL ATTENDANCE MONITORING SYSTEM
+        System Documentation: Roles, User Accounts & Passwords,
+        How the System Works, and System Features
+================================================================================
+Project      : desktop_app_schoolMonitoring (EduAttend)
+Workspace    : attendance_ui_new (branch: admin_page)
+Platform     : .NET 10 MAUI + Blazor hybrid desktop/mobile app
+Database     : MySQL "School_sms" (production) / local SQLite demo profile
+
+--------------------------------------------------------------------------------
+1. SYSTEM OVERVIEW
+--------------------------------------------------------------------------------
+EduAttend is a school attendance monitoring system for K-12 schools
+(Grades 7-12). It allows administrators to manage accounts, schedules,
+rooms, and student records; teachers to conduct QR-based attendance
+sessions; and students to view their own attendance history.
+
+The application runs as a hybrid Blazor/MAUI app:
+  * UI            : Blazor components (Components/Pages/*.razor)
+  * Business logic: Services/*.cs (AuthService, AttendanceSessionService,
+                    ReportService, AnalyticsService, AuditService, etc.)
+  * Data access   : Data/SchoolDbContext.cs + switchable DB context factory
+                    (MySQL School_sms, or portable SQLite demo database)
+  * Auth          : Username/password login with PBKDF2-SHA256 hashed
+                    passwords, Remember-me session persistence, audit-logged
+
+--------------------------------------------------------------------------------
+2. HOW THE SYSTEM WORKS
+--------------------------------------------------------------------------------
+STEP 1 - LAUNCH & DATABASE SELECTION
+    On the login screen the user first selects a DATABASE CONNECTION
+    profile:
+       * "School_sms" (MySQL)  -> real school data seeded via seed_data.sql /
+                                  seed_full.sql (Server=localhost, DB=School_sms)
+       * Portable demo profile -> local SQLite file auto-seeded on first run
+                                  with random demo data (200 teachers,
+                                  200 students, 200 rooms, 20 sections)
+
+STEP 2 - LOGIN
+    The user enters a USERNAME and PASSWORD.
+    Validation flow (Services/AuthService.cs):
+       1. Look up user by username.
+       2. Reject if status is LOCKED or INACTIVE, or CanLogin = false.
+       3. Verify password against stored PBKDF2$100000$salt$hash record
+          (constant-time comparison).
+       4. On success a UserSession (UserId, Username, Role, DisplayName) is
+          created; "Remember me" persists it locally.
+       5. Every login/logout is written to the AUDIT LOG.
+
+STEP 3 - ROLE-BASED REDIRECTION
+    After login the user lands on the dashboard for their role:
+       * SUPERADMIN -> /dashboard          (Admin Dashboard)
+       * TEACHER    -> /teacher/dashboard  (Teacher Dashboard)
+       * STUDENT    -> /student/dashboard  (Student Dashboard)
+    The sidebar navigation menu (NavMenu.razor) shows only the pages
+    permitted to the logged-in role.
+
+STEP 4 - DAILY ATTENDANCE FLOW (QR-BASED)
+    1. Admin defines rooms, subjects, teachers, students, and class
+       schedules (subject + section + room + day/time).
+    2. Each student has a QR code (QRCodes page / student_qr_tbl).
+    3. A teacher opens START SESSION during their scheduled class.
+    4. Students scan their QR codes (html5-qrcode camera scanner).
+    5. Records are written to attendance_sessions + attendance_records
+       (Present/Absent/Late/Excused).
+    6. Reports, analytics, and exports are generated from these records.
+    7. Teachers can also file leave requests which mark sessions Excused.
+
+STEP 5 - SECURITY & AUDITING
+    * Passwords are never stored in plain text (PBKDF2-SHA256, 100k iterations).
+    * All significant actions (logins, CRUD operations, exports) are recorded
+      in the audit_logs table and viewable on the Audit Log page.
+    * Accounts can be deactivated/locked by the admin (status/can_login flags).
+
+--------------------------------------------------------------------------------
+3. USER ROLES
+--------------------------------------------------------------------------------
+ROLE 1: SUPERADMIN (System Administrator)
+    Full control of the system. Only role that can manage accounts,
+    rooms, master data, and view the audit log.
+    Menus : Dashboard, Students, Teachers, Schedules, Rooms, Accounts,
+            Admin Analytics, Live Monitoring, Leave Requests, Audit Log,
+            Reports, Export Data, Notifications, Profile Settings.
+
+ROLE 2: TEACHER
+    Conducts classes and takes attendance.
+    Menus : Dashboard, My Schedule, Handled Sections, Start Session
+            (QR scanning), Attendance History, My Attendance, Analytics,
+            File Leave Requests, Notifications, Profile Settings.
+
+ROLE 3: STUDENT
+    Views personal attendance information only.
+    Menus : Dashboard, Attendance History, Notifications, Profile Settings.
+
+SUMMARY TABLE
++------------+---------------------------+------------------------------------+
+| Role       | Purpose                   | Key Permissions                    |
++------------+---------------------------+------------------------------------+
+| SUPERADMIN | System administration     | Manage ALL data + accounts + audit |
+| TEACHER    | Class attendance taking   | Sessions, QR scanning, reports     |
+| STUDENT    | View own attendance       | Read-only personal history         |
++------------+---------------------------+------------------------------------+
+
+--------------------------------------------------------------------------------
+4. USER ACCOUNTS AND PASSWORDS
+--------------------------------------------------------------------------------
+A) MYSQL PRODUCTION DATABASE (seed_data.sql / seed_full.sql)
+   All passwords below were verified against the PBKDF2 hashes stored in
+   the seed scripts. Teacher and student accounts share ONE common password.
+
+   ROLE        | USERNAME   | PASSWORD     | NAME / USER ID
+   ------------+------------+--------------+---------------------------------
+   SUPERADMIN  | admin      | admin        | System Admin        (Id 1)
+   TEACHER     | teacher1   | password123  | Maria Santos        (Id 2)
+   TEACHER     | teacher2   | password123  | Juan dela Cruz      (Id 3)
+   TEACHER     | ...        | password123  | up to teacher30     (Id 31)
+   STUDENT     | student01  | password123  | Abigail Castro      (Id 32)
+   STUDENT     | student02  | password123  | Benedict Santos     (Id 33)
+   STUDENT     | ...        | password123  | up to student99     (Id 130)
+
+B) PORTABLE SQLITE DEMO PROFILE (auto-seeded on first run)
+   In demo mode EVERY account's password is identical to its username:
+       admin    / admin
+       teacher1 / teacher1   ...  teacher200 / teacher200
+       student1 / student1   ...  student200 / student200
+   Note: this demo database contains randomly generated records and must
+   never be pointed at real school data.
+
+C) FULL ACCOUNT LIST - MYSQL SEED DATA
+   Password for ALL accounts below = "password123", except admin = "admin".
+
+   C.1 ADMIN ACCOUNTS (1)
+   +------+------------+--------------+--------------------------------+
+   | ID   | USERNAME   | PASSWORD     | FULL NAME                      |
+   +------+------------+--------------+--------------------------------+
+   | 1    | admin      | admin        | System Admin                   |
+   +------+------------+--------------+--------------------------------+
+
+   C.2 TEACHER ACCOUNTS (30)
+   +------+------------+--------------+--------------------------------+
+   | ID   | USERNAME   | PASSWORD     | FULL NAME                      |
+   +------+------------+--------------+--------------------------------+
+   | 2    | teacher1   | password123  | Maria Santos                   |
+   | 3    | teacher2   | password123  | Juan dela Cruz                 |
+   | 4    | teacher3   | password123  | Ana Gonzales                   |
+   | 5    | teacher4   | password123  | Pedro Reyes                    |
+   | 6    | teacher5   | password123  | Liza Mercado                   |
+   | 7    | teacher6   | password123  | Carlos Villanueva              |
+   | 8    | teacher7   | password123  | Diana Lopez                    |
+   | 9    | teacher8   | password123  | Eduardo Ramos                  |
+   | 10   | teacher9   | password123  | Fe Bautista                    |
+   | 11   | teacher10  | password123  | Gregorio Tan                   |
+   | 12   | teacher11  | password123  | Helen Cruz                     |
+   | 13   | teacher12  | password123  | Isidro Garcia                  |
+   | 14   | teacher13  | password123  | Julia Fernandez                |
+   | 15   | teacher14  | password123  | Kevin Mendoza                  |
+   | 16   | teacher15  | password123  | Linda Aquino                   |
+   | 17   | teacher16  | password123  | Manuel Roxas                   |
+   | 18   | teacher17  | password123  | Nena Alvarez                   |
+   | 19   | teacher18  | password123  | Oscar Torres                   |
+   | 20   | teacher19  | password123  | Patricia Lim                   |
+   | 21   | teacher20  | password123  | Quirino Santos                 |
+   | 22   | teacher21  | password123  | Rosa Villegas                  |
+   | 23   | teacher22  | password123  | Samuel Diaz                    |
+   | 24   | teacher23  | password123  | Teresa Flores                  |
+   | 25   | teacher24  | password123  | Ulysses Rivera                 |
+   | 26   | teacher25  | password123  | Vivian Castillo                |
+   | 27   | teacher26  | password123  | Wilfredo Gomez                 |
+   | 28   | teacher27  | password123  | Xenia Navarro                  |
+   | 29   | teacher28  | password123  | Yolanda Reyes                  |
+   | 30   | teacher29  | password123  | Zachary Torres                 |
+   | 31   | teacher30  | password123  | Aileen Mendoza                 |
+   +------+------------+--------------+--------------------------------+
+
+   C.3 STUDENT ACCOUNTS (99)
+   +------+------------+--------------+--------------------------------+
+   | ID   | USERNAME   | PASSWORD     | FULL NAME                      |
+   +------+------------+--------------+--------------------------------+
+   | 32   | student01  | password123  | Abigail Castro                 |
+   | 33   | student02  | password123  | Benedict Santos                |
+   | 34   | student03  | password123  | Cassandra Lim                  |
+   | 35   | student04  | password123  | Dante Villanueva               |
+   | 36   | student05  | password123  | Elena Gomez                    |
+   | 37   | student06  | password123  | Francisco Reyes                |
+   | 38   | student07  | password123  | Gabriella Lopez                |
+   | 39   | student08  | password123  | Hector Mendoza                 |
+   | 40   | student09  | password123  | Isabella Flores                |
+   | 41   | student10  | password123  | Jacob Rivera                   |
+   | 42   | student11  | password123  | Katherine Tan                  |
+   | 43   | student12  | password123  | Leonardo Cruz                  |
+   | 44   | student13  | password123  | Megan Garcia                   |
+   | 45   | student14  | password123  | Nathan Diaz                    |
+   | 46   | student15  | password123  | Olivia Bautista                |
+   | 47   | student16  | password123  | Patrick Ramos                  |
+   | 48   | student17  | password123  | Queenie Aquino                 |
+   | 49   | student18  | password123  | Ramon Fernandez                |
+   | 50   | student19  | password123  | Sofia Mercado                  |
+   | 51   | student20  | password123  | Tomas Alvarez                  |
+   | 52   | student21  | password123  | Uma Gonzales                   |
+   | 53   | student22  | password123  | Victor Tan                     |
+   | 54   | student23  | password123  | Wendy Santos                   |
+   | 55   | student24  | password123  | Xavier Villena                 |
+   | 56   | student25  | password123  | Yvonne Ramirez                 |
+   | 57   | student26  | password123  | Zandro Cruz                    |
+   | 58   | student27  | password123  | Angela Dela Cruz               |
+   | 59   | student28  | password123  | Bernardo Lopez                 |
+   | 60   | student29  | password123  | Catherine Ramos                |
+   | 61   | student30  | password123  | Dominic Torres                 |
+   | 62   | student31  | password123  | Erica Villanueva               |
+   | 63   | student32  | password123  | Ferdinand Cruz                 |
+   | 64   | student33  | password123  | Giselle Reyes                  |
+   | 65   | student34  | password123  | Henry Navarro                  |
+   | 66   | student35  | password123  | Iris Mendoza                   |
+   | 67   | student36  | password123  | Jeremy Go                      |
+   | 68   | student37  | password123  | Kristine Uy                    |
+   | 69   | student38  | password123  | Luis Antonio                   |
+   | 70   | student39  | password123  | Monica Reyes                   |
+   | 71   | student40  | password123  | Noel Salvador                  |
+   | 72   | student41  | password123  | Odessa Fernandez               |
+   | 73   | student42  | password123  | Paulo Gamboa                   |
+   | 74   | student43  | password123  | Quinciano Lopez                |
+   | 75   | student44  | password123  | Rafaela Sison                  |
+   | 76   | student45  | password123  | Stephanie Chua                 |
+   | 77   | student46  | password123  | Timothy Reyes                  |
+   | 78   | student47  | password123  | Ursula Tan                     |
+   | 79   | student48  | password123  | Veronica Ponce                 |
+   | 80   | student49  | password123  | William Sy                     |
+   | 81   | student50  | password123  | Xena Morales                   |
+   | 82   | student51  | password123  | Yuri Yamamoto                  |
+   | 83   | student52  | password123  | Zion Garcia                    |
+   | 84   | student53  | password123  | Alma Dela Torre                |
+   | 85   | student54  | password123  | Brian Uy                       |
+   | 86   | student55  | password123  | Cindy Tan                      |
+   | 87   | student56  | password123  | Darwin Estrada                 |
+   | 88   | student57  | password123  | Eden Salvador                  |
+   | 89   | student58  | password123  | Franklin Ong                   |
+   | 90   | student59  | password123  | Grace Lim                      |
+   | 91   | student60  | password123  | Harold Co                      |
+   | 92   | student61  | password123  | Ireneo Dizon                   |
+   | 93   | student62  | password123  | Jasmine Villanueva             |
+   | 94   | student63  | password123  | Kyle Chan                      |
+   | 95   | student64  | password123  | Lara Quimpo                    |
+   | 96   | student65  | password123  | Marco Sison                    |
+   | 97   | student66  | password123  | Nikki Ramos                    |
+   | 98   | student67  | password123  | Omar Hassan                    |
+   | 99   | student68  | password123  | Pauline Uy                     |
+   | 100  | student69  | password123  | Quentin Alcantara              |
+   | 101  | student70  | password123  | Rhea Mendoza                   |
+   | 102  | student71  | password123  | Santi Gonzalez                 |
+   | 103  | student72  | password123  | Trixie Samonte                 |
+   | 104  | student73  | password123  | Uriel Manalo                   |
+   | 105  | student74  | password123  | Vina Trinidad                  |
+   | 106  | student75  | password123  | Winston Lozano                 |
+   | 107  | student76  | password123  | Xyra Macapagal                 |
+   | 108  | student77  | password123  | Yves Panganiban                |
+   | 109  | student78  | password123  | Zia Salcedo                    |
+   | 110  | student79  | password123  | Alejandro Guevarra             |
+   | 111  | student80  | password123  | Beatrix Sarmiento              |
+   | 112  | student81  | password123  | Carlito Jacinto                |
+   | 113  | student82  | password123  | Darlene Castillo               |
+   | 114  | student83  | password123  | Emilio Aguirre                 |
+   | 115  | student84  | password123  | Floribel Cortez                |
+   | 116  | student85  | password123  | Gregorio Lozada                |
+   | 117  | student86  | password123  | Hazel Pineda                   |
+   | 118  | student87  | password123  | Ivan Castro                    |
+   | 119  | student88  | password123  | Jenalyn Cruz                   |
+   | 120  | student89  | password123  | Kiko Alcantara                 |
+   | 121  | student90  | password123  | Lea Bustamante                 |
+   | 122  | student91  | password123  | Miguel Valdez                  |
+   | 123  | student92  | password123  | Nathalie Rivera                |
+   | 124  | student93  | password123  | Orlando Mendoza                |
+   | 125  | student94  | password123  | Perla Dimagiba                 |
+   | 126  | student95  | password123  | Rogelio Apostol                |
+   | 127  | student96  | password123  | Shiela Tecson                  |
+   | 128  | student97  | password123  | Tyrone Basa                    |
+   | 129  | student98  | password123  | Vilma Santos                   |
+   | 130  | student99  | password123  | Wally Bayola                   |
+   +------+------------+--------------+--------------------------------+
+
+
+D) PASSWORD STORAGE FORMAT
+   Format : PBKDF2$<iterations>$<base64 salt>$<base64 hash>
+   Example: PBKDF2$100000$bc/n4nBiwRHC5uMxiATBug==$IxOiO5DEm842CSzZNrtGIRFsilqCLOPkVLNv7OIx8L0=
+            (this hash corresponds to the password "admin")
+   Implemented in Services/PasswordHelper.cs (PBKDF2-SHA256, 16-byte salt,
+   32-byte hash, constant-time verification).
+
+E) DATABASE LOGIN (appsettings.json connection string - developer reference)
+   Server=localhost ; Database=School_sms ; User Id=root ; Password=root
+
+--------------------------------------------------------------------------------
+5. SYSTEM FEATURES
+--------------------------------------------------------------------------------
+ADMIN (SUPERADMIN) FEATURES
+   * Admin Dashboard     - overview statistics of the whole school
+   * Student Management  - add/edit/deactivate students, guardian info,
+                           LRN, student numbers (Students page)
+   * Teacher Management  - add/edit teachers, subject assignments
+                           (Teachers page)
+   * Schedule Management - subject-section-room-day-time blocks
+                           (Schedules page)
+   * Room Management     - 25 pre-loaded rooms incl. labs, gym, auditorium
+                           (Rooms page)
+   * Account Management  - create user logins, set roles/status/can_login,
+                           reset credentials (Accounts page)
+   * Admin Analytics     - attendance trends, charts across grade levels
+                           (AdminAnalytics page)
+   * Live Monitoring     - watch running attendance sessions in real time
+                           (LiveMonitoring page)
+   * Leave Requests      - review leave requests filed by teachers
+                           (LeaveRequests page)
+   * Audit Log           - who did what and when (AuditLog page)
+   * Reports             - attendance report generation (Reports page)
+   * Export Data         - CSV/data exports (ExportData page)
+
+TEACHER FEATURES
+   * Teacher Dashboard    - today's classes and quick stats
+   * My Schedule          - weekly teaching timetable
+   * Handled Sections     - sections/classes assigned to the teacher
+   * Start Session        - open an attendance session and scan student QR
+                            codes live (camera-based html5-qrcode scanner)
+   * Attendance History   - past session records, per-student breakdown
+   * My Attendance        - teacher's own attendance log
+   * Analytics            - class attendance insights and charts
+   * File Leave Requests  - request leave for excused sessions
+   * Notifications        - announcements/system alerts
+   * Profile Settings     - update personal information/password
+
+STUDENT FEATURES
+   * Student Dashboard    - personal attendance summary
+   * Attendance History   - complete history per subject/class
+   * Notifications        - announcements/system alerts
+   * Profile Settings     - update personal information/password
+   * QR Code              - student identity QR scanned into sessions
+                            (generated from student_qr_tbl)
+
+SHARED / CROSS-CUTTING FEATURES
+   * Dark/light theme support
+   * Collapsible sidebar navigation, responsive layout
+   * Chart.js visualisations (chart.umd.js bundled locally)
+   * Multi-database profiles (MySQL production vs offline SQLite demo)
+   * Persistent sessions ("Remember me")
+   * Full audit trail of sensitive actions
+   * CSV export of data
+
+--------------------------------------------------------------------------------
+6. TECHNICAL STACK REFERENCE
+--------------------------------------------------------------------------------
+   Framework   : .NET 10 (net10.0-windows/android/ios/maccatalyst)
+   UI          : Blazor (MAUI hybrid), custom CSS (wwwroot/app.css)
+   Charts      : Chart.js UMD (wwwroot/js/chart.umd.js)
+   QR Scanning : html5-qrcode.min.js (wwwroot/js/)
+   Database    : MySQL 8 (School_sms) or SQLite (demo profile), EF Core
+   Migrations  : Migrations/*.sql (e.g., Hostinger_CatchUp.sql)
+   Seed Scripts: seed_data.sql, seed_full.sql, seed_cleanup.sql
+   Services    : AuthService, UserService, StudentService, TeacherService,
+                 RoomService, ScheduleService, AttendanceSessionService,
+                 LiveMonitoringService, ReportService, ExportService,
+                 AnalyticsService, AuditService, LeaveRequestService,
+                 StudentPortalService, TeacherSessionService, PasswordHelper
+================================================================================
+END OF DOCUMENT
+================================================================================

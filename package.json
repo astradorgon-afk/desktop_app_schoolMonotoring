@@ -3,17 +3,13 @@
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
-  "scripts": {
-    "css": "npx @tailwindcss/cli -i wwwroot/app.css -o wwwroot/app.min.css --watch"
-  },
+  "scripts": {},
   "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
-    "@tailwindcss/cli": "^4.3.2",
     "chart.js": "^4.5.1",
-    "html5-qrcode": "^2.3.8",
-    "tailwindcss": "^4.3.2"
+    "html5-qrcode": "^2.3.8"
   }
 }

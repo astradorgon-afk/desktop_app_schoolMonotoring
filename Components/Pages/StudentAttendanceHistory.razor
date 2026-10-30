@@ -30,65 +30,47 @@ else if (_error is not null)
 }
 else
 {
-    <div style="padding:0 32px 32px;">
-        <div class="page-card">
-            @if (_records.Count == 0)
-            {
-                <div style="text-align:center;padding:48px 0;color:#94a3b8;">
-                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin-bottom:12px;">
-                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>
-                    </svg>
-                    <p>No attendance records found.</p>
-                </div>
-            }
-            else
-            {
-                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
-                    <span style="font-size:13px;color:#64748b;">@_records.Count record(s)</span>
-                </div>
-                <div style="overflow-x:auto;">
-                    <table style="width:100%;border-collapse:collapse;font-size:13px;">
-                        <thead>
-                            <tr style="border-bottom:2px solid #e2e8f0;">
-                                <th style="text-align:left;padding:10px 12px;color:#64748b;font-weight:600;white-space:nowrap;">Date</th>
-                                <th style="text-align:left;padding:10px 12px;color:#64748b;font-weight:600;white-space:nowrap;">Subject</th>
-                                <th style="text-align:left;padding:10px 12px;color:#64748b;font-weight:600;white-space:nowrap;">Teacher</th>
-                                <th style="text-align:center;padding:10px 12px;color:#64748b;font-weight:600;white-space:nowrap;">Status</th>
-                                @if (_records.Any(r => !string.IsNullOrEmpty(r.Reason)))
-                                {
-                                    <th style="text-align:left;padding:10px 12px;color:#64748b;font-weight:600;white-space:nowrap;">Reason</th>
-                                }
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach (var record in _records)
-                            {
-                                var (statusColor, statusBg) = record.Status switch
-                                {
-                                    "PRESENT" => ("#22c55e", "#f0fdf4"),
-                                    "LATE" => ("#eab308", "#fefce8"),
-                                    "ABSENT" => ("#ef4444", "#fef2f2"),
-                                    _ => ("#64748b", "#f8fafc")
-                                };
+    var showReason = _records.Any(r => !string.IsNullOrEmpty(r.Reason));
 
-                                <tr style="border-bottom:1px solid #f1f5f9;">
-                                    <td style="padding:10px 12px;color:#1e293b;white-space:nowrap;">@record.Date.ToString("MMM dd, yyyy")</td>
-                                    <td style="padding:10px 12px;color:#1e293b;">@record.Subject</td>
-                                    <td style="padding:10px 12px;color:#64748b;">@(record.Teacher ?? "—")</td>
-                                    <td style="padding:10px 12px;text-align:center;">
-                                        <span style="display:inline-block;padding:2px 10px;border-radius:4px;background:@statusBg;color:@statusColor;font-weight:600;font-size:12px;white-space:nowrap;">@record.Status</span>
-                                    </td>
-                                    @if (_records.Any(r => !string.IsNullOrEmpty(r.Reason)))
-                                    {
-                                        <td style="padding:10px 12px;color:#64748b;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="@record.Reason">@(record.Reason ?? "—")</td>
-                                    }
-                                </tr>
+    <div class="students-table-wrapper">
+        <table class="students-table">
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Subject</th>
+                    <th>Teacher</th>
+                    <th style="text-align:center;">Status</th>
+                    @if (showReason)
+                    {
+                        <th>Reason</th>
+                    }
+                </tr>
+            </thead>
+            <tbody>
+                @if (_records.Count == 0)
+                {
+                    <tr><td colspan="@(showReason ? 5 : 4)" class="empty-state">No attendance records found.</td></tr>
+                }
+                else
+                {
+                    @foreach (var record in _records)
+                    {
+                        <tr>
+                            <td style="white-space:nowrap;">@record.Date.ToString("MMM dd, yyyy")</td>
+                            <td>@record.Subject</td>
+                            <td style="color:var(--clr-text-secondary);">@(record.Teacher ?? "—")</td>
+                            <td style="text-align:center;">
+                                <span class="att-badge @StatusBadgeClass(record.Status)">@record.Status</span>
+                            </td>
+                            @if (showReason)
+                            {
+                                <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="@record.Reason">@(record.Reason ?? "—")</td>
                             }
-                        </tbody>
-                    </table>
-                </div>
-            }
-        </div>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
     </div>
 }
 
@@ -98,6 +80,15 @@ else
     private bool _isLoading = true;
     private string? _error;
     private readonly CancellationTokenSource _cts = new();
+
+    private static string StatusBadgeClass(string status) => status switch
+    {
+        "PRESENT" => "att-badge--present",
+        "LATE" => "att-badge--late",
+        "ABSENT" => "att-badge--absent",
+        "EXCUSED" => "att-badge--excused",
+        _ => ""
+    };
 
     protected override async Task OnInitializedAsync()
     {

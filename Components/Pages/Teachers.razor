@@ -29,7 +29,7 @@ else
     <div class="students-toolbar">
         <div class="search-wrapper">
             <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-            <input type="text" class="search-input" placeholder="Search by name, employee no, or specialization..." @bind="_searchTerm" @bind:after="ApplyFilter" />
+            <input type="text" class="search-input" aria-label="Search by name, employee no, or specialization" placeholder="Search by name, employee no, or specialization..." @bind="_searchTerm" @bind:after="ApplyFilter" />
         </div>
         <select class="filter-select" @bind="_statusFilter" @bind:after="ApplyFilter">
             <option value="">All Status</option>
@@ -90,8 +90,7 @@ else
 
 @if (_profileTeacher is not null)
 {
-    <div class="modal-overlay" @onclick="CloseProfile">
-        <div class="modal-content modal-content--wide" @onclick:stopPropagation>
+    <Modal Title="Teacher Profile" ContentClass="modal-content--wide modal-content--profile" OnClose="CloseProfile">
             <div class="modal-header">
                 <h3>Teacher Profile</h3>
                 <button class="modal-close" @onclick="CloseProfile">
@@ -206,11 +205,11 @@ else
                             <div class="profile-qr-label">Summary</div>
                             <div style="text-align:center;padding:8px 0;">
                                 <div style="font-size:28px;font-weight:700;color:#6366f1;">@_profileTeacher.Schedules.Count</div>
-                                <div style="font-size:11px;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;">Scheduled Classes</div>
+                                <div style="font-size:11px;color:var(--clr-text-muted);text-transform:uppercase;letter-spacing:0.5px;">Scheduled Classes</div>
                             </div>
                             <div style="text-align:center;padding:8px 0;border-top:1px solid #f1f5f9;">
                                 <div style="font-size:28px;font-weight:700;color:#22c55e;">@_profileTeacher.Schedules.Select(s => s.Section).Distinct().Count()</div>
-                                <div style="font-size:11px;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;">Sections Handled</div>
+                                <div style="font-size:11px;color:var(--clr-text-muted);text-transform:uppercase;letter-spacing:0.5px;">Sections Handled</div>
                             </div>
                         </div>
                     </div>
@@ -219,8 +218,7 @@ else
             <div class="modal-footer">
                 <button class="action-btn" @onclick="CloseProfile">Close</button>
             </div>
-        </div>
-    </div>
+    </Modal>
 }
 
 @code {

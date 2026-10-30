@@ -71,7 +71,7 @@
     grid-column: 1 / -1;
 }
 
-.detail-field label {
+.detail-field .detail-label {
     display: block;
     font-size: 0.75rem;
     font-weight: 600;

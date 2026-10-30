@@ -1,0 +1,75 @@
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+
+<div class="modal-overlay"
+     role="dialog"
+     aria-modal="true"
+     aria-label="@Title"
+     tabindex="-1"
+     @ref="_dialog"
+     @onclick="HandleOverlayClick"
+     @onkeydown="HandleKeyDown">
+    <div class="modal-content @ContentClass" style="@ContentStyle" @onclick:stopPropagation>
+        @ChildContent
+    </div>
+</div>
+
+@code {
+    /// <summary>Accessible name for the dialog, announced by screen readers.</summary>
+    [Parameter]
+    public string Title { get; set; } = string.Empty;
+
+    /// <summary>Extra classes for the inner panel, e.g. "modal-content--wide".</summary>
+    [Parameter]
+    public string? ContentClass { get; set; }
+
+    /// <summary>Inline style for the inner panel, e.g. "max-width:400px;".</summary>
+    [Parameter]
+    public string? ContentStyle { get; set; }
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    /// <summary>Invoked on Escape, overlay click, or any caller-supplied close control.</summary>
+    [Parameter]
+    public EventCallback OnClose { get; set; }
+
+    /// <summary>Set false for dialogs that must not be dismissed by clicking the backdrop.</summary>
+    [Parameter]
+    public bool CloseOnOverlayClick { get; set; } = true;
+
+    private ElementReference _dialog;
+    private bool _trapped;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await JS.InvokeVoidAsync("window.__modal.activate", _dialog);
+            _trapped = true;
+        }
+    }
+
+    private Task HandleOverlayClick()
+        => CloseOnOverlayClick ? OnClose.InvokeAsync() : Task.CompletedTask;
+
+    private Task HandleKeyDown(KeyboardEventArgs e)
+        => e.Key == "Escape" ? OnClose.InvokeAsync() : Task.CompletedTask;
+
+    public async ValueTask DisposeAsync()
+    {
+        if (!_trapped)
+        {
+            return;
+        }
+
+        try
+        {
+            await JS.InvokeVoidAsync("window.__modal.deactivate");
+        }
+        catch (JSDisconnectedException)
+        {
+            // WebView torn down before the dialog unmounted; nothing to restore.
+        }
+    }
+}

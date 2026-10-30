@@ -2,8 +2,11 @@
 @layout MainLayout
 @using AttendanceUI.Services
 @inject ILiveMonitoringService MonitorService
+@inject IJSRuntime JS
 @implements IDisposable
 
+@if (!_isFullscreen)
+{
 <PageHeader Title="Live Monitoring" Subtitle="@($"Real-time room status — {DateTime.Now:dddd, MMMM dd, yyyy}")">
     <div class="header-actions">
         <div class="view-toggle">
@@ -16,18 +19,50 @@
                 <span>List</span>
             </button>
         </div>
+        <button class="btn btn-ghost" @onclick="ToggleFullscreen" title="@(_isFullscreen ? "Exit fullscreen" : "Fullscreen mode")">
+            @if (_isFullscreen)
+            {
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"/></svg>
+            }
+            else
+            {
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
+            }
+            <span>Fullscreen</span>
+        </button>
         <button class="btn btn-ghost" @onclick="RefreshAsync" title="Refresh now">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="@(_refreshing ? "spin" : "")"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
             <span>Refresh</span>
         </button>
     </div>
 </PageHeader>
+}
 
 @if (_loading)
 {
     <div class="loading-state">
         <span class="spinner"></span>
         <p>Loading room status…</p>
+    </div>
+}
+else if (_isFullscreen)
+{
+    @* ── Fullscreen board: rooms + time only ── *@
+    <div class="monitor-fs">
+        <div class="monitor-fs-topbar">
+            <div class="monitor-fs-clock">
+                <span class="monitor-fs-time">@_currentTime.ToString("h:mm:ss tt")</span>
+                <span class="monitor-fs-date">@_currentTime.ToString("dddd, MMMM dd, yyyy")</span>
+            </div>
+            <button class="monitor-fs-exit" @onclick="ToggleFullscreen" title="Exit fullscreen">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"/></svg>
+                <span>Exit</span>
+            </button>
+        </div>
+
+        <div class="monitor-grid monitor-fs-grid">
+            @RoomGroups()
+        </div>
     </div>
 }
 else
@@ -79,87 +114,62 @@ else
         </div>
     </div>
 
+    @* ── Search & Filters ── *@
+    <div class="students-toolbar">
+        <div class="search-wrapper">
+            <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input class="search-input" aria-label="Search rooms by code, name, section, teacher or subject"
+                   placeholder="Search room, section, teacher, or subject…"
+                   @bind="_search" @bind:event="oninput" />
+        </div>
+
+        <select class="filter-select" aria-label="Filter by status" @bind="_statusFilter">
+            <option value="">All Statuses</option>
+            @foreach (var g in Enum.GetValues<StatusGroup>())
+            {
+                <option value="@g">@GetGroupLabel(g)</option>
+            }
+        </select>
+
+        <select class="filter-select" aria-label="Filter by teacher" @bind="_teacherFilter">
+            <option value="">All Teachers</option>
+            @foreach (var t in _rooms.Where(r => r.TeacherName is not null).Select(r => r.TeacherName!).Distinct().OrderBy(t => t))
+            {
+                <option value="@t">@t</option>
+            }
+        </select>
+
+        <select class="filter-select" aria-label="Filter by subject" @bind="_subjectFilter">
+            <option value="">All Subjects</option>
+            @foreach (var s in _rooms.Where(r => r.SubjectTitle is not null).Select(r => r.SubjectTitle!).Distinct().OrderBy(s => s))
+            {
+                <option value="@s">@s</option>
+            }
+        </select>
+
+        @if (HasActiveFilter)
+        {
+            <button class="btn btn-ghost" @onclick="ClearFilters" title="Clear all filters">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                <span>Clear</span>
+            </button>
+            <span class="audit-count">@FilteredRooms.Count of @_rooms.Count rooms</span>
+        }
+    </div>
+
     @if (IsCardView)
     {
         @* ── Card View ── *@
-        <div class="monitor-grid">
-            @foreach (var room in _rooms)
-            {
-                <div class="monitor-card @(GetRoomStatusClass(room))">
-                    <div class="monitor-card-header">
-                        <div class="monitor-room-info">
-                            <span class="monitor-room-code">@room.RoomCode</span>
-                            <span class="monitor-room-name">@room.RoomName</span>
-                        </div>
-                        <div style="display:flex;align-items:center;gap:6px;">
-                            <span class="monitor-status-badge @(GetStatusBadgeClass(room))">@GetStatusLabel(room)</span>
-                            <span class="monitor-capacity">@room.Capacity seats</span>
-                        </div>
-                    </div>
-
-                    @if (room.SectionName is not null)
-                    {
-                        <div class="monitor-card-body">
-                            <div class="monitor-schedule-row">
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6366f1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
-                                <span class="monitor-section-name">@room.SectionName</span>
-                            </div>
-                            <div class="monitor-schedule-row">
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg>
-                                <span class="monitor-teacher-name">@room.TeacherName</span>
-                            </div>
-                            <div class="monitor-schedule-row">
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-                                <span>@room.SubjectTitle</span>
-                            </div>
-                            <div class="monitor-schedule-row">
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-                                <span>@room.StartTime?.ToString("h\\:mm tt") – @room.EndTime?.ToString("h\\:mm tt")</span>
-                            </div>
-                        </div>
-
-                        <div class="monitor-attendance">
-                            <div class="monitor-att-row">
-                                <span class="monitor-att-label">Students</span>
-                                <span class="monitor-att-value">@room.TotalStudents</span>
-                            </div>
-                            <div class="monitor-att-bar">
-                                @{
-                                    var total = room.TotalStudents > 0 ? room.TotalStudents : 1;
-                                    var presentPct = (double)(room.PresentCount + room.LateCount) / total * 100;
-                                    var absentPct = (double)room.AbsentCount / total * 100;
-                                }
-                                <div class="monitor-att-bar-track">
-                                    <div class="monitor-att-bar-fill monitor-att-bar-fill--present" style="width:@(presentPct)%"></div>
-                                    <div class="monitor-att-bar-fill monitor-att-bar-fill--absent" style="width:@(absentPct)%"></div>
-                                </div>
-                            </div>
-                            <div class="monitor-att-stats">
-                                <div class="monitor-att-stat monitor-att-stat--present">
-                                    <span class="monitor-att-stat-dot"></span>
-                                    <span>@room.PresentCount present</span>
-                                </div>
-                                <div class="monitor-att-stat monitor-att-stat--late">
-                                    <span class="monitor-att-stat-dot"></span>
-                                    <span>@room.LateCount late</span>
-                                </div>
-                                <div class="monitor-att-stat monitor-att-stat--absent">
-                                    <span class="monitor-att-stat-dot"></span>
-                                    <span>@room.AbsentCount absent</span>
-                                </div>
-                            </div>
-                        </div>
-                    }
-                    else
-                    {
-                        <div class="monitor-card-empty">
-                            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
-                            <p>No class scheduled</p>
-                        </div>
-                    }
-                </div>
-            }
-        </div>
+        @if (FilteredRooms.Count == 0)
+        {
+            <div class="monitor-empty">No rooms match the current search or filters.</div>
+        }
+        else
+        {
+            <div class="monitor-grid">
+                @RoomGroups()
+            </div>
+        }
     }
     else
     {
@@ -180,44 +190,63 @@ else
                     </tr>
                 </thead>
                 <tbody>
-                    @if (_rooms.Count == 0)
+                    @if (FilteredRooms.Count == 0)
                     {
-                        <tr><td colspan="9" class="empty-state">No rooms found.</td></tr>
+                        <tr><td colspan="9" class="empty-state">@(_rooms.Count == 0 ? "No rooms found." : "No rooms match the current search or filters.")</td></tr>
                     }
                     else
                     {
-                        @foreach (var room in _rooms)
+                        @foreach (var room in FilteredRooms)
                         {
                             <tr class="@(room.SectionName is null ? "row-free" : "")">
                                 <td>
                                     <div style="display:flex;flex-direction:column;">
-                                        <span style="font-weight:700;color:#1e293b;font-size:14px;">@room.RoomCode</span>
-                                        <span style="font-size:11px;color:#94a3b8;">@room.RoomName</span>
+                                        <span style="font-weight:700;color:var(--clr-text);font-size:14px;">@room.RoomCode</span>
+                                        <span style="font-size:11px;color:var(--clr-text-muted);">@room.RoomName</span>
                                     </div>
                                 </td>
                                 <td>
                                     @if (room.SectionName is not null)
                                     {
-                                        <span style="font-weight:600;color:#1e293b;">@room.SectionName</span>
+                                        <span style="font-weight:600;color:var(--clr-text);">@room.SectionName</span>
                                     }
                                     else
                                     {
-                                        <span style="color:#cbd5e1;">—</span>
+                                        <span style="color:var(--clr-text-muted);">—</span>
                                     }
                                 </td>
-                                <td style="color:#475569;">@room.SubjectTitle ?? "—"</td>
-                                <td style="color:#475569;">@room.TeacherName ?? "—"</td>
-                                <td style="color:#64748b;">
+                                <td style="color:var(--clr-text-secondary);">@(room.SubjectTitle ?? "—")</td>
+                                <td>
+                                    @if (room.TeacherName is not null)
+                                    {
+                                        <div class="monitor-teacher-cell">
+                                            @if (room.TeacherPhoto is not null)
+                                            {
+                                                <img class="monitor-teacher-avatar" src="data:image/jpeg;base64,@Convert.ToBase64String(room.TeacherPhoto)" alt="@room.TeacherName" />
+                                            }
+                                            else
+                                            {
+                                                <span class="monitor-teacher-avatar monitor-teacher-avatar--fallback">@GetInitials(room.TeacherName)</span>
+                                            }
+                                            <span style="color:var(--clr-text-secondary);">@room.TeacherName</span>
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <span style="color:var(--clr-text-muted);">—</span>
+                                    }
+                                </td>
+                                <td style="color:var(--clr-text-secondary);">
                                     @if (room.StartTime is not null)
                                     {
                                         @room.StartTime?.ToString("h\\:mm tt")<text> – </text>@room.EndTime?.ToString("h\\:mm tt")
                                     }
                                     else
                                     {
-                                        <span style="color:#cbd5e1;">—</span>
+                                        <span style="color:var(--clr-text-muted);">—</span>
                                     }
                                 </td>
-                                <td style="text-align:center;font-weight:600;color:#1e293b;">@room.TotalStudents</td>
+                                <td style="text-align:center;font-weight:600;color:var(--clr-text);">@room.TotalStudents</td>
                                 <td style="text-align:center;">
                                     <span class="att-badge att-badge--present">@room.PresentCount</span>
                                 </td>
@@ -240,6 +269,7 @@ else
     private List<RoomStatusItem> _rooms = [];
     private bool _loading = true;
     private bool _refreshing;
+    private bool _isFullscreen;
     private string _viewMode = "card";
     private DateTime _currentTime = DateTime.Now;
     private Timer? _autoRefreshTimer;
@@ -250,6 +280,163 @@ else
 
     private void SetCardView() => _viewMode = "card";
     private void SetListView() => _viewMode = "list";
+
+    // ── Search & filters ──
+    // Computed on demand rather than cached: the 30s auto-refresh replaces _rooms
+    // wholesale, and deriving keeps the filter applied without re-running it there.
+
+    private string _search = string.Empty;
+    private string _statusFilter = string.Empty;
+    private string _teacherFilter = string.Empty;
+    private string _subjectFilter = string.Empty;
+
+    private bool HasActiveFilter =>
+        !string.IsNullOrWhiteSpace(_search) ||
+        !string.IsNullOrEmpty(_statusFilter) ||
+        !string.IsNullOrEmpty(_teacherFilter) ||
+        !string.IsNullOrEmpty(_subjectFilter);
+
+    private List<RoomStatusItem> FilteredRooms
+    {
+        get
+        {
+            IEnumerable<RoomStatusItem> q = _rooms;
+
+            if (!string.IsNullOrEmpty(_statusFilter) && Enum.TryParse<StatusGroup>(_statusFilter, out var group))
+                q = q.Where(r => GetStatusGroup(r) == group);
+
+            if (!string.IsNullOrEmpty(_teacherFilter))
+                q = q.Where(r => r.TeacherName == _teacherFilter);
+
+            if (!string.IsNullOrEmpty(_subjectFilter))
+                q = q.Where(r => r.SubjectTitle == _subjectFilter);
+
+            var term = _search.Trim();
+            if (term.Length > 0)
+            {
+                q = q.Where(r =>
+                    Contains(r.RoomCode, term) ||
+                    Contains(r.RoomName, term) ||
+                    Contains(r.SectionName, term) ||
+                    Contains(r.TeacherName, term) ||
+                    Contains(r.SubjectTitle, term));
+            }
+
+            return [.. q];
+        }
+    }
+
+    private static bool Contains(string? value, string term) =>
+        value is not null && value.Contains(term, StringComparison.OrdinalIgnoreCase);
+
+    private void ClearFilters()
+    {
+        _search = string.Empty;
+        _statusFilter = string.Empty;
+        _teacherFilter = string.Empty;
+        _subjectFilter = string.Empty;
+    }
+
+    // Initials shown when a teacher has no profile picture.
+    private static string GetInitials(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+            return "?";
+
+        var parts = name.Split(new[] { ' ', ',' }, StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length == 0)
+            return "?";
+        if (parts.Length == 1)
+            return parts[0][..1].ToUpperInvariant();
+
+        return (parts[0][..1] + parts[^1][..1]).ToUpperInvariant();
+    }
+
+    // Shared room card, rendered identically in the normal grid and the fullscreen board.
+    private RenderFragment RoomCard(RoomStatusItem room) => @<div class="monitor-card @(GetRoomStatusClass(room))">
+        <div class="monitor-card-header">
+            <div class="monitor-room-info">
+                <span class="monitor-room-code">@room.RoomCode</span>
+                <span class="monitor-room-name">@room.RoomName</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:6px;">
+                <span class="monitor-status-badge @(GetStatusBadgeClass(room))">@GetStatusLabel(room)</span>
+                <span class="monitor-capacity">@room.Capacity seats</span>
+            </div>
+        </div>
+
+        @if (room.SectionName is not null)
+        {
+            <div class="monitor-card-body">
+                <div class="monitor-card-lines">
+                    <div class="monitor-schedule-row">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6366f1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+                        <span class="monitor-section-name">@room.SectionName</span>
+                    </div>
+                    <div class="monitor-schedule-row">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6366f1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg>
+                        <span class="monitor-teacher-name">@room.TeacherName</span>
+                    </div>
+                    <div class="monitor-schedule-row">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                        <span>@room.SubjectTitle</span>
+                    </div>
+                    <div class="monitor-schedule-row">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                        <span>@room.StartTime?.ToString("h\\:mm tt") – @room.EndTime?.ToString("h\\:mm tt")</span>
+                    </div>
+                </div>
+
+                @if (room.TeacherPhoto is not null)
+                {
+                    <img class="monitor-teacher-avatar monitor-teacher-avatar--portrait" src="data:image/jpeg;base64,@Convert.ToBase64String(room.TeacherPhoto)" alt="@room.TeacherName" title="@room.TeacherName" />
+                }
+                else
+                {
+                    <span class="monitor-teacher-avatar monitor-teacher-avatar--fallback monitor-teacher-avatar--portrait" title="@room.TeacherName">@GetInitials(room.TeacherName)</span>
+                }
+            </div>
+
+            <div class="monitor-attendance">
+                <div class="monitor-att-row">
+                    <span class="monitor-att-label">Students</span>
+                    <span class="monitor-att-value">@room.TotalStudents</span>
+                </div>
+                <div class="monitor-att-bar">
+                    @{
+                        var total = room.TotalStudents > 0 ? room.TotalStudents : 1;
+                        var presentPct = (double)(room.PresentCount + room.LateCount) / total * 100;
+                        var absentPct = (double)room.AbsentCount / total * 100;
+                    }
+                    <div class="monitor-att-bar-track">
+                        <div class="monitor-att-bar-fill monitor-att-bar-fill--present" style="width:@(presentPct)%"></div>
+                        <div class="monitor-att-bar-fill monitor-att-bar-fill--absent" style="width:@(absentPct)%"></div>
+                    </div>
+                </div>
+                <div class="monitor-att-stats">
+                    <div class="monitor-att-stat monitor-att-stat--present">
+                        <span class="monitor-att-stat-dot"></span>
+                        <span>@room.PresentCount present</span>
+                    </div>
+                    <div class="monitor-att-stat monitor-att-stat--late">
+                        <span class="monitor-att-stat-dot"></span>
+                        <span>@room.LateCount late</span>
+                    </div>
+                    <div class="monitor-att-stat monitor-att-stat--absent">
+                        <span class="monitor-att-stat-dot"></span>
+                        <span>@room.AbsentCount absent</span>
+                    </div>
+                </div>
+            </div>
+        }
+        else
+        {
+            <div class="monitor-card-empty">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+                <p>No class scheduled</p>
+            </div>
+        }
+    </div>;
 
     private string GetRoomStatusClass(RoomStatusItem room)
     {
@@ -286,7 +473,7 @@ else
 
     private string GetStatusBadgeClass(RoomStatusItem room)
     {
-        if (room.SectionName is null) return "monitor-badge--free";
+        if (room.SectionName is null) return "monitor-badge--available";
         if (room.StartTime is null) return "";
 
         var now = DateTime.Now.TimeOfDay;
@@ -327,6 +514,53 @@ else
         return "Done";
     }
 
+    // Coarse status bucket used to group the room cards on the board, so every
+    // status (Ongoing, Missed, …) sits on its own row instead of sharing a line.
+    private enum StatusGroup { Ongoing, Expected, Upcoming, Missed, Done, Free }
+
+    private static StatusGroup GetStatusGroup(RoomStatusItem room)
+    {
+        if (room.SectionName is null) return StatusGroup.Free;
+        if (room.StartTime is null || room.EndTime is null) return StatusGroup.Upcoming;
+
+        var now = DateTime.Now.TimeOfDay;
+        var start = room.StartTime.Value.ToTimeSpan();
+        var end = room.EndTime.Value.ToTimeSpan();
+
+        if (now >= start && now < end)
+            return room.HasSession ? StatusGroup.Ongoing : StatusGroup.Expected;
+        if (now < start)
+            return StatusGroup.Upcoming;
+        return room.HasSession ? StatusGroup.Done : StatusGroup.Missed;
+    }
+
+    private static string GetGroupLabel(StatusGroup group) => group switch
+    {
+        StatusGroup.Ongoing => "Ongoing",
+        StatusGroup.Expected => "Expected",
+        StatusGroup.Upcoming => "Upcoming",
+        StatusGroup.Missed => "Missed",
+        StatusGroup.Done => "Done",
+        _ => "Free"
+    };
+
+    // Renders the room cards grouped by status. Each group is preceded by a
+    // full-width label that spans the grid, which forces the following cards onto
+    // a fresh row — so cards of different statuses never share the same line.
+    private RenderFragment RoomGroups() => @<text>
+        @foreach (var group in FilteredRooms.GroupBy(GetStatusGroup).OrderBy(g => g.Key))
+        {
+            <div class="monitor-group-label">
+                <span>@GetGroupLabel(group.Key)</span>
+                <span class="monitor-group-count">@group.Count()</span>
+            </div>
+            @foreach (var room in group)
+            {
+                @RoomCard(room)
+            }
+        }
+    </text>;
+
     protected override async Task OnInitializedAsync()
     {
         await LoadAsync();
@@ -334,9 +568,19 @@ else
         _clockTimer = new Timer(_ =>
         {
             _currentTime = DateTime.Now;
+            // Re-sort automatically as the clock advances so the classes starting at the
+            // current time are always pushed to the top (7:00 slot first, then 8:00, …).
+            var minute = _currentTime.Hour * 60 + _currentTime.Minute;
+            if (minute != _lastSortMinute)
+            {
+                _lastSortMinute = minute;
+                SortRooms();
+            }
             _ = InvokeAsync(StateHasChanged);
         }, null, TimeSpan.Zero, TimeSpan.FromSeconds(1));
     }
+
+    private int _lastSortMinute = -1;
 
     private async Task LoadAsync()
     {
@@ -398,9 +642,27 @@ else
         }
     }
 
+    private async Task ToggleFullscreen()
+    {
+        _isFullscreen = !_isFullscreen;
+        if (_isFullscreen)
+        {
+            await JS.InvokeVoidAsync("eval", "document.documentElement.classList.add('dash-fullscreen')");
+        }
+        else
+        {
+            await JS.InvokeVoidAsync("eval", "document.documentElement.classList.remove('dash-fullscreen')");
+        }
+    }
+
     public void Dispose()
     {
         _autoRefreshTimer?.Dispose();
         _clockTimer?.Dispose();
+        if (_isFullscreen)
+        {
+            try { JS.InvokeVoidAsync("eval", "document.documentElement.classList.remove('dash-fullscreen')"); }
+            catch { /* component disposing, ignore */ }
+        }
     }
 }

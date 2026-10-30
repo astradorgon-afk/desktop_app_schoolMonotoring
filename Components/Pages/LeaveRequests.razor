@@ -31,16 +31,16 @@ else if (_isTeacher)
             <div class="page-card leave-form-card">
                 <h2 class="card-heading" style="margin-bottom:20px;">Submit Leave Request</h2>
                 <div class="form-group">
-                    <label class="form-label">Start Date</label>
-                    <input type="date" class="form-input" @bind="_startDate" @bind:after="PreviewSchedule" style="padding-left:16px;" />
+                    <label class="form-label" for="lr-leave-startdate">Start Date</label>
+                    <input id="lr-leave-startdate" type="date" class="form-input" @bind="_startDate" @bind:after="PreviewSchedule" style="padding-left:16px;" />
                 </div>
                 <div class="form-group">
-                    <label class="form-label">End Date</label>
-                    <input type="date" class="form-input" @bind="_endDate" @bind:after="PreviewSchedule" style="padding-left:16px;" />
+                    <label class="form-label" for="lr-leave-enddate">End Date</label>
+                    <input id="lr-leave-enddate" type="date" class="form-input" @bind="_endDate" @bind:after="PreviewSchedule" style="padding-left:16px;" />
                 </div>
                 <div class="form-group">
-                    <label class="form-label">Category</label>
-                    <select class="form-input" @bind="_category" style="padding-left:16px;">
+                    <label class="form-label" for="lr-leave-category">Category</label>
+                    <select id="lr-leave-category" class="form-input" @bind="_category" style="padding-left:16px;">
                         <option value="">Select category...</option>
                         @foreach (var cat in LeaveCategories.All)
                         {
@@ -49,14 +49,14 @@ else if (_isTeacher)
                     </select>
                 </div>
                 <div class="form-group">
-                    <label class="form-label">Reason</label>
-                    <textarea class="form-input" @bind="_reason" placeholder="Why are you requesting leave?" rows="3" style="padding-left:16px;resize:vertical;min-height:80px;"></textarea>
+                    <label class="form-label" for="lr-leave-reason">Reason</label>
+                    <textarea id="lr-leave-reason" class="form-input" @bind="_reason" placeholder="Why are you requesting leave?" rows="3" style="padding-left:16px;resize:vertical;min-height:80px;"></textarea>
                 </div>
 
                 @if (_affectedSchedules.Count > 0)
                 {
                     <div style="margin-bottom:16px;">
-                        <label class="form-label" style="margin-bottom:8px;">Affected Classes (@_affectedSchedules.Count)</label>
+                        <span class="form-label" style="display:block;margin-bottom:8px;">Affected Classes (@_affectedSchedules.Count)</span>
                         <div class="leave-affected-list">
                             @foreach (var s in _affectedSchedules)
                             {
@@ -98,7 +98,7 @@ else if (_isTeacher)
                 <h2 class="card-heading" style="margin-bottom:16px;">My Leave Requests</h2>
                 @if (_myRequests.Count == 0)
                 {
-                    <div style="text-align:center;padding:40px 0;color:rgba(255,255,255,0.4);">
+                    <div style="text-align:center;padding:40px 0;color:var(--clr-text-muted);">
                         <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin-bottom:8px;"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
                         <p>No leave requests yet.</p>
                     </div>
@@ -127,12 +127,13 @@ else if (_isTeacher)
                                         <td>
                                             <span class="status-badge status-badge--@(r.Status.ToLower())">@r.Status</span>
                                         </td>
-                                        <td style="font-size:12px;color:rgba(255,255,255,0.4);white-space:nowrap;">@r.CreatedAt.ToString("MMM dd, yyyy")</td>
-                                        <td>
+                                        <td style="font-size:12px;color:var(--clr-text-muted);white-space:nowrap;">@r.CreatedAt.ToString("MMM dd, yyyy")</td>
+                                        <td style="text-align:right;">
                                             @if (r.IsPending)
                                             {
-                                                <button type="button" class="btn-icon" @onclick="() => CancelRequest(r.Id)" title="Cancel request" style="background:none;border:none;color:rgba(255,255,255,0.3);cursor:pointer;padding:4px;">
-                                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                                                <button type="button" class="leave-cancel-btn" disabled="@_isActing" @onclick="() => CancelRequest(r.Id)" title="Cancel this pending request">
+                                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                                                    <span>Cancel</span>
                                                 </button>
                                             }
                                         </td>
@@ -193,7 +194,7 @@ else
                 <button type="button" class="@(_showPendingOnly ? "tab-btn tab-btn--active" : "tab-btn")" @onclick="() => { _showPendingOnly = true; ApplyFilter(); }">Pending</button>
                 <button type="button" class="@(!_showPendingOnly ? "tab-btn tab-btn--active" : "tab-btn")" @onclick="() => { _showPendingOnly = false; ApplyFilter(); }">All Requests</button>
             </div>
-            <input type="text" class="form-input" @bind="_searchQuery" @bind:after="ApplyFilter" placeholder="Search teacher..." style="flex:1;min-width:200px;max-width:320px;padding:9px 14px;" />
+            <input type="text" class="form-input" @bind="_searchQuery" @bind:after="ApplyFilter" aria-label="Search teacher" placeholder="Search teacher..." style="flex:1;min-width:200px;max-width:320px;padding:9px 14px;" />
         </div>
 
         <div class="page-card" style="padding:0;">
@@ -253,8 +254,7 @@ else
 
     @if (_detailRequest is not null)
     {
-        <div class="modal-overlay" @onclick:stopPropagation @onclick="() => CloseDetail()">
-            <div class="modal-content modal-content--wide" @onclick:stopPropagation>
+        <Modal Title="Leave Request Details" ContentClass="modal-content--wide" OnClose="() => CloseDetail()">
                 <div class="modal-header">
                     <h3>Leave Request Details</h3>
                     <button type="button" @onclick="CloseDetail" class="modal-close">
@@ -322,7 +322,7 @@ else
                     {
                         <div style="margin-bottom:8px;">
                             <div class="form-label" style="margin-bottom:6px;">Review Notes (optional)</div>
-                            <textarea class="form-input" @bind="_reviewNotes" placeholder="Add notes for approval or rejection..." rows="2" style="padding-left:14px;resize:vertical;min-height:60px;"></textarea>
+                            <textarea class="form-input" @bind="_reviewNotes" aria-label="Add notes for approval or rejection" placeholder="Add notes for approval or rejection..." rows="2" style="padding-left:14px;resize:vertical;min-height:60px;"></textarea>
                         </div>
                     }
 
@@ -346,8 +346,7 @@ else
                         </button>
                     </div>
                 }
-            </div>
-        </div>
+        </Modal>
     }
 }
 
@@ -601,6 +600,13 @@ else
 
     private async Task CancelRequest(long requestId)
     {
+        if (_isActing)
+        {
+            return;
+        }
+
+        _isActing = true;
+
         try
         {
             var ok = await LeaveService.CancelAsync(requestId, _currentTeacherId, ct: _cts.Token);
@@ -610,6 +616,10 @@ else
             }
         }
         catch { }
+        finally
+        {
+            _isActing = false;
+        }
     }
 
     public void Dispose()

@@ -80,7 +80,7 @@ else
     <div class="students-toolbar">
         <div class="search-wrapper">
             <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-            <input class="search-input" placeholder="Search by room name or code…" @bind="_searchQuery" @bind:after="ApplyFilters" />
+            <input class="search-input" aria-label="Search by room name or code" placeholder="Search by room name or code…" @bind="_searchQuery" @bind:after="ApplyFilters" />
         </div>
         <select class="filter-select" @bind="_statusFilter" @bind:after="ApplyFilters">
             <option value="">All</option>
@@ -129,7 +129,7 @@ else
                                 </div>
                             </td>
                             <td><span class="code-badge">@room.Code</span></td>
-                            <td style="font-size:13px;color:#64748b;">@room.Capacity</td>
+                            <td style="font-size:13px;color:var(--clr-text-secondary);">@room.Capacity</td>
                             <td>
                                 <span class="status-badge status-badge--@(room.HasSchedule ? "active" : "inactive")">
                                     @(room.HasSchedule ? "With Schedule" : "Without Schedule")
@@ -155,8 +155,7 @@ else
 
 @if (_selectedRoom is not null)
 {
-    <div class="modal-overlay" @onclick="CloseQrModal">
-        <div class="modal-content modal-content--wide" @onclick:stopPropagation>
+    <Modal Title="@_selectedRoom.Name" ContentClass="modal-content--wide" OnClose="CloseQrModal">
             <div class="modal-header">
                 <h3>@_selectedRoom.Name</h3>
                 <button class="modal-close" @onclick="CloseQrModal">
@@ -205,8 +204,7 @@ else
             <div class="modal-footer">
                 <button class="action-btn" @onclick="CloseQrModal">Close</button>
             </div>
-        </div>
-    </div>
+    </Modal>
 }
 
 @code {

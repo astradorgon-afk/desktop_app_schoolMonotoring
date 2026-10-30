@@ -103,10 +103,20 @@ public class TeacherSessionService : ITeacherSessionService
                 Subject = offering.SubjectTitle,
                 TimeDisplay = timeDisplay,
                 StudentCount = studentCounts.GetValueOrDefault(offering.SectionId, 0),
+                IsToday = hasSchedules && schedules!.Count > 0,
+                StartsAt = hasSchedules && schedules!.Count > 0 ? schedules[0].StartTime : null,
             });
         }
 
-        result = result.OrderBy(r => r.GradeLevel).ThenBy(r => r.SectionName).ThenBy(r => r.Subject).ToList();
+        // Classes scheduled today come first, in the order they run; everything else the
+        // teacher handles follows, so the picker still offers make-up and ad-hoc sessions.
+        result = result
+            .OrderByDescending(r => r.IsToday)
+            .ThenBy(r => r.StartsAt ?? TimeOnly.MaxValue)
+            .ThenBy(r => r.GradeLevel)
+            .ThenBy(r => r.SectionName)
+            .ThenBy(r => r.Subject)
+            .ToList();
         _sectionCache[cacheKey] = new CacheEntry<List<SectionSelectItem>>(result, DateTime.UtcNow);
         return result;
     }
@@ -129,11 +139,13 @@ public class TeacherSessionService : ITeacherSessionService
             .FirstOrDefaultAsync(cancellationToken)
             ?? throw new InvalidOperationException("Offering not found or not assigned to you.");
 
-        var todayStart = DateTime.Today.ToUniversalTime();
-        var todayEnd = todayStart.AddDays(1);
-
+        // A teacher can only run one session at a time, so starting a new one closes every
+        // session still open for this offering or for this teacher — on any date, not just
+        // today. Previously this was scoped to today, which let sessions left running
+        // overnight stay ACTIVE indefinitely.
         var stale = await context.AttendanceSessions
-            .Where(s => s.ClassOfferingId == offeringId && s.SessionDate >= todayStart && s.SessionDate < todayEnd && s.Status == "ACTIVE")
+            .Where(s => s.Status == "ACTIVE"
+                && (s.ClassOfferingId == offeringId || s.ClassOffering!.TeacherId == teacherId))
             .ToListAsync(cancellationToken);
 
         foreach (var s in stale)
@@ -141,6 +153,7 @@ public class TeacherSessionService : ITeacherSessionService
             s.Status = "ENDED";
             s.UpdatedAt = DateTime.UtcNow;
         }
+        await MarkUnscannedAbsentAsync(context, stale, cancellationToken);
 
         var roomEntity = await context.Rooms
             .Where(r => r.Code == offering.Room || r.Name == offering.Room)
@@ -264,6 +277,7 @@ public class TeacherSessionService : ITeacherSessionService
             s.Status = "ENDED";
             s.UpdatedAt = DateTime.UtcNow;
         }
+        await MarkUnscannedAbsentAsync(context, stale, cancellationToken);
 
         var session = new AttendanceSession
         {
@@ -289,9 +303,45 @@ public class TeacherSessionService : ITeacherSessionService
         };
     }
 
+    /// <summary>
+    /// Ends any session still flagged ACTIVE from a previous day. A session that is never
+    /// closed — the app is shut down, or the teacher walks away without pressing End —
+    /// otherwise keeps its ACTIVE status forever: the Start Session page ignores it (it only
+    /// looks at today), but Attendance History reads the raw status and keeps showing it as
+    /// live. Sweeping them here keeps the two views agreeing.
+    /// </summary>
+    public async Task<int> CloseStaleSessionsAsync(CancellationToken cancellationToken = default)
+    {
+        await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
+        return await CloseStaleSessionsAsync(context, cancellationToken);
+    }
+
+    private static async Task<int> CloseStaleSessionsAsync(SchoolDbContext context, CancellationToken cancellationToken)
+    {
+        var todayStart = DateTime.Today.ToUniversalTime();
+
+        var stale = await context.AttendanceSessions
+            .Where(s => s.Status == "ACTIVE" && s.SessionDate < todayStart)
+            .ToListAsync(cancellationToken);
+
+        if (stale.Count == 0) return 0;
+
+        foreach (var s in stale)
+        {
+            s.Status = "ENDED";
+            s.UpdatedAt = DateTime.UtcNow;
+        }
+        await MarkUnscannedAbsentAsync(context, stale, cancellationToken);
+
+        await context.SaveChangesAsync(cancellationToken);
+        return stale.Count;
+    }
+
     public async Task<ActiveSessionState?> GetActiveSessionForTeacherAsync(long teacherId, CancellationToken cancellationToken = default)
     {
         await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
+
+        await CloseStaleSessionsAsync(context, cancellationToken);
 
         var todayStart = DateTime.Today.ToUniversalTime();
         var todayEnd = todayStart.AddDays(1);
@@ -346,26 +396,36 @@ public class TeacherSessionService : ITeacherSessionService
             .OrderByDescending(r => r.CreatedAt)
             .FirstOrDefaultAsync(cancellationToken);
 
-        if (recent is not null && (DateTime.UtcNow - recent.CreatedAt).TotalMinutes < 2)
-            return new ScanResult { Success = false, Message = $"Already marked as {recent.Status} less than 2 minutes ago." };
+        // The database allows one record per student per session (unique key on MySQL), so a
+        // repeat scan never inserts. Someone already present/late is reported as such; a
+        // student a teacher had marked absent/excused who then arrives is upgraded in place.
+        if (recent is not null && recent.Status is "PRESENT" or "LATE")
+            return new ScanResult { Success = false, Message = $"Already marked as {recent.Status}." };
 
-        var isLate = await IsStudentLateAsync(context, session.ClassOfferingId, cancellationToken);
+        var rules = await AttendanceSettingsService.ReadRulesAsync(context, cancellationToken);
+        var isLate = await IsStudentLateAsync(context, session.ClassOfferingId, rules.LateGraceMinutes, cancellationToken);
 
         var status = isLate ? "LATE" : "PRESENT";
         var hash = ComputeHash(sessionId, studentId, DateTime.UtcNow);
 
-        var record = new AttendanceRecord
+        var record = recent;
+        if (record is null)
         {
-            AttendanceSessionId = sessionId,
-            StudentId = studentId,
-            MarkedByUserId = userId,
-            Status = status,
-            Hash = hash,
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow
-        };
+            record = new AttendanceRecord
+            {
+                AttendanceSessionId = sessionId,
+                StudentId = studentId
+            };
+            context.AttendanceRecords.Add(record);
+        }
 
-        context.AttendanceRecords.Add(record);
+        // CreatedAt doubles as the scan time shown on the roster and live feed.
+        record.CreatedAt = DateTime.UtcNow;
+        record.MarkedByUserId = userId;
+        record.Status = status;
+        record.Reason = null;
+        record.Hash = hash;
+        record.UpdatedAt = DateTime.UtcNow;
 
         var student = await context.Students.FindAsync([studentId], cancellationToken);
         var fullName = student is not null ? $"{student.LastName}, {student.FirstName}" : "Unknown";
@@ -444,6 +504,77 @@ public class TeacherSessionService : ITeacherSessionService
         };
     }
 
+    private static readonly string[] OverridableStatuses = ["PRESENT", "LATE", "ABSENT", "EXCUSED"];
+
+    public async Task<ScanResult> OverrideStatusAsync(long sessionId, long teacherId, long userId, long studentId, string status, string reason, CancellationToken cancellationToken = default)
+    {
+        if (!OverridableStatuses.Contains(status))
+            return new ScanResult { Success = false, Message = "Choose Present, Late, Absent or Excused." };
+        if (string.IsNullOrWhiteSpace(reason))
+            return new ScanResult { Success = false, Message = "Please give a reason for the correction." };
+
+        await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
+
+        var session = await context.AttendanceSessions.FindAsync([sessionId], cancellationToken);
+        if (session is null)
+            return new ScanResult { Success = false, Message = "Session not found." };
+
+        var offering = await context.ClassOfferings.FindAsync([session.ClassOfferingId], cancellationToken);
+        if (offering is null || offering.TeacherId != teacherId)
+            return new ScanResult { Success = false, Message = "You can only correct attendance for your own classes." };
+
+        var isEnrolled = await context.Enrollments.AnyAsync(e => e.StudentId == studentId
+            && e.SectionId == offering.SectionId
+            && e.SchoolYearId == offering.SchoolYearId
+            && e.Status == "ACTIVE", cancellationToken);
+        if (!isEnrolled)
+            return new ScanResult { Success = false, Message = "Student is not enrolled in this class section." };
+
+        var record = await context.AttendanceRecords
+            .Where(r => r.AttendanceSessionId == sessionId && r.StudentId == studentId)
+            .OrderByDescending(r => r.CreatedAt)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        var now = DateTime.UtcNow;
+        var previous = record?.Status ?? "UNMARKED";
+        var note = $"Corrected by teacher: {reason.Trim()}";
+        if (note.Length > 250) note = note[..250];
+
+        if (record is null)
+        {
+            record = new AttendanceRecord
+            {
+                AttendanceSessionId = sessionId,
+                StudentId = studentId,
+                Hash = ComputeHash(sessionId, studentId, now),
+                CreatedAt = now
+            };
+            context.AttendanceRecords.Add(record);
+        }
+
+        record.Status = status;
+        record.Reason = note;
+        record.MarkedByUserId = userId;
+        record.UpdatedAt = now;
+
+        var student = await context.Students.FindAsync([studentId], cancellationToken);
+        var fullName = student is not null ? $"{student.LastName}, {student.FirstName}" : "Unknown";
+
+        await context.SaveChangesAsync(cancellationToken);
+
+        await _auditService.LogAsync(userId, $"User#{userId}", "TEACHER", "AttendanceOverride", "AttendanceRecord", record.Id,
+            $"{fullName}: {previous} → {status} in session #{sessionId}. Reason: {reason.Trim()}");
+
+        return new ScanResult
+        {
+            Success = true,
+            Message = $"{fullName} changed from {previous} to {status}.",
+            Status = status,
+            StudentName = fullName,
+            StudentId = studentId
+        };
+    }
+
     public async Task EndSessionAsync(long sessionId, long? userId = null, CancellationToken cancellationToken = default)
     {
         await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
@@ -453,6 +584,7 @@ public class TeacherSessionService : ITeacherSessionService
 
         session.Status = "ENDED";
         session.UpdatedAt = DateTime.UtcNow;
+        await MarkUnscannedAbsentAsync(context, [session], cancellationToken);
         await context.SaveChangesAsync(cancellationToken);
 
         await _auditService.LogAsync(userId ?? 0, userId is not null ? $"User#{userId}" : "System", "TEACHER", "SessionEnd", "AttendanceSession", sessionId,
@@ -513,9 +645,12 @@ public class TeacherSessionService : ITeacherSessionService
             .Select(sy => sy.Id)
             .FirstOrDefaultAsync(cancellationToken);
 
-        var records = await context.AttendanceRecords
-            .Where(r => r.AttendanceSessionId == sessionId)
-            .ToDictionaryAsync(r => r.StudentId, r => r, cancellationToken);
+        // Older SQLite data can hold two rows for a student (MySQL has a unique key); use the latest.
+        var records = (await context.AttendanceRecords
+                .Where(r => r.AttendanceSessionId == sessionId)
+                .ToListAsync(cancellationToken))
+            .GroupBy(r => r.StudentId)
+            .ToDictionary(g => g.Key, g => g.OrderByDescending(r => r.CreatedAt).First());
 
         var raw = await context.Enrollments
             .Where(e => e.Status == "ACTIVE" && e.SchoolYearId == activeYear && e.SectionId == offering.SectionId)
@@ -541,6 +676,10 @@ public class TeacherSessionService : ITeacherSessionService
     {
         await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
 
+        // Retire yesterday's abandoned sessions first, so history never shows a green
+        // ACTIVE badge for a session the Start Session page no longer knows about.
+        await CloseStaleSessionsAsync(context, cancellationToken);
+
         var fromDate = from?.ToDateTime(TimeOnly.MinValue).ToUniversalTime() ?? DateTime.Today.AddDays(-30).ToUniversalTime();
         var toDate = to?.ToDateTime(TimeOnly.MaxValue).ToUniversalTime() ?? DateTime.Today.AddDays(1).ToUniversalTime();
 
@@ -565,6 +704,7 @@ public class TeacherSessionService : ITeacherSessionService
                 Present = context.AttendanceRecords.Count(r => r.AttendanceSessionId == s.Id && r.Status == "PRESENT"),
                 Late = context.AttendanceRecords.Count(r => r.AttendanceSessionId == s.Id && r.Status == "LATE"),
                 Absent = context.AttendanceRecords.Count(r => r.AttendanceSessionId == s.Id && r.Status == "ABSENT"),
+                Excused = context.AttendanceRecords.Count(r => r.AttendanceSessionId == s.Id && r.Status == "EXCUSED"),
             })
             .ToListAsync(cancellationToken);
 
@@ -580,7 +720,7 @@ public class TeacherSessionService : ITeacherSessionService
             Present = s.Present,
             Late = s.Late,
             Absent = s.Absent,
-            Unmarked = s.Enrolled - s.Present - s.Late - s.Absent,
+            Unmarked = s.Enrolled - s.Present - s.Late - s.Absent - s.Excused,
         }).ToList();
     }
 
@@ -599,9 +739,12 @@ public class TeacherSessionService : ITeacherSessionService
             .Select(sy => sy.Id)
             .FirstOrDefaultAsync(cancellationToken);
 
-        var records = await context.AttendanceRecords
-            .Where(r => r.AttendanceSessionId == sessionId)
-            .ToDictionaryAsync(r => r.StudentId, r => r, cancellationToken);
+        // Older SQLite data can hold two rows for a student (MySQL has a unique key); use the latest.
+        var records = (await context.AttendanceRecords
+                .Where(r => r.AttendanceSessionId == sessionId)
+                .ToListAsync(cancellationToken))
+            .GroupBy(r => r.StudentId)
+            .ToDictionary(g => g.Key, g => g.OrderByDescending(r => r.CreatedAt).First());
 
         var raw = await context.Enrollments
             .Where(e => e.Status == "ACTIVE" && e.SchoolYearId == activeYear && e.SectionId == offering.SectionId)
@@ -622,7 +765,182 @@ public class TeacherSessionService : ITeacherSessionService
         }).ToList();
     }
 
+    public async Task<List<TeacherAttendanceDay>> GetTeacherAttendanceAsync(long teacherId, DateOnly? from = null, DateOnly? to = null, CancellationToken cancellationToken = default)
+    {
+        await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
+
+        var toDate = to ?? DateOnly.FromDateTime(DateTime.Today);
+        var fromDate = from ?? toDate.AddDays(-13);
+        if (fromDate > toDate)
+            (fromDate, toDate) = (toDate, fromDate);
+
+        var activeYear = await context.SchoolYears
+            .Where(sy => sy.Status == "ACTIVE")
+            .Select(sy => sy.Id)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        // The teacher's class offerings for the active year.
+        var offerings = await context.ClassOfferings
+            .Where(co => co.TeacherId == teacherId && co.SchoolYearId == activeYear)
+            .Select(co => new
+            {
+                co.Id,
+                SectionName = co.Section!.Name,
+                SubjectTitle = co.Subject!.Title,
+                co.Room
+            })
+            .ToListAsync(cancellationToken);
+
+        if (offerings.Count == 0)
+            return [];
+
+        var offeringInfo = offerings.ToDictionary(o => o.Id, o => o);
+        var offeringIds = offerings.Select(o => o.Id).ToList();
+
+        // Weekly schedule rows (one per day-of-week) for those offerings.
+        var schedules = await context.ClassSchedules
+            .Where(cs => offeringIds.Contains(cs.ClassOfferingId))
+            .Select(cs => new { cs.ClassOfferingId, cs.DayOfWeek, cs.StartTime, cs.EndTime })
+            .ToListAsync(cancellationToken);
+
+        if (schedules.Count == 0)
+            return [];
+
+        var schedulesByDay = schedules
+            .GroupBy(s => s.DayOfWeek)
+            .ToDictionary(g => g.Key, g => g.ToList());
+
+        // Sessions actually held in the range → set of (offering, local date) with the time held.
+        var fromUtc = fromDate.ToDateTime(TimeOnly.MinValue).ToUniversalTime();
+        var toUtc = toDate.AddDays(1).ToDateTime(TimeOnly.MinValue).ToUniversalTime();
+
+        var heldSessions = await context.AttendanceSessions
+            .Where(s => s.ClassOffering!.TeacherId == teacherId
+                && s.SessionDate >= fromUtc
+                && s.SessionDate < toUtc)
+            .Select(s => new { s.ClassOfferingId, s.SessionDate, s.CreatedAt })
+            .ToListAsync(cancellationToken);
+
+        var heldByKey = new Dictionary<(long, DateOnly), DateTime>();
+        foreach (var s in heldSessions)
+        {
+            var localDate = DateOnly.FromDateTime(s.SessionDate.ToLocalTime());
+            var key = (s.ClassOfferingId, localDate);
+            var heldAt = s.CreatedAt.ToLocalTime();
+            if (!heldByKey.TryGetValue(key, out var existing) || heldAt < existing)
+                heldByKey[key] = heldAt;
+        }
+
+        var now = DateTime.Now;
+        var today = DateOnly.FromDateTime(now);
+        var nowTime = TimeOnly.FromDateTime(now);
+
+        var days = new List<TeacherAttendanceDay>();
+
+        for (var date = toDate; date >= fromDate; date = date.AddDays(-1))
+        {
+            var dbDay = (byte)(((int)date.DayOfWeek + 6) % 7 + 1);
+            if (!schedulesByDay.TryGetValue(dbDay, out var daySchedules))
+                continue;
+
+            var classes = new List<TeacherAttendanceClass>();
+            foreach (var sched in daySchedules.OrderBy(s => s.StartTime))
+            {
+                if (!offeringInfo.TryGetValue(sched.ClassOfferingId, out var info))
+                    continue;
+
+                var held = heldByKey.TryGetValue((sched.ClassOfferingId, date), out var heldAt);
+
+                string status;
+                if (held)
+                    status = "PRESENT";
+                else if (date < today || (date == today && nowTime > sched.EndTime))
+                    status = "ABSENT";
+                else
+                    status = "UPCOMING";
+
+                classes.Add(new TeacherAttendanceClass
+                {
+                    OfferingId = sched.ClassOfferingId,
+                    SectionName = info.SectionName,
+                    SubjectName = info.SubjectTitle,
+                    Room = info.Room,
+                    StartTime = sched.StartTime,
+                    EndTime = sched.EndTime,
+                    Status = status,
+                    HeldAt = held ? heldAt : null
+                });
+            }
+
+            if (classes.Count > 0)
+                days.Add(new TeacherAttendanceDay { Date = date, Classes = classes });
+        }
+
+        return days;
+    }
+
     // ── Private helpers ──
+
+    /// <summary>
+    /// Records every enrolled student who was never scanned as ABSENT for sessions that are
+    /// being ended. Without this an unscanned student simply had no record, so reports and
+    /// attendance rates never counted absences. Students with an approved excuse covering the
+    /// session date are recorded EXCUSED instead. Adds to the context; the caller saves.
+    /// </summary>
+    private static async Task MarkUnscannedAbsentAsync(SchoolDbContext context, IReadOnlyCollection<AttendanceSession> sessions, CancellationToken ct)
+    {
+        if (sessions.Count == 0) return;
+
+        var offeringIds = sessions.Select(s => s.ClassOfferingId).Distinct().ToList();
+        var offerings = await context.ClassOfferings
+            .Where(o => offeringIds.Contains(o.Id))
+            .Select(o => new { o.Id, o.SectionId, o.SchoolYearId })
+            .ToDictionaryAsync(o => o.Id, ct);
+
+        var sessionIds = sessions.Select(s => s.Id).ToList();
+        var alreadyMarked = (await context.AttendanceRecords
+                .Where(r => sessionIds.Contains(r.AttendanceSessionId))
+                .Select(r => new { r.AttendanceSessionId, r.StudentId })
+                .ToListAsync(ct))
+            .Select(r => (r.AttendanceSessionId, r.StudentId))
+            .ToHashSet();
+
+        var now = DateTime.UtcNow;
+        foreach (var session in sessions)
+        {
+            if (!offerings.TryGetValue(session.ClassOfferingId, out var offering)) continue;
+
+            var enrolled = await context.Enrollments
+                .Where(e => e.SectionId == offering.SectionId
+                    && e.SchoolYearId == offering.SchoolYearId
+                    && e.Status == "ACTIVE")
+                .Select(e => e.StudentId)
+                .Distinct()
+                .ToListAsync(ct);
+
+            var missing = enrolled.Where(id => !alreadyMarked.Contains((session.Id, id))).ToList();
+            if (missing.Count == 0) continue;
+
+            var sessionDay = DateOnly.FromDateTime(session.SessionDate.ToLocalTime());
+            var excused = await StudentExcuseService.GetExcusedStudentsAsync(context, missing, sessionDay, ct);
+
+            foreach (var studentId in missing)
+            {
+                var isExcused = excused.TryGetValue(studentId, out var excuseReason);
+                context.AttendanceRecords.Add(new AttendanceRecord
+                {
+                    AttendanceSessionId = session.Id,
+                    StudentId = studentId,
+                    Status = isExcused ? "EXCUSED" : "ABSENT",
+                    Reason = isExcused ? excuseReason : "Not scanned before the session ended",
+                    Hash = ComputeHash(session.Id, studentId, now),
+                    CreatedAt = now,
+                    UpdatedAt = now
+                });
+                alreadyMarked.Add((session.Id, studentId));
+            }
+        }
+    }
 
     private static async Task<ActiveSessionState?> BuildSessionStateAsync(long sessionId, SchoolDbContext context, CancellationToken ct)
     {
@@ -661,7 +979,7 @@ public class TeacherSessionService : ITeacherSessionService
         };
     }
 
-    private static async Task<bool> IsStudentLateAsync(SchoolDbContext context, long offeringId, CancellationToken ct)
+    private static async Task<bool> IsStudentLateAsync(SchoolDbContext context, long offeringId, int graceMinutes, CancellationToken ct)
     {
         var today = DateTime.Now;
         var dbDay = (byte)(((int)today.DayOfWeek + 6) % 7 + 1);
@@ -673,7 +991,7 @@ public class TeacherSessionService : ITeacherSessionService
 
         if (schedule is null) return false;
 
-        var graceEnd = schedule.StartTime.Add(new TimeSpan(0, 15, 0));
+        var graceEnd = schedule.StartTime.Add(TimeSpan.FromMinutes(graceMinutes));
         var now = TimeOnly.FromDateTime(today);
 
         return now > graceEnd;

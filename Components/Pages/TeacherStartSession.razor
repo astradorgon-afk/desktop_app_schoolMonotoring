@@ -111,7 +111,7 @@
                         </div>
                         <div class="ss-scanner-input-row">
                             <input class="ss-scanner-input"
-                                   placeholder="Paste QR token..."
+                                   aria-label="Paste QR token" placeholder="Paste QR token..."
                                    @bind="_qrInput" @bind:event="oninput" />
                             <button class="btn btn-primary" @onclick="ProcessQrInput" disabled="@_saving">Go</button>
                         </div>
@@ -183,13 +183,36 @@
                                 @if (_showDropdown)
                                 {
                                     <div class="ss-dropdown" style="@(_dropUp ? "bottom:calc(100% + 6px)" : "top:calc(100% + 6px)");">
+                                        @{
+                                            // The list arrives sorted with today's classes first, so a single
+                                            // pass can drop a heading in front of each run.
+                                            var todayHeaderDone = false;
+                                            var otherHeaderDone = false;
+                                        }
                                         @foreach (var sec in _sections)
                                         {
+                                            if (sec.IsToday && !todayHeaderDone)
+                                            {
+                                                todayHeaderDone = true;
+                                                <div class="ss-dd-group">Today · @DateTime.Now.ToString("dddd")</div>
+                                            }
+                                            else if (!sec.IsToday && !otherHeaderDone)
+                                            {
+                                                otherHeaderDone = true;
+                                                <div class="ss-dd-group">Other classes</div>
+                                            }
+
                                             var isSelected = (sec.OfferingId ?? 0) == _selectedOfferingId;
                                             <div class="@($"ss-dd-opt {(isSelected ? "ss-dd-opt-sel" : "")}")" @onclick="() => SelectSection(sec)">
                                                 <div class="ss-dd-opt-info">
-                                                    <span class="ss-dd-opt-name">@sec.SectionName</span>
-                                                    <span class="ss-dd-opt-sub">@sec.Subject · @sec.TimeDisplay</span>
+                                                    <span class="ss-dd-opt-name">
+                                                        @sec.SectionName
+                                                        @if (sec.IsToday)
+                                                        {
+                                                            <span class="ss-dd-today">Today</span>
+                                                        }
+                                                    </span>
+                                                    <span class="ss-dd-opt-sub">@sec.Subject · @(sec.IsToday ? sec.TimeDisplay : "Not scheduled today")</span>
                                                 </div>
                                                 @if (isSelected)
                                                 {
@@ -238,7 +261,7 @@
                         </div>
                         <div class="ss-roster-search">
                             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--clr-text-muted);flex-shrink:0;"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-                            <input placeholder="Search by name or ID..."
+                            <input aria-label="Search by name or ID" placeholder="Search by name or ID..."
                                    @bind="_rosterSearch" @bind:event="oninput" />
                         </div>
                     </div>
@@ -508,8 +531,21 @@
     .ss-dd-opt-sel { background:var(--clr-accent-bg); }
     .ss-dd-opt-sel:hover { background:var(--clr-accent-bg); }
     .ss-dd-opt-info { display:flex; flex-direction:column; gap:2px; min-width:0; }
-    .ss-dd-opt-name { font-size:13px; font-weight:500; color:var(--clr-text); }
+    .ss-dd-opt-name { font-size:13px; font-weight:500; color:var(--clr-text); display:flex; align-items:center; gap:6px; }
     .ss-dd-opt-sub { font-size:11px; color:var(--clr-text-muted); }
+
+    /* Heading that separates today's classes from the rest of the teacher's load. */
+    .ss-dd-group {
+        font-size:10px; font-weight:700; letter-spacing:0.6px; text-transform:uppercase;
+        color:var(--clr-text-muted); padding:8px 12px 4px;
+    }
+    .ss-dd-group:not(:first-child) {
+        margin-top:4px; border-top:1px solid var(--clr-border); padding-top:10px;
+    }
+    .ss-dd-today {
+        font-size:9px; font-weight:700; letter-spacing:0.4px; text-transform:uppercase;
+        color:#fff; background:var(--clr-accent); border-radius:4px; padding:1px 5px;
+    }
 
     /* ── Notifications ── */
     .ss-notifications {
@@ -820,7 +856,9 @@
     private async Task SelectSection(SectionSelectItem sec)
     {
         _selectedOfferingId = sec.OfferingId ?? 0;
-        _selectedSectionText = $"{sec.SectionName} — {sec.Subject} ({sec.TimeDisplay})";
+        _selectedSectionText = string.IsNullOrEmpty(sec.TimeDisplay)
+            ? $"{sec.SectionName} — {sec.Subject}"
+            : $"{sec.SectionName} — {sec.Subject} ({sec.TimeDisplay})";
         _showDropdown = false;
         await InvokeAsync(StateHasChanged);
     }

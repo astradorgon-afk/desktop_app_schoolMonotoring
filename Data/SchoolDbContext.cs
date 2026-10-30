@@ -24,6 +24,8 @@ public class SchoolDbContext(DbContextOptions<SchoolDbContext> options) : DbCont
     public DbSet<QrToken> QrTokens => Set<QrToken>();
     public DbSet<LeaveRequest> LeaveRequests => Set<LeaveRequest>();
     public DbSet<AuditLogEntry> AuditLogs => Set<AuditLogEntry>();
+    public DbSet<StudentExcuseRequest> StudentExcuseRequests => Set<StudentExcuseRequest>();
+    public DbSet<AppSetting> AppSettings => Set<AppSetting>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -303,6 +305,42 @@ public class SchoolDbContext(DbContextOptions<SchoolDbContext> options) : DbCont
             entity.HasIndex(e => e.Token).HasDatabaseName("idx_qr_tokens_token").IsUnique();
         });
 
+        modelBuilder.Entity<AppSetting>(entity =>
+        {
+            entity.ToTable("app_settings");
+            entity.HasKey(e => e.Key);
+            entity.Property(e => e.Key).HasColumnName("setting_key").HasMaxLength(100);
+            entity.Property(e => e.Value).HasColumnName("setting_value").IsRequired();
+            entity.Property(e => e.UpdatedByUserId).HasColumnName("updated_by_user_id");
+            entity.Property(e => e.UpdatedAt).HasColumnName("updated_at");
+        });
+
+        modelBuilder.Entity<StudentExcuseRequest>(entity =>
+        {
+            entity.ToTable("student_excuse_requests");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("Id");
+            entity.Property(e => e.StudentId).HasColumnName("student_id").IsRequired();
+            entity.Property(e => e.Reason).HasColumnName("reason").IsRequired();
+            entity.Property(e => e.Category).HasColumnName("category").HasMaxLength(50);
+            entity.Property(e => e.StartDate).HasColumnName("start_date").IsRequired();
+            entity.Property(e => e.EndDate).HasColumnName("end_date").IsRequired();
+            entity.Property(e => e.Status).HasColumnName("status").IsRequired().HasMaxLength(20).HasDefaultValue("PENDING");
+            entity.Property(e => e.ReviewedByUserId).HasColumnName("reviewed_by_user_id");
+            entity.Property(e => e.ReviewNotes).HasColumnName("review_notes");
+            entity.Property(e => e.Attachment).HasColumnName("attachment");
+            entity.Property(e => e.AttachmentName).HasColumnName("attachment_name").HasMaxLength(255);
+            entity.Property(e => e.AttachmentType).HasColumnName("attachment_type").HasMaxLength(100);
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at");
+            entity.Property(e => e.UpdatedAt).HasColumnName("updated_at");
+            entity.HasIndex(e => e.StudentId).HasDatabaseName("idx_excuse_student");
+            entity.HasIndex(e => e.Status).HasDatabaseName("idx_excuse_status");
+            entity.HasOne(e => e.Student).WithMany().HasForeignKey(e => e.StudentId)
+                .HasConstraintName("fk_excuse_student");
+            entity.HasOne(e => e.ReviewedBy).WithMany().HasForeignKey(e => e.ReviewedByUserId)
+                .HasConstraintName("fk_excuse_reviewer").OnDelete(DeleteBehavior.SetNull);
+        });
+
         modelBuilder.Entity<LeaveRequest>(entity =>
         {
             entity.ToTable("leave_requests");
@@ -339,7 +377,10 @@ public class SchoolDbContext(DbContextOptions<SchoolDbContext> options) : DbCont
             entity.Property(e => e.EntityType).HasColumnName("entity_type").HasMaxLength(50).IsRequired();
             entity.Property(e => e.EntityId).HasColumnName("entity_id");
             entity.Property(e => e.Summary).HasColumnName("summary").HasMaxLength(500).IsRequired();
-            entity.Property(e => e.Metadata).HasColumnName("metadata").HasColumnType("json");
+            var metadata = entity.Property(e => e.Metadata).HasColumnName("metadata");
+            // "json" is a MySQL column type; SQLite stores it as plain TEXT.
+            if (!Database.IsSqlite())
+                metadata.HasColumnType("json");
             entity.Property(e => e.CreatedAt).HasColumnName("created_at");
             entity.HasIndex(e => e.CreatedAt).HasDatabaseName("idx_audit_created");
             entity.HasIndex(e => e.ActorId).HasDatabaseName("idx_audit_actor");

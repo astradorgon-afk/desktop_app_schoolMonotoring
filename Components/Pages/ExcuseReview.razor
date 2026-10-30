@@ -1,0 +1,300 @@
+@page "/excuses"
+@layout MainLayout
+@using AttendanceUI.Data.Entities
+@using AttendanceUI.Models.Auth
+@inject IStudentExcuseService ExcuseService
+@inject IAuthService AuthService
+@inject NavigationManager Navigation
+@implements IDisposable
+
+<PageHeader Title="Student Excuses" Subtitle="@(_isTeacher ? "Review excuse letters from students in your sections" : "Review excuse letters filed by students")">
+    <div class="header-actions">
+        <button class="btn btn-ghost" @onclick="LoadAsync" title="Refresh" disabled="@_isLoading">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+            <span>Refresh</span>
+        </button>
+    </div>
+</PageHeader>
+
+@if (_isLoading)
+{
+    <div class="loading-state">
+        <div class="spinner"></div>
+        <p>Loading excuse letters...</p>
+    </div>
+}
+else if (_fatal is not null)
+{
+    <div class="error-banner" style="margin: 0 32px 24px;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+        <span>@_fatal</span>
+    </div>
+}
+else
+{
+    @if (_message is not null)
+    {
+        <div class="@(_messageIsError ? "error-banner" : "success-banner")" style="margin: 0 32px 16px;">@_message</div>
+    }
+
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-icon stat-icon--yellow">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            </div>
+            <div class="stat-info">
+                <span class="stat-value">@_all.Count(e => e.Status == "PENDING")</span>
+                <span class="stat-label">Pending</span>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon stat-icon--green">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+            </div>
+            <div class="stat-info">
+                <span class="stat-value">@_all.Count(e => e.Status == "APPROVED")</span>
+                <span class="stat-label">Approved</span>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon stat-icon--red">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </div>
+            <div class="stat-info">
+                <span class="stat-value">@_all.Count(e => e.Status == "REJECTED")</span>
+                <span class="stat-label">Rejected</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="students-toolbar">
+        <div class="excuse-tabs">
+            <button type="button" class="@(_pendingOnly ? "tab-btn tab-btn--active" : "tab-btn")" @onclick="() => { _pendingOnly = true; ApplyFilter(); }">Pending</button>
+            <button type="button" class="@(!_pendingOnly ? "tab-btn tab-btn--active" : "tab-btn")" @onclick="() => { _pendingOnly = false; ApplyFilter(); }">All</button>
+        </div>
+        <div class="search-wrapper">
+            <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input type="text" class="search-input" aria-label="Search student or section" placeholder="Search student, LRN or section..." @bind="_search" @bind:after="ApplyFilter" />
+        </div>
+    </div>
+
+    <div style="padding:0 32px 32px;">
+        @if (_filtered.Count == 0)
+        {
+            <div class="page-card"><p class="text-muted" style="margin:0;">@(_pendingOnly ? "No excuse letters waiting for review." : "No excuse letters found.")</p></div>
+        }
+        else
+        {
+            <div class="excuse-list excuse-list--cards">
+                @foreach (var e in _filtered)
+                {
+                    <div class="excuse-item page-card">
+                        <div class="excuse-item-head">
+                            <div>
+                                <div class="excuse-item-title">@e.StudentName</div>
+                                <div class="excuse-item-meta">LRN @e.Lrn@(e.SectionName is not null ? $" · {e.SectionName}" : "") · Filed @e.CreatedAt.ToLocalTime().ToString("MMM dd, yyyy h:mm tt")</div>
+                            </div>
+                            <span class="excuse-status excuse-status--@e.Status.ToLowerInvariant()">@e.Status</span>
+                        </div>
+                        <div class="excuse-item-dates">
+                            <strong>@(e.Category ?? "Excuse")</strong> · @FormatRange(e.StartDate, e.EndDate) (@e.DurationDays day@(e.DurationDays == 1 ? "" : "s"))
+                        </div>
+                        <div class="excuse-item-body">@e.Reason</div>
+                        @if (!e.IsPending && (e.ReviewNotes is not null || e.ReviewedByName is not null))
+                        {
+                            <div class="excuse-item-review">@(e.ReviewedByName is not null ? $"{e.ReviewedByName}: " : "")@(e.ReviewNotes ?? e.Status.ToLowerInvariant())</div>
+                        }
+                        <div class="excuse-item-actions">
+                            @if (e.HasAttachment)
+                            {
+                                <button class="btn btn-ghost btn-sm" @onclick="() => OpenAttachmentAsync(e.Id)">View attachment</button>
+                            }
+                            @if (e.IsPending)
+                            {
+                                <button class="btn btn-ghost btn-sm" @onclick="() => OpenReview(e, false)" disabled="@_busy">Reject</button>
+                                <button class="btn btn-primary btn-sm" @onclick="() => OpenReview(e, true)" disabled="@_busy">Approve</button>
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+    </div>
+}
+
+@if (_reviewing is not null)
+{
+    <Modal Title="@(_approving ? "Approve excuse" : "Reject excuse")" ContentStyle="max-width:480px;" OnClose="CloseReview">
+        <div class="modal-header">
+            <h3>@(_approving ? "Approve excuse?" : "Reject excuse?")</h3>
+            <button class="modal-close" aria-label="Close" @onclick="CloseReview">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+        </div>
+        <div class="modal-body">
+            <p style="margin:0 0 12px;">
+                <strong>@_reviewing.StudentName</strong> · @FormatRange(_reviewing.StartDate, _reviewing.EndDate)
+            </p>
+            @if (_approving)
+            {
+                <p class="text-muted" style="margin:0 0 12px;">Absences recorded in this date range will change to <strong>Excused</strong>. Classes that end later on these dates will record the student as excused automatically.</p>
+            }
+            <label class="form-label" for="ex-notes">@(_approving ? "Note to student (optional)" : "Reason for rejecting")</label>
+            <textarea id="ex-notes" class="form-input" rows="3" maxlength="500" @bind="_notes"></textarea>
+        </div>
+        <div class="modal-footer">
+            <button class="action-btn" @onclick="CloseReview" disabled="@_busy">Cancel</button>
+            <button class="btn @(_approving ? "btn-primary" : "btn-danger")" @onclick="ConfirmReviewAsync" disabled="@_busy">
+                @if (_busy) { <span class="spinner-sm"></span> }
+                @(_approving ? "Approve" : "Reject")
+            </button>
+        </div>
+    </Modal>
+}
+
+@code {
+    private readonly CancellationTokenSource _cts = new();
+    private UserSession? _session;
+    private bool _isTeacher;
+    private bool _isLoading = true;
+    private bool _busy;
+    private string? _fatal;
+    private string? _message;
+    private bool _messageIsError;
+    private List<StudentExcuseView> _all = [];
+    private List<StudentExcuseView> _filtered = [];
+    private bool _pendingOnly = true;
+    private string _search = "";
+
+    private StudentExcuseView? _reviewing;
+    private bool _approving;
+    private string _notes = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        _session = await AuthService.GetCurrentSessionAsync();
+        if (_session is null) { Navigation.NavigateTo("/login"); return; }
+        _isTeacher = _session.Role == UserRole.TEACHER;
+        if (_session.Role is not (UserRole.SUPERADMIN or UserRole.TEACHER))
+        {
+            _fatal = "Only teachers and administrators can review excuse letters.";
+            _isLoading = false;
+            return;
+        }
+
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        if (_session is null) return;
+        _isLoading = true;
+        try
+        {
+            _fatal = await ExcuseService.EnsureAvailableAsync(_cts.Token);
+            if (_fatal is null)
+            {
+                _all = await ExcuseService.GetForReviewAsync(_session, _cts.Token);
+                ApplyFilter();
+            }
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception ex)
+        {
+            _fatal = $"Failed to load excuse letters: {ex.Message}";
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private void ApplyFilter()
+    {
+        var query = _all.AsEnumerable();
+        if (_pendingOnly)
+            query = query.Where(e => e.IsPending);
+        if (!string.IsNullOrWhiteSpace(_search))
+        {
+            var term = _search.Trim();
+            query = query.Where(e =>
+                e.StudentName.Contains(term, StringComparison.OrdinalIgnoreCase) ||
+                e.Lrn.Contains(term, StringComparison.OrdinalIgnoreCase) ||
+                (e.SectionName?.Contains(term, StringComparison.OrdinalIgnoreCase) ?? false));
+        }
+        _filtered = query.ToList();
+    }
+
+    private void OpenReview(StudentExcuseView e, bool approve)
+    {
+        _reviewing = e;
+        _approving = approve;
+        _notes = "";
+        _message = null;
+    }
+
+    private void CloseReview()
+    {
+        if (!_busy) _reviewing = null;
+    }
+
+    private async Task ConfirmReviewAsync()
+    {
+        if (_reviewing is null || _session is null) return;
+        if (!_approving && string.IsNullOrWhiteSpace(_notes))
+        {
+            _message = "Please give the student a reason for rejecting.";
+            _messageIsError = true;
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            var result = _approving
+                ? await ExcuseService.ApproveAsync(_reviewing.Id, _session, _notes, _cts.Token)
+                : await ExcuseService.RejectAsync(_reviewing.Id, _session, _notes, _cts.Token);
+
+            _message = result.Message;
+            _messageIsError = !result.Success;
+            _all = await ExcuseService.GetForReviewAsync(_session, _cts.Token);
+            ApplyFilter();
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception ex)
+        {
+            _message = $"Failed to save the review: {ex.Message}";
+            _messageIsError = true;
+        }
+        finally
+        {
+            _busy = false;
+            _reviewing = null;
+        }
+    }
+
+    private async Task OpenAttachmentAsync(long id)
+    {
+        if (_session is null) return;
+        try
+        {
+            var file = await ExcuseService.GetAttachmentAsync(id, _session, _cts.Token);
+            if (file is { } f)
+                await AttachmentOpener.OpenAsync(f.Data, f.Name);
+        }
+        catch (Exception ex)
+        {
+            _message = $"Could not open the attachment: {ex.Message}";
+            _messageIsError = true;
+        }
+    }
+
+    private static string FormatRange(DateOnly start, DateOnly end)
+        => start == end ? start.ToString("MMM dd, yyyy") : $"{start:MMM dd} – {end:MMM dd, yyyy}";
+
+    public void Dispose()
+    {
+        _cts.Cancel();
+        _cts.Dispose();
+    }
+}

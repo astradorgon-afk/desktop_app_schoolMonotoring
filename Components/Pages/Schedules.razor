@@ -26,7 +26,7 @@ else
             <span class="search-icon">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
             </span>
-            <input class="search-input" type="text" placeholder="Search section or subject…" @oninput="HandleSearch" value="@_search" />
+            <input class="search-input" type="text" aria-label="Search section or subject" placeholder="Search section or subject…" @oninput="HandleSearch" value="@_search" />
         </div>
 
         <select class="filter-select" @onchange="HandleGradeFilter" value="@_gradeFilter">
@@ -49,11 +49,53 @@ else
         </button>
     </div>
 
+    @* ── Conflict Alert ── *@
+    @if (_conflicts.Count > 0)
+    {
+        <div class="conflict-alert">
+            <div class="conflict-alert-head" @onclick="() => _showConflictDetails = !_showConflictDetails">
+                <div class="conflict-alert-icon">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                </div>
+                <div class="conflict-alert-text">
+                    <strong>@_conflicts.Count schedule conflict@(_conflicts.Count == 1 ? "" : "s") detected</strong>
+                    <span>Overlapping classes share a teacher, section, or room. Click to @(_showConflictDetails ? "hide" : "review").</span>
+                </div>
+                <svg class="conflict-alert-chevron @(_showConflictDetails ? "open" : "")" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+            </div>
+
+            @if (_showConflictDetails)
+            {
+                <div class="conflict-alert-list">
+                    @foreach (var c in _conflicts)
+                    {
+                        <div class="conflict-item">
+                            <div class="conflict-item-top">
+                                <span class="conflict-kind">@c.Kind</span>
+                                <span class="conflict-who">@c.Who</span>
+                                <span class="conflict-when">@c.When</span>
+                            </div>
+                            <div class="conflict-pair">
+                                <span>@c.ClassA</span>
+                                <span class="conflict-vs">overlaps</span>
+                                <span>@c.ClassB</span>
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+    }
+
     @* ── Section Cards ── *@
     <div class="section-cards-row">
         @foreach (var sec in _filteredSections)
         {
             <div class="section-card @(_selectedSectionId == sec.SectionId ? "section-card--active" : "")" @onclick="() => SelectSection(sec.SectionId)">
+                @if (_conflictSectionIds.Contains(sec.SectionId))
+                {
+                    <span class="section-card-conflict" title="This section has a schedule conflict">!</span>
+                }
                 <div class="section-card-name">@sec.SectionName</div>
                 <div class="section-card-grade">@sec.GradeLevel</div>
                 <div class="section-card-count">@sec.StudentCount enrolled</div>
@@ -96,10 +138,19 @@ else
                     var block = _gridEntries.GetValueOrDefault((dayVal, slot));
                     if (block is not null)
                     {
-                        <div class="tt-cell tt-cell--has @block.ColorClass"
+                        var isConflict = block.ScheduleId != 0 && _conflictScheduleIds.Contains(block.ScheduleId);
+                        var cellTitle = (isConflict ? "⚠ Schedule conflict\n" : "")
+                            + block.Subject + "\n" + block.TeacherName + "\n" + block.SectionName + "\n" + block.Room;
+                        <div class="tt-cell tt-cell--has @block.ColorClass @(isConflict ? "tt-cell--conflict" : "")"
                              style="grid-row:@row/span @block.SpanRows;grid-column:@col;"
                              @onclick="() => OpenCellModal(dayVal, slot, block)"
-                             title="@block.Subject&#10;@block.TeacherName&#10;@block.SectionName&#10;@block.Room">
+                             title="@cellTitle">
+                            @if (isConflict)
+                            {
+                                <span class="tt-conflict-badge" title="Schedule conflict">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                                </span>
+                            }
                             <div class="tt-block-subject">@block.Subject</div>
                             <div class="tt-block-teacher">@block.TeacherName</div>
                             <div class="tt-block-room">@block.Room</div>
@@ -122,8 +173,8 @@ else
             <div class="card-heading" style="margin-bottom:16px;">Add / Edit Class Entry</div>
             <div class="schedule-form-grid">
                 <div class="form-group">
-                    <label class="form-label">Section</label>
-                    <select class="filter-select" style="width:100%;">
+                    <label class="form-label" for="sched-f-section">Section</label>
+                    <select id="sched-f-section" class="filter-select" style="width:100%;">
                         <option value="">— Select —</option>
                         @foreach (var sec in _pageData?.Sections ?? [])
                         {
@@ -132,8 +183,8 @@ else
                     </select>
                 </div>
                 <div class="form-group">
-                    <label class="form-label">Subject</label>
-                    <select class="filter-select" style="width:100%;">
+                    <label class="form-label" for="sched-f-subject">Subject</label>
+                    <select id="sched-f-subject" class="filter-select" style="width:100%;">
                         <option value="">— Select —</option>
                         @foreach (var sub in _subjects)
                         {
@@ -142,8 +193,8 @@ else
                     </select>
                 </div>
                 <div class="form-group">
-                    <label class="form-label">Teacher</label>
-                    <select class="filter-select" style="width:100%;">
+                    <label class="form-label" for="sched-f-teacher">Teacher</label>
+                    <select id="sched-f-teacher" class="filter-select" style="width:100%;">
                         <option value="">— Select —</option>
                         @foreach (var t in _teachers)
                         {
@@ -152,8 +203,8 @@ else
                     </select>
                 </div>
                 <div class="form-group">
-                    <label class="form-label">Day</label>
-                    <select class="filter-select" style="width:100%;">
+                    <label class="form-label" for="sched-f-day">Day</label>
+                    <select id="sched-f-day" class="filter-select" style="width:100%;">
                         <option value="">— Select —</option>
                         @foreach (var d in _dayOptions)
                         {
@@ -162,8 +213,8 @@ else
                     </select>
                 </div>
                 <div class="form-group">
-                    <label class="form-label">Start Time</label>
-                    <select class="filter-select" style="width:100%;">
+                    <label class="form-label" for="sched-f-start">Start Time</label>
+                    <select id="sched-f-start" class="filter-select" style="width:100%;">
                         <option value="">— Select —</option>
                         @foreach (var t in _timeOptions)
                         {
@@ -172,8 +223,8 @@ else
                     </select>
                 </div>
                 <div class="form-group">
-                    <label class="form-label">End Time</label>
-                    <select class="filter-select" style="width:100%;">
+                    <label class="form-label" for="sched-f-end">End Time</label>
+                    <select id="sched-f-end" class="filter-select" style="width:100%;">
                         <option value="">— Select —</option>
                         @foreach (var t in _timeOptions)
                         {
@@ -182,8 +233,8 @@ else
                     </select>
                 </div>
                 <div class="form-group">
-                    <label class="form-label">Room</label>
-                    <select class="filter-select" style="width:100%;">
+                    <label class="form-label" for="sched-f-room">Room</label>
+                    <select id="sched-f-room" class="filter-select" style="width:100%;">
                         <option value="">— Select —</option>
                         @foreach (var r in _rooms)
                         {
@@ -241,8 +292,7 @@ else
     var modalDayName = _modalDay.HasValue && _modalDay.Value >= 1 && _modalDay.Value <= 6 ? _days[_modalDay.Value - 1] : "";
     var modalTimeStr = _modalTime?.ToString("h\\:mm tt") ?? "";
 
-    <div class="modal-overlay" @onclick="CloseCellModal">
-        <div class="modal-content" style="max-width:520px;" @onclick:stopPropagation>
+    <Modal Title="@($"{(_editMode ? "Edit Entry" : "Quick Add")} — {modalDayName} {modalTimeStr}")" ContentClass="sched-cell-modal" OnClose="CloseCellModal">
             <div class="modal-header">
                 <h3>@(_editMode ? "Edit Entry" : "Quick Add") — @modalDayName @modalTimeStr</h3>
                 <button class="modal-close" @onclick="CloseCellModal">
@@ -260,36 +310,81 @@ else
             {
             <div class="modal-body" style="align-items:stretch;">
 
-                @* Existing entries at this time *@
-                @if (_modalEntries.Count > 0)
+                @* Entries that clash with what's being scheduled here, plus one-click fixes *@
+                @{
+                    var modalConflicts = GetModalConflicts();
+                }
+                <div class="sched-cf-head">
+                    <span class="sched-cf-title">Conflicts with this entry</span>
+                    @if (modalConflicts.Count > 0)
+                    {
+                        <span class="sched-cf-count">@modalConflicts.Count</span>
+                    }
+                </div>
+
+                @if (modalConflicts.Count == 0)
                 {
-                    <div style="font-size:11px;font-weight:700;color:var(--clr-text-muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">Current Entries</div>
-                    <div style="display:flex;flex-direction:column;gap:4px;margin-bottom:12px;">
-                        @foreach (var e in _modalEntries)
-                        {
-                            <div style="padding:8px 10px;background:var(--clr-surface-alt);border:1px solid var(--clr-border);border-radius:6px;">
-                                <div style="font-size:13px;font-weight:600;color:var(--clr-text);">@e.Subject</div>
-                                <div style="font-size:11px;color:var(--clr-text-secondary);margin-top:2px;">@e.SectionName · @e.TeacherName @(!string.IsNullOrEmpty(e.Room) ? $" · {e.Room}" : "")</div>
-                            </div>
-                        }
+                    <div class="sched-cf-clear">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                        <span>
+                            @if (string.IsNullOrEmpty(_formEndTime))
+                            {
+                                @:Nothing clashes at this start time. Pick an end time to check the full slot.
+                            }
+                            else
+                            {
+                                @:No clashes — the teacher, section, and room are all free for this slot.
+                            }
+                        </span>
                     </div>
                 }
                 else
                 {
-                    <div style="font-size:12px;color:var(--clr-text-muted);margin-bottom:12px;">No classes scheduled at this time.</div>
+                    <div class="sched-cf-list">
+                        @foreach (var c in modalConflicts)
+                        {
+                            <div class="sched-cf-row">
+                                <div class="sched-cf-info">
+                                    <div class="sched-cf-name">@c.Entry.Subject</div>
+                                    <div class="sched-cf-meta">@($"{c.Entry.GradeLevel} {c.Entry.SectionName}".Trim()) · @c.Entry.TeacherName@(string.IsNullOrEmpty(c.Entry.Room) ? "" : $" · {c.Entry.Room}")</div>
+                                    <div class="sched-cf-tags">
+                                        @foreach (var reason in c.Reasons)
+                                        {
+                                            <span class="sched-cf-tag">@reason</span>
+                                        }
+                                        <span class="sched-cf-overlap">@c.Entry.StartTime.ToString("h\\:mm tt")–@c.Entry.EndTime.ToString("h\\:mm tt") · overlaps @c.OverlapStart.ToString("h\\:mm tt")–@c.OverlapEnd.ToString("h\\:mm tt")</span>
+                                    </div>
+                                </div>
+                                <div class="sched-cf-actions">
+                                    <button class="sched-cf-btn" title="Open this entry so you can change its teacher, room, or time" @onclick="() => EditConflictEntry(c.Entry)">Edit</button>
+                                    @if (_pendingDeleteScheduleId == c.Entry.Id)
+                                    {
+                                        <button class="sched-cf-btn sched-cf-btn--danger" title="Click again to confirm" disabled="@_saving" @onclick="() => DeleteConflictEntry(c.Entry)">Confirm</button>
+                                        <button class="sched-cf-btn" @onclick="() => _pendingDeleteScheduleId = 0">Keep</button>
+                                    }
+                                    else
+                                    {
+                                        <button class="sched-cf-btn sched-cf-btn--danger" title="Delete this entry to free the slot" @onclick="() => _pendingDeleteScheduleId = c.Entry.Id">Remove</button>
+                                    }
+                                </div>
+                            </div>
+                        }
+                    </div>
+                    <div class="sched-cf-hint">
+                        Fix a clash by removing the entry above, editing it, or changing the teacher / room / end time below.
+                    </div>
                 }
 
                 @* Quick-add / Edit form *@
                 <div style="font-size:11px;font-weight:700;color:var(--clr-text-muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">@(_editMode ? "Edit Entry" : "Quick Add")</div>
                 <div style="display:flex;flex-direction:column;gap:10px;">
-                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+                    <div class="sched-form-row sched-form-row--2">
                         <div>
                             <div style="font-size:12px;font-weight:600;color:var(--clr-text-secondary);margin-bottom:4px;">Section</div>
                             <select class="filter-select" style="width:100%;" disabled>
-                                @if (_selectedSectionId.HasValue)
+                                @if (_formSectionId != 0)
                                 {
-                                    var selSec = _pageData?.Sections.FirstOrDefault(s => s.SectionId == _selectedSectionId.Value);
-                                    <option value="@_selectedSectionId">@selSec?.GradeLevel @selSec?.SectionName</option>
+                                    <option value="@_formSectionId">@FormSectionLabel()</option>
                                 }
                                 else
                                 {
@@ -321,7 +416,7 @@ else
                             }
                         </div>
                     </div>
-                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+                    <div class="sched-form-row sched-form-row--3">
                         <div>
                             <div style="font-size:12px;font-weight:600;color:var(--clr-text-secondary);margin-bottom:4px;">Teacher <span style="color:var(--clr-success);font-weight:400;">(@_availableTeachers.Count available)</span></div>
                             <select class="filter-select" style="width:100%;@(_formErrors.ContainsKey("teacher") ? "border-color:#ef4444;" : "")" @bind="_formTeacherId">
@@ -342,7 +437,7 @@ else
                                 <option value="">— Select —</option>
                                 @foreach (var r in _rooms)
                                 {
-                                    <option value="@r.Code">@r.Code — @r.Name</option>
+                                    <option value="@r.Code">@r.Code — @r.Name@(IsRoomBusy(r.Code) ? "  (in use)" : "")</option>
                                 }
                             </select>
                             @if (_formErrors.TryGetValue("room", out var roomErr))
@@ -350,39 +445,39 @@ else
                                 <div style="font-size:11px;color:#ef4444;margin-top:2px;">@roomErr</div>
                             }
                         </div>
-                    </div>
-                    <div>
-                        <div style="font-size:12px;font-weight:600;color:var(--clr-text-secondary);margin-bottom:4px;">End Time</div>
-                        <select class="filter-select" style="width:100%;@(_formErrors.ContainsKey("endTime") ? "border-color:#ef4444;" : "")" @bind="_formEndTime">
-                            <option value="">— Select —</option>
-                            @{
-                                var startIdx = _modalTime.HasValue ? Array.IndexOf(_timeOptions, _modalTime.Value.ToString("h\\:mm tt")) + 1 : -1;
-                            }
-                            @for (var ti = Math.Max(startIdx, 0); ti < _timeOptions.Length; ti++)
+                        <div>
+                            <div style="font-size:12px;font-weight:600;color:var(--clr-text-secondary);margin-bottom:4px;">End Time</div>
+                            <select class="filter-select" style="width:100%;@(_formErrors.ContainsKey("endTime") ? "border-color:#ef4444;" : "")" @bind="_formEndTime">
+                                <option value="">— Select —</option>
+                                @{
+                                    var startIdx = _modalTime.HasValue ? Array.IndexOf(_timeOptions, _modalTime.Value.ToString("h\\:mm tt")) + 1 : -1;
+                                }
+                                @for (var ti = Math.Max(startIdx, 0); ti < _timeOptions.Length; ti++)
+                                {
+                                    <option value="@_timeOptions[ti]">@_timeOptions[ti]</option>
+                                }
+                            </select>
+                            @if (_formErrors.TryGetValue("endTime", out var endTimeErr))
                             {
-                                <option value="@_timeOptions[ti]">@_timeOptions[ti]</option>
+                                <div style="font-size:11px;color:#ef4444;margin-top:2px;">@endTimeErr</div>
                             }
-                        </select>
-                        @if (_formErrors.TryGetValue("endTime", out var endTimeErr))
-                        {
-                            <div style="font-size:11px;color:#ef4444;margin-top:2px;">@endTimeErr</div>
-                        }
+                        </div>
                     </div>
                     <div style="display:flex;gap:8px;margin-top:4px;">
                         @if (_editMode)
                         {
-                            <button class="action-btn action-btn--purple" style="flex:0 0 auto;" @onclick="UpdateCellEntry">
+                            <button class="action-btn action-btn--purple" style="flex:0 0 auto;" disabled="@_saving" @onclick="UpdateCellEntry">
                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                                 Update
                             </button>
-                            <button class="action-btn" style="flex:0 0 auto;color:var(--clr-danger);" @onclick="DeleteCellEntry">
+                            <button class="action-btn" style="flex:0 0 auto;color:var(--clr-danger);" disabled="@_saving" @onclick="DeleteCellEntry">
                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
                                 Delete
                             </button>
                         }
                         else
                         {
-                            <button class="action-btn action-btn--purple" style="flex:0 0 auto;" @onclick="SaveCellEntry">
+                            <button class="action-btn action-btn--purple" style="flex:0 0 auto;" disabled="@_saving" @onclick="SaveCellEntry">
                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
                                 Save
                             </button>
@@ -396,8 +491,7 @@ else
                 </div>
             </div>
             }
-        </div>
-    </div>
+    </Modal>
 }
 
 @code {
@@ -488,6 +582,7 @@ else
             }
 
             BuildGrid();
+            DetectConflicts();
         }
         finally
         {
@@ -556,12 +651,75 @@ else
         }
     }
 
+    @* ── Conflict Detection ── *@
+    private sealed record ScheduleConflict(string Kind, string Who, string When, string ClassA, string ClassB);
+
+    private List<ScheduleConflict> _conflicts = [];
+    private HashSet<long> _conflictScheduleIds = [];
+    private HashSet<long> _conflictSectionIds = [];
+    private bool _showConflictDetails;
+
+    private void DetectConflicts()
+    {
+        _conflicts = [];
+        _conflictScheduleIds = [];
+        _conflictSectionIds = [];
+
+        var entries = _pageData?.Entries ?? [];
+
+        for (var i = 0; i < entries.Count; i++)
+        {
+            for (var j = i + 1; j < entries.Count; j++)
+            {
+                var a = entries[i];
+                var b = entries[j];
+
+                // Same day and overlapping time window (matches the service's save-time rule).
+                if (a.DayOfWeek != b.DayOfWeek) continue;
+                if (!(a.StartTime < b.EndTime && a.EndTime > b.StartTime)) continue;
+
+                var day = a.DayOfWeek >= 1 && a.DayOfWeek <= 6 ? _days[a.DayOfWeek - 1] : "";
+                var overlapStart = a.StartTime > b.StartTime ? a.StartTime : b.StartTime;
+                var overlapEnd = a.EndTime < b.EndTime ? a.EndTime : b.EndTime;
+                var when = $"{day} {overlapStart:h\\:mm tt}–{overlapEnd:h\\:mm tt}";
+
+                var teacherConflict = a.TeacherId.HasValue && a.TeacherId == b.TeacherId;
+                var sectionConflict = a.SectionId == b.SectionId;
+                var roomConflict = !string.IsNullOrEmpty(a.Room)
+                    && string.Equals(a.Room, b.Room, StringComparison.OrdinalIgnoreCase);
+
+                if (teacherConflict)
+                    AddConflict("Teacher double-booked", a.TeacherName, when, a, b);
+                if (sectionConflict)
+                    AddConflict("Section double-booked", $"{a.GradeLevel} {a.SectionName}".Trim(), when, a, b);
+                if (roomConflict)
+                    AddConflict("Room double-booked", a.Room!, when, a, b);
+            }
+        }
+    }
+
+    private void AddConflict(string kind, string who, string when, ScheduleViewEntry a, ScheduleViewEntry b)
+    {
+        _conflicts.Add(new ScheduleConflict(kind, who, when, DescribeEntry(a), DescribeEntry(b)));
+        if (a.Id != 0) _conflictScheduleIds.Add(a.Id);
+        if (b.Id != 0) _conflictScheduleIds.Add(b.Id);
+        _conflictSectionIds.Add(a.SectionId);
+        _conflictSectionIds.Add(b.SectionId);
+    }
+
+    private static string DescribeEntry(ScheduleViewEntry e)
+    {
+        var room = !string.IsNullOrEmpty(e.Room) ? $" · {e.Room}" : "";
+        return $"{e.Subject} · {e.SectionName} · {e.TeacherName} ({e.StartTime:h\\:mm tt}–{e.EndTime:h\\:mm tt}){room}";
+    }
+
     @* ── Cell Modal State ── *@
     private bool _showCellModal;
     private int? _modalDay;
     private TimeOnly? _modalTime;
-    private List<ScheduleViewEntry> _modalEntries = [];
     private List<Teacher> _availableTeachers = [];
+    private long _pendingDeleteScheduleId;
+    private string _formSectionLabel = "";
     private long _formSectionId;
     private long _formSubjectId;
     private long _formTeacherId;
@@ -578,10 +736,10 @@ else
     {
         _modalDay = day;
         _modalTime = time;
-        _formSectionId = _selectedSectionId ?? 0;
         _saving = false;
         _formErrors = [];
         _formErrorGeneral = "";
+        _pendingDeleteScheduleId = 0;
 
         if (block is not null)
         {
@@ -590,6 +748,8 @@ else
             _editScheduleId = block.ScheduleId;
             // Pre-fill from the clicked entry
             var entry = _pageData?.Entries.FirstOrDefault(e => e.Id == block.ScheduleId);
+            _formSectionId = entry?.SectionId ?? _selectedSectionId ?? 0;
+            _formSectionLabel = entry is not null ? $"{entry.GradeLevel} {entry.SectionName}".Trim() : SelectedSectionLabel();
             _formSubjectId = entry?.SubjectId ?? 0;
             _formTeacherId = entry?.TeacherId ?? 0;
             _formRoom = entry?.Room ?? "";
@@ -600,30 +760,53 @@ else
             _editMode = false;
             _editOfferingId = 0;
             _editScheduleId = 0;
+            _formSectionId = _selectedSectionId ?? 0;
+            _formSectionLabel = SelectedSectionLabel();
             _formSubjectId = 0;
             _formTeacherId = 0;
             _formRoom = "";
             _formEndTime = "";
         }
 
-        _modalEntries = _pageData?.Entries
-            .Where(e => e.DayOfWeek == day && e.StartTime <= time && e.EndTime > time)
-            .OrderBy(e => e.StartTime)
-            .ToList() ?? [];
-
-        var busyTeacherIds = _pageData?.Entries
-            .Where(e => e.DayOfWeek == day && e.StartTime <= time && e.EndTime > time)
-            .Select(e => e.TeacherId)
-            .Where(id => id.HasValue)
-            .Select(id => id.Value)
-            .ToHashSet() ?? [];
-
-        _availableTeachers = _teachers
-            .Where(t => !busyTeacherIds.Contains(t.Id))
-            .ToList();
+        RefreshAvailableTeachers();
 
         _showCellModal = true;
         StateHasChanged();
+    }
+
+    private string SelectedSectionLabel()
+    {
+        if (!_selectedSectionId.HasValue) return "";
+        var sec = _pageData?.Sections.FirstOrDefault(s => s.SectionId == _selectedSectionId.Value);
+        return sec is not null ? $"{sec.GradeLevel} {sec.SectionName}".Trim() : "";
+    }
+
+    private string FormSectionLabel() => _formSectionLabel;
+
+    // Teachers free at the slot's start time. In edit mode the entry's own teacher is
+    // kept in the list so the current assignment stays selectable.
+    private void RefreshAvailableTeachers()
+    {
+        if (!_modalDay.HasValue || !_modalTime.HasValue)
+        {
+            _availableTeachers = _teachers;
+            return;
+        }
+
+        var day = _modalDay.Value;
+        var time = _modalTime.Value;
+
+        var busyTeacherIds = _pageData?.Entries
+            .Where(e => e.DayOfWeek == day && e.StartTime <= time && e.EndTime > time)
+            .Where(e => e.Id != _editScheduleId)
+            .Select(e => e.TeacherId)
+            .Where(id => id.HasValue)
+            .Select(id => id!.Value)
+            .ToHashSet() ?? [];
+
+        _availableTeachers = _teachers
+            .Where(t => !busyTeacherIds.Contains(t.Id) || t.Id == _formTeacherId)
+            .ToList();
     }
 
     private void CloseCellModal()
@@ -634,6 +817,135 @@ else
         _editScheduleId = 0;
         _formRoom = "";
         _formEndTime = "";
+        _formSectionLabel = "";
+        _pendingDeleteScheduleId = 0;
+    }
+
+    @* ── Conflicts for the entry currently in the modal ── *@
+    private sealed record ModalConflict(
+        ScheduleViewEntry Entry, List<string> Reasons, TimeOnly OverlapStart, TimeOnly OverlapEnd);
+
+    // The time window the modal is currently describing. Before an end time is picked,
+    // fall back to the single 30-minute slot that was clicked.
+    private (TimeOnly Start, TimeOnly End)? ModalWindow()
+    {
+        if (!_modalTime.HasValue) return null;
+
+        var start = _modalTime.Value;
+        var end = TimeOnly.TryParse(_formEndTime, out var parsed) && parsed > start
+            ? parsed
+            : start.AddMinutes(30);
+
+        return (start, end);
+    }
+
+    private List<ModalConflict> GetModalConflicts()
+    {
+        var conflicts = new List<ModalConflict>();
+        if (_pageData is null || !_modalDay.HasValue) return conflicts;
+
+        var window = ModalWindow();
+        if (window is null) return conflicts;
+
+        var (start, end) = window.Value;
+
+        foreach (var e in _pageData.Entries)
+        {
+            if (e.Id == _editScheduleId) continue;           // an entry never clashes with itself
+            if (e.DayOfWeek != _modalDay.Value) continue;
+            if (!(start < e.EndTime && end > e.StartTime)) continue;
+
+            var reasons = new List<string>();
+            if (_formTeacherId != 0 && e.TeacherId == _formTeacherId)
+                reasons.Add("Same teacher");
+            if (_formSectionId != 0 && e.SectionId == _formSectionId)
+                reasons.Add("Same section");
+            if (!string.IsNullOrEmpty(_formRoom) && string.Equals(e.Room, _formRoom, StringComparison.OrdinalIgnoreCase))
+                reasons.Add("Same room");
+
+            if (reasons.Count == 0) continue;
+
+            conflicts.Add(new ModalConflict(
+                e,
+                reasons,
+                start > e.StartTime ? start : e.StartTime,
+                end < e.EndTime ? end : e.EndTime));
+        }
+
+        return conflicts.OrderBy(c => c.Entry.StartTime).ToList();
+    }
+
+    private bool IsRoomBusy(string roomCode)
+    {
+        if (_pageData is null || !_modalDay.HasValue || string.IsNullOrEmpty(roomCode)) return false;
+
+        var window = ModalWindow();
+        if (window is null) return false;
+
+        var (start, end) = window.Value;
+
+        return _pageData.Entries.Any(e =>
+            e.Id != _editScheduleId
+            && e.DayOfWeek == _modalDay.Value
+            && start < e.EndTime && end > e.StartTime
+            && string.Equals(e.Room, roomCode, StringComparison.OrdinalIgnoreCase));
+    }
+
+    // Swap the modal over to editing the conflicting entry, without leaving the dialog.
+    private void EditConflictEntry(ScheduleViewEntry entry)
+    {
+        _modalDay = entry.DayOfWeek;
+        _modalTime = entry.StartTime;
+        _editMode = true;
+        _editOfferingId = entry.OfferingId;
+        _editScheduleId = entry.Id;
+        _formSectionId = entry.SectionId;
+        _formSectionLabel = $"{entry.GradeLevel} {entry.SectionName}".Trim();
+        _formSubjectId = entry.SubjectId;
+        _formTeacherId = entry.TeacherId ?? 0;
+        _formRoom = entry.Room ?? "";
+        _formEndTime = entry.EndTime.ToString("h\\:mm tt");
+        _formErrors = [];
+        _formErrorGeneral = "";
+        _pendingDeleteScheduleId = 0;
+
+        RefreshAvailableTeachers();
+        StateHasChanged();
+    }
+
+    private async Task DeleteConflictEntry(ScheduleViewEntry entry)
+    {
+        _saving = true;
+        _formErrorGeneral = "";
+        _pendingDeleteScheduleId = 0;
+        StateHasChanged();
+
+        try
+        {
+            await ScheduleService.DeleteScheduleEntryAsync(entry.Id, entry.OfferingId);
+            await LoadDataAsync();
+
+            // Removing the entry under edit leaves nothing to edit — fall back to add mode.
+            if (_editMode && entry.Id == _editScheduleId)
+            {
+                _editMode = false;
+                _editOfferingId = 0;
+                _editScheduleId = 0;
+                _formSectionId = _selectedSectionId ?? 0;
+                _formSectionLabel = SelectedSectionLabel();
+            }
+
+            RefreshAvailableTeachers();
+        }
+        catch (Exception ex)
+        {
+            _formErrorGeneral = ex.InnerException?.Message ?? ex.Message;
+        }
+        finally
+        {
+            _saving = false;
+            StateHasChanged();
+        }
     }
 
     private async Task UpdateCellEntry()

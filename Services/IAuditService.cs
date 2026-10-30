@@ -37,4 +37,10 @@ public interface IAuditService
     Task<int> GetTodayCountAsync(CancellationToken ct = default);
 
     Task<List<AuditActionStats>> GetActionBreakdownAsync(CancellationToken ct = default);
+
+    /// <summary>
+    /// Failed logins for a user since <paramref name="sinceUtc"/>, ignoring any before their
+    /// most recent successful login. Returns the count and the time of the oldest one counted.
+    /// </summary>
+    Task<(int Count, DateTime? Oldest)> GetRecentLoginFailuresAsync(long userId, DateTime sinceUtc, CancellationToken ct = default);
 }

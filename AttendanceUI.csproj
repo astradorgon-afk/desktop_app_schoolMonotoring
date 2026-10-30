@@ -48,9 +48,65 @@
         <TargetPlatformMinVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">10.0.17763.0</TargetPlatformMinVersion>
     </PropertyGroup>
 
+    <!--
+        Keep each platform's files out of the other target frameworks' item lists.
+
+        MAUI removes the foreign Platforms\* folders inside a target, i.e. after
+        evaluation has already happened, so while the project is being evaluated
+        (which is what IDEs use to decide which project a file belongs to)
+        Platforms\Windows\App.xaml.cs is visible in every target framework. VS
+        Code's C# Dev Kit then analyses that Windows-only file outside the Windows
+        flavour of the project, where the WinUI XAML-generated partial that provides
+        InitializeComponent is never produced, and reports a CS1061 that the real
+        build never sees. Declaring the removal as plain item conditions here makes
+        the evaluated item lists match what is actually compiled.
+    -->
+    <ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) != 'windows'">
+        <Compile Remove="Platforms\Windows\**" />
+    </ItemGroup>
+
+    <ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) != 'android'">
+        <Compile Remove="Platforms\Android\**" />
+    </ItemGroup>
+
+    <ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) != 'ios'">
+        <Compile Remove="Platforms\iOS\**" />
+    </ItemGroup>
+
+    <ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) != 'maccatalyst'">
+        <Compile Remove="Platforms\MacCatalyst\**" />
+    </ItemGroup>
+
+    <!--
+        Let design-time builds see the WinUI XAML-generated code.
+
+        InitializeComponent() is not written by hand: the WinUI XAML compiler generates
+        it into Platforms\Windows\App.g.i.cs from Platforms\Windows\App.xaml. That file
+        only reaches the compilation because the Windows App SDK's
+        Microsoft.UI.Xaml.Markup.Compiler.interop.targets wires its
+        DesignTimeMarkupCompilation target into CoreCompileDependsOn — and it does so
+        under '$(BuildingInsideVisualStudio)' == 'true', i.e. for builds hosted by
+        Visual Studio.
+
+        The .NET project system behind VS Code's C# Dev Kit runs the same kind of
+        design-time build (its CompileDesignTime target depends on Compile) but without
+        that property, so App.g.i.cs never joins the compilation and the editor reports
+        CS1061 at this.InitializeComponent() — an error the real build never produces,
+        because MarkupCompilePass1 runs the XAML compiler and adds the generated file
+        during an ordinary build.
+
+        Asking for the very same target here closes that gap. It is scoped to
+        DesignTimeBuild, so command-line builds and IDEs that already request it are
+        unaffected.
+    -->
+    <PropertyGroup Condition="'$([MSBuild]::GetTargetPlatformIdentifier($(TargetFramework)))' == 'windows' and '$(DesignTimeBuild)' == 'true'">
+        <CoreCompileDependsOn>DesignTimeMarkupCompilation;$(CoreCompileDependsOn)</CoreCompileDependsOn>
+    </PropertyGroup>
+
     <ItemGroup>
-        <!-- App Icon -->
-        <MauiIcon Include="Resources\AppIcon\appicon.svg" ForegroundFile="Resources\AppIcon\appiconfg.svg" Color="#512BD4" />
+        <!-- App Icon. Full-bleed 1024x1024 PNG (square, so resizetizer does not squash
+             it) generated from Resources\Images\eduattend_icon.png. -->
+        <MauiIcon Include="Resources\AppIcon\appicon.png" />
 
         <!-- Splash Screen -->
         <MauiSplashScreen Include="Resources\Splash\splash.svg" Color="#512BD4" BaseSize="128,128" />
@@ -76,6 +132,7 @@
         <PackageReference Include="Microsoft.AspNetCore.Components.WebView.Maui" Version="$(MauiVersion)" />
         <PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="10.0.0" />
         <PackageReference Include="Pomelo.EntityFrameworkCore.MySql" Version="9.0.0" />
+        <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="9.0.0" />
         <PackageReference Include="QRCoder" Version="1.8.0" />
     </ItemGroup>
 

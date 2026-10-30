@@ -1,0 +1,53 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>AttendanceUI</RootNamespace>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>TechnicalTestingRunner</AssemblyName>
+    <NoWarn>$(NoWarn);CS8618;CS8625</NoWarn>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <EnableDefaultEmbeddedResourceItems>false</EnableDefaultEmbeddedResourceItems>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <Repo>C:\desktop_attendance\attendance_ui_new</Repo>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="Program.cs" />
+    <Compile Include="$(Repo)\Data\SchoolDbContext.cs" Link="Data\SchoolDbContext.cs" />
+    <Compile Include="$(Repo)\Data\Entities\*.cs" Link="Data\Entities\%(Filename)%(Extension)" />
+    <Compile Include="$(Repo)\Services\TeacherSessionService.cs" Link="Services\TeacherSessionService.cs" />
+    <Compile Include="$(Repo)\Services\ITeacherSessionService.cs" Link="Services\ITeacherSessionService.cs" />
+    <Compile Include="$(Repo)\Services\ReportService.cs" Link="Services\ReportService.cs" />
+    <Compile Include="$(Repo)\Services\IReportService.cs" Link="Services\IReportService.cs" />
+    <Compile Include="$(Repo)\Services\IAuditService.cs" Link="Services\IAuditService.cs" />
+    <Compile Include="$(Repo)\Services\UserService.cs" Link="Services\UserService.cs" />
+    <Compile Include="$(Repo)\Services\IUserService.cs" Link="Services\IUserService.cs" />
+    <Compile Include="$(Repo)\Services\PasswordHelper.cs" Link="Services\PasswordHelper.cs" />
+    <Compile Include="$(Repo)\Services\AuthService.cs" Link="Services\AuthService.cs" />
+    <Compile Include="$(Repo)\Services\IAuthService.cs" Link="Services\IAuthService.cs" />
+    <Compile Include="$(Repo)\Models\Auth\*.cs" Link="Models\Auth\%(Filename)%(Extension)" />
+    <Compile Include="$(Repo)\Resources\LogMessages.Designer.cs" Link="Resources\LogMessages.Designer.cs" />
+    <Compile Include="$(Repo)\Resources\ErrorMessages.Designer.cs" Link="Resources\ErrorMessages.Designer.cs" />
+    <Compile Include="MauiStubs.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="$(Repo)\Resources\LogMessages.resx" LogicalName="AttendanceUI.Resources.LogMessages.resources" />
+    <EmbeddedResource Include="$(Repo)\Resources\ErrorMessages.resx" LogicalName="AttendanceUI.Resources.ErrorMessages.resources" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Microsoft.Maui.Storage" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="9.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.0" />
+  </ItemGroup>
+
+</Project>

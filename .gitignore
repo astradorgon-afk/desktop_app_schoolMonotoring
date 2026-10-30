@@ -14,3 +14,8 @@ dist/
 .idea/
 *.swp
 .vscode/
+
+## Build/tool output
+installer/output/
+.claude-flow/
+*.drawio.bkp

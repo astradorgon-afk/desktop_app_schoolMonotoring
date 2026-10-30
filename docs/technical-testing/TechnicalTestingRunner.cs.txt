@@ -1,0 +1,611 @@
+using System.Data.Common;
+using System.Diagnostics;
+using System.Resources;
+using AttendanceUI.Data;
+using AttendanceUI.Data.Entities;
+using AttendanceUI.Models.Auth;
+using AttendanceUI.Resources;
+using AttendanceUI.Services;
+using Microsoft.Data.Sqlite;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
+
+Console.OutputEncoding = System.Text.Encoding.UTF8;
+
+const long OfferingId = 1;
+const long SessionId = 1;
+
+var localNow = DateTime.Now;
+var dbDay = (byte)(((int)localNow.DayOfWeek + 6) % 7 + 1);
+
+// A UTC instant whose UTC calendar day is guaranteed to differ from its Manila
+// calendar day, so the report date test is reproducible at any hour of the day.
+var baseUtc = DateTime.UtcNow.Date;
+var sessionInstant = baseUtc.AddHours(23);
+if (DateOnly.FromDateTime(sessionInstant) == DateOnly.FromDateTime(sessionInstant.ToLocalTime()))
+    sessionInstant = baseUtc.AddHours(1);
+
+var memoryCs = "Data Source=:memory:;Foreign Keys=False";
+await using var memoryConnection = new SqliteConnection(memoryCs);
+await memoryConnection.OpenAsync();
+
+// ":memory:" databases are per-connection, so the functional suite must share the one
+// open connection. File-backed suites below use the connection-string overload instead,
+// which gives every context its own connection (required for concurrent load runs).
+var memoryFactory = MakeSharedConnectionFactory(memoryConnection);
+
+// ─────────────────────────── Seed: isolated in-memory database ───────────────────────────
+await using (var db = memoryFactory.CreateDbContext())
+{
+    await db.Database.EnsureCreatedAsync();
+
+    db.SchoolYears.Add(new SchoolYear { Id = 1, Name = "Test Year", Status = "ACTIVE" });
+    db.ClassOfferings.Add(new ClassOffering { Id = OfferingId, SchoolYearId = 1, SectionId = 1, Status = "ACTIVE" });
+    db.AttendanceSessions.Add(new AttendanceSession
+    {
+        Id = SessionId,
+        ClassOfferingId = OfferingId,
+        SessionDate = sessionInstant,
+        Status = "ACTIVE",
+        CreatedAt = sessionInstant,
+        UpdatedAt = sessionInstant
+    });
+    db.ClassSchedules.Add(new ClassSchedule
+    {
+        Id = 1,
+        ClassOfferingId = OfferingId,
+        DayOfWeek = dbDay,
+        StartTime = TimeOnly.FromDateTime(localNow.AddMinutes(-14)),
+        EndTime = TimeOnly.FromDateTime(localNow.AddMinutes(45))
+    });
+
+    for (var i = 1; i <= 7; i++)
+    {
+        db.Students.Add(new Student
+        {
+            Id = i,
+            UserId = i,
+            Lrn = $"LRN{i}",
+            StudentNumber = $"S{i}",
+            FirstName = $"Student{i}",
+            LastName = "Test",
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        });
+        if (i <= 6)
+            db.Enrollments.Add(new Enrollment { Id = i, StudentId = i, SchoolYearId = 1, SectionId = 1, Status = "ACTIVE" });
+    }
+
+    var tokenNow = DateTime.UtcNow;
+    db.QrTokens.AddRange(
+        new QrToken { Id = 1, Token = "valid-1", ModelType = QrTokenModelType.STUDENT, ModelId = 1, ExpiresAt = tokenNow.AddHours(1) },
+        new QrToken { Id = 2, Token = "valid-2", ModelType = QrTokenModelType.STUDENT, ModelId = 2, ExpiresAt = tokenNow.AddHours(1) },
+        new QrToken { Id = 3, Token = "valid-3", ModelType = QrTokenModelType.STUDENT, ModelId = 3, ExpiresAt = tokenNow.AddHours(1) },
+        new QrToken { Id = 4, Token = "valid-4", ModelType = QrTokenModelType.STUDENT, ModelId = 4, ExpiresAt = tokenNow.AddHours(1) },
+        new QrToken { Id = 5, Token = "valid-5", ModelType = QrTokenModelType.STUDENT, ModelId = 5, ExpiresAt = tokenNow.AddHours(1) },
+        new QrToken { Id = 6, Token = "valid-6", ModelType = QrTokenModelType.STUDENT, ModelId = 6, ExpiresAt = tokenNow.AddHours(1) },
+        new QrToken { Id = 7, Token = "expired-qr", ModelType = QrTokenModelType.STUDENT, ModelId = 2, ExpiresAt = tokenNow.AddMinutes(-1) },
+        new QrToken { Id = 8, Token = "revoked-qr", ModelType = QrTokenModelType.STUDENT, ModelId = 2, ExpiresAt = tokenNow.AddHours(1), IsRevoked = true },
+        new QrToken { Id = 9, Token = "room-token", ModelType = QrTokenModelType.ROOM, ModelId = 1, ExpiresAt = tokenNow.AddHours(1) },
+        new QrToken { Id = 10, Token = "not-enrolled", ModelType = QrTokenModelType.STUDENT, ModelId = 7, ExpiresAt = tokenNow.AddHours(1) });
+
+    var userNow = DateTime.UtcNow;
+    db.Users.AddRange(
+        new User { Id = 1, Username = "teacher1", Name = "Teacher One", PasswordHash = PasswordHelper.Hash("Passw0rd!"), Role = UserRole.TEACHER, Status = UserStatus.ACTIVE, CanLogin = true, CreatedAt = userNow, UpdatedAt = userNow },
+        new User { Id = 2, Username = "locked1", Name = "Locked One", PasswordHash = PasswordHelper.Hash("Passw0rd!"), Role = UserRole.TEACHER, Status = UserStatus.LOCKED, CanLogin = true, CreatedAt = userNow, UpdatedAt = userNow },
+        new User { Id = 3, Username = "inactive1", Name = "Inactive One", PasswordHash = PasswordHelper.Hash("Passw0rd!"), Role = UserRole.TEACHER, Status = UserStatus.INACTIVE, CanLogin = true, CreatedAt = userNow, UpdatedAt = userNow },
+        new User { Id = 4, Username = "disabled1", Name = "Disabled One", PasswordHash = PasswordHelper.Hash("Passw0rd!"), Role = UserRole.TEACHER, Status = UserStatus.ACTIVE, CanLogin = false, CreatedAt = userNow, UpdatedAt = userNow });
+
+    await db.SaveChangesAsync();
+}
+
+Out($"RESOURCE|LogMessages|{ProbeResource(typeof(LogMessages))}");
+Out($"RESOURCE|ErrorMessages|{ProbeResource(typeof(ErrorMessages))}");
+
+// ─────────────────────────── 1-4. Functional black-box suite ───────────────────────────
+var scanner = new TeacherSessionService(memoryFactory, new TestAudit());
+var checks = new List<ScanCheck>();
+
+async Task SetSchedule(DateTime start, DateTime end)
+{
+    await using var db = memoryFactory.CreateDbContext();
+    var schedule = await db.ClassSchedules.SingleAsync();
+    schedule.StartTime = TimeOnly.FromDateTime(start);
+    schedule.EndTime = TimeOnly.FromDateTime(end);
+    await db.SaveChangesAsync();
+}
+
+async Task Check(string name, bool expectedSuccess, string? expectedStatus, string token)
+{
+    var actual = await scanner.ScanStudentQrAsync(SessionId, 1, token);
+    checks.Add(new ScanCheck(name, expectedSuccess, expectedStatus, actual));
+    Out($"SCAN|{name}|expected={expectedSuccess}|expectedStatus={expectedStatus ?? "-"}" +
+        $"|actual={actual.Success}|status={actual.Status ?? "-"}|message={actual.Message}");
+}
+
+var t0 = DateTime.Now;
+await SetSchedule(t0.AddMinutes(-14), t0.AddMinutes(45));
+await Check("Valid QR, enrolled student, 14 minutes after start", true, "PRESENT", "valid-1");
+await Check("Same QR scanned again immediately", false, null, "valid-1");
+await Check("Unknown QR token", false, null, "unknown-token");
+await Check("Expired QR token", false, null, "expired-qr");
+await Check("Revoked QR token", false, null, "revoked-qr");
+await Check("Room QR passed to the student scanner", false, null, "room-token");
+await Check("Empty QR input", false, null, "");
+await Check("Valid QR for a student not enrolled in the section", false, null, "not-enrolled");
+
+var t1 = DateTime.Now;
+await SetSchedule(t1.AddMinutes(-14).AddSeconds(-59), t1.AddMinutes(45));
+await Check("Boundary: 14 min 59 s after start (inside 15 min grace)", true, "PRESENT", "valid-2");
+
+var t2 = DateTime.Now;
+await SetSchedule(t2.AddMinutes(-15).AddSeconds(-1), t2.AddMinutes(45));
+await Check("Boundary: 15 min 01 s after start (grace exceeded)", true, "LATE", "valid-3");
+
+var t3 = DateTime.Now;
+await SetSchedule(t3.AddMinutes(-16), t3.AddMinutes(45));
+await Check("16 minutes after start", true, "LATE", "valid-4");
+
+var t4 = DateTime.Now;
+await SetSchedule(t4.AddHours(1), t4.AddHours(2));
+await Check("Scan one hour before the scheduled start", false, null, "valid-5");
+
+await using (var db = memoryFactory.CreateDbContext())
+{
+    var record = await db.AttendanceRecords.SingleAsync(r => r.StudentId == 1);
+    record.CreatedAt = DateTime.UtcNow.AddMinutes(-3);
+    await db.SaveChangesAsync();
+}
+await Check("Repeat scan more than 2 minutes after the first record", false, null, "valid-1");
+
+await using (var db = memoryFactory.CreateDbContext())
+{
+    var session = await db.AttendanceSessions.SingleAsync(s => s.Id == SessionId);
+    session.Status = "ENDED";
+    await db.SaveChangesAsync();
+}
+await Check("Scan after the session has ended", false, null, "valid-6");
+
+int scanPass = checks.Count(c => c.Passed);
+int scanFail = checks.Count - scanPass;
+Out($"SCAN_TOTAL|{checks.Count}|PASS={scanPass}|FAIL={scanFail}");
+
+// ─────────────────────────── Snapshot of stored records ───────────────────────────
+await using (var db = memoryFactory.CreateDbContext())
+{
+    var total = await db.AttendanceRecords.CountAsync();
+    var perStudent1 = await db.AttendanceRecords.CountAsync(r => r.StudentId == 1);
+    Out($"RECORDS|total={total}|student1={perStudent1}");
+    foreach (var group in await db.AttendanceRecords.GroupBy(r => r.StudentId).Select(g => new { g.Key, Count = g.Count(), Statuses = string.Join(",", g.Select(x => x.Status)) }).ToListAsync())
+        Out($"RECORDS_BY_STUDENT|{group.Key}|count={group.Count}|statuses={group.Statuses}");
+}
+
+// ─────────────────────────── Report date control ───────────────────────────
+var utcDate = DateOnly.FromDateTime(sessionInstant);
+var localDate = DateOnly.FromDateTime(sessionInstant.ToLocalTime());
+var reportService = new ReportService(memoryFactory);
+var localReport = await reportService.GetReportAsync(localDate, localDate);
+var utcReport = await reportService.GetReportAsync(utcDate, utcDate);
+Out($"DATES|sessionUtc={sessionInstant:yyyy-MM-dd HH:mm}|utcDate={utcDate}|localDate={localDate}" +
+    $"|machineLocal={DateOnly.FromDateTime(DateTime.Now)}|machineUtc={DateOnly.FromDateTime(DateTime.UtcNow)}|tz={TimeZoneInfo.Local.Id}");
+Out($"REPORT_LOCAL|sessions={localReport.Summary.TotalSessions}|records={localReport.Summary.TotalRecords}" +
+    $"|present={localReport.Summary.PresentCount}|late={localReport.Summary.LateCount}");
+Out($"REPORT_UTC|sessions={utcReport.Summary.TotalSessions}|records={utcReport.Summary.TotalRecords}" +
+    $"|present={utcReport.Summary.PresentCount}|late={utcReport.Summary.LateCount}");
+
+// ─────────────────────────── Login (black box) ───────────────────────────
+var userService = new UserService(memoryFactory, new TestAudit(), NullLogger<UserService>.Instance);
+var authService = new AuthService(userService, new TestAudit(), NullLogger<AuthService>.Instance);
+var loginChecks = new List<LoginCheck>();
+
+async Task Login(string name, bool expected, string username, string password)
+{
+    var response = await authService.LoginAsync(new LoginRequest { Username = username, Password = password });
+    loginChecks.Add(new LoginCheck(name, expected, response));
+    Out($"LOGIN|{name}|expected={expected}|actual={response.Success}|message={response.Message ?? "-"}");
+}
+
+await Login("Valid username and password", true, "teacher1", "Passw0rd!");
+await Login("Valid username, wrong password", false, "teacher1", "wrong-password");
+await Login("Unknown username", false, "no-such-user", "Passw0rd!");
+await Login("Locked account", false, "locked1", "Passw0rd!");
+await Login("Inactive account", false, "inactive1", "Passw0rd!");
+await Login("Account with login disabled", false, "disabled1", "Passw0rd!");
+
+int loginPass = loginChecks.Count(c => c.Passed);
+Out($"LOGIN_TOTAL|{loginChecks.Count}|PASS={loginPass}|FAIL={loginChecks.Count - loginPass}");
+
+// ─────────────────────────── Single-user response time ───────────────────────────
+await using (var db = memoryFactory.CreateDbContext())
+{
+    var session = await db.AttendanceSessions.SingleAsync(s => s.Id == SessionId);
+    session.Status = "ACTIVE";
+    await db.SaveChangesAsync();
+}
+
+var scanLatency = new List<double>();
+var reportLatency = new List<double>();
+for (var i = 0; i < 50; i++)
+{
+    await using (var db = memoryFactory.CreateDbContext())
+    {
+        var existing = await db.AttendanceRecords.Where(r => r.StudentId == 6).ToListAsync();
+        db.AttendanceRecords.RemoveRange(existing);
+        await db.SaveChangesAsync();
+    }
+
+    var sw = Stopwatch.StartNew();
+    await scanner.ScanStudentQrAsync(SessionId, 1, "valid-6");
+    sw.Stop();
+    scanLatency.Add(sw.Elapsed.TotalMilliseconds);
+
+    sw.Restart();
+    await reportService.GetReportAsync(utcDate, utcDate);
+    sw.Stop();
+    reportLatency.Add(sw.Elapsed.TotalMilliseconds);
+}
+Out($"LATENCY|scan|n=50|avg={scanLatency.Average():F1}|p50={Percentile(scanLatency, 50):F1}" +
+    $"|p95={Percentile(scanLatency, 95):F1}|max={scanLatency.Max():F1}");
+Out($"LATENCY|report|n=50|avg={reportLatency.Average():F1}|p50={Percentile(reportLatency, 50):F1}" +
+    $"|p95={Percentile(reportLatency, 95):F1}|max={reportLatency.Max():F1}");
+
+// ─────────────────────────── 5-6. Load and stress (file database, WAL) ───────────────────────────
+var workDir = Path.Combine(Path.GetTempPath(), "eduattend_technical_testing");
+Directory.CreateDirectory(workDir);
+
+foreach (var concurrency in new[] { 50, 100, 200, 500 })
+{
+    var dbPath = Path.Combine(workDir, $"load_{concurrency}.db");
+    var result = await RunConcurrencyLevel(concurrency, dbPath);
+    Out($"CONCURRENCY|{concurrency}|ok={result.Success}|failed={result.Failed}" +
+        $"|wallMs={result.WallMs}|avgMs={result.AvgMs:F1}|p95Ms={result.P95Ms:F1}|maxMs={result.MaxMs:F1}" +
+        $"|throughput={result.Throughput:F1}|errors={result.ErrorSummary}");
+}
+
+// ─────────────────────────── 9. Recovery ───────────────────────────
+await RunRecovery(workDir);
+
+try
+{
+    SqliteConnection.ClearAllPools();
+    foreach (var file in Directory.EnumerateFiles(workDir, "load_*.db*"))
+        File.Delete(file);
+    foreach (var file in Directory.EnumerateFiles(workDir, "recovery*.db*"))
+        File.Delete(file);
+}
+catch (Exception ex)
+{
+    Out($"CLEANUP|warning={ex.GetType().Name}");
+}
+
+Out("DONE|1");
+return;
+
+// ───────────────────────────── helpers ─────────────────────────────
+
+static IDbContextFactory<SchoolDbContext> MakeSharedConnectionFactory(DbConnection connection)
+{
+    var options = new DbContextOptionsBuilder<SchoolDbContext>().UseSqlite(connection).Options;
+    return new TestFactory(options);
+}
+
+static IDbContextFactory<SchoolDbContext> MakeFactory(string connectionString)
+{
+    var options = new DbContextOptionsBuilder<SchoolDbContext>().UseSqlite(connectionString).Options;
+    return new TestFactory(options);
+}
+
+static string ProbeResource(Type type)
+{
+    try
+    {
+        var value = new ResourceManager(type).GetString("Auth_InvalidCredentials");
+        return value is null ? "<null>" : value;
+    }
+    catch (Exception ex)
+    {
+        return $"ERROR {ex.GetType().Name}: {ex.Message}";
+    }
+}
+
+static double Percentile(List<double> values, int percentile)
+{
+    var sorted = values.OrderBy(v => v).ToList();
+    var index = (int)Math.Ceiling(percentile / 100.0 * sorted.Count) - 1;
+    return sorted[Math.Clamp(index, 0, sorted.Count - 1)];
+}
+
+static void Out(string line)
+{
+    Console.WriteLine(line);
+}
+
+static async Task<ConcurrencyResult> RunConcurrencyLevel(int concurrency, string dbPath)
+{
+    DeleteDb(dbPath);
+    var connectionString = $"Data Source={dbPath};Foreign Keys=False";
+
+    await using (var bootstrap = new SqliteConnection(connectionString))
+    {
+        await bootstrap.OpenAsync();
+        await using var command = bootstrap.CreateCommand();
+        command.CommandText = "PRAGMA journal_mode=WAL;";
+        await command.ExecuteNonQueryAsync();
+    }
+
+    var factory = MakeFactory(connectionString);
+    await using (var db = factory.CreateDbContext())
+    {
+        await db.Database.EnsureCreatedAsync();
+        db.SchoolYears.Add(new SchoolYear { Id = 1, Name = "Test Year", Status = "ACTIVE" });
+        db.ClassOfferings.Add(new ClassOffering { Id = 1, SchoolYearId = 1, SectionId = 1, Status = "ACTIVE" });
+        db.AttendanceSessions.Add(new AttendanceSession
+        {
+            Id = 1,
+            ClassOfferingId = 1,
+            SessionDate = DateTime.UtcNow,
+            Status = "ACTIVE",
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        });
+        db.ClassSchedules.Add(new ClassSchedule
+        {
+            Id = 1,
+            ClassOfferingId = 1,
+            DayOfWeek = (byte)(((int)DateTime.Now.DayOfWeek + 6) % 7 + 1),
+            StartTime = TimeOnly.FromDateTime(DateTime.Now.AddMinutes(-14)),
+            EndTime = TimeOnly.FromDateTime(DateTime.Now.AddMinutes(45))
+        });
+
+        for (var i = 1; i <= concurrency; i++)
+        {
+            db.Students.Add(new Student
+            {
+                Id = i,
+                UserId = i,
+                Lrn = $"LRN{i}",
+                StudentNumber = $"S{i}",
+                FirstName = $"Student{i}",
+                LastName = "Load",
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            });
+            db.Enrollments.Add(new Enrollment { Id = i, StudentId = i, SchoolYearId = 1, SectionId = 1, Status = "ACTIVE" });
+            db.QrTokens.Add(new QrToken
+            {
+                Id = i,
+                Token = $"load-{i}",
+                ModelType = QrTokenModelType.STUDENT,
+                ModelId = i,
+                ExpiresAt = DateTime.UtcNow.AddHours(1)
+            });
+        }
+        await db.SaveChangesAsync();
+    }
+
+    var service = new TeacherSessionService(factory, new TestAudit());
+    var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+    var tasks = new List<Task<(bool Success, long Ms, string Error)>>(concurrency);
+
+    for (var i = 1; i <= concurrency; i++)
+    {
+        var student = i;
+        tasks.Add(Task.Run(async () =>
+        {
+            await gate.Task;
+            var sw = Stopwatch.StartNew();
+            try
+            {
+                var result = await service.ScanStudentQrAsync(1, 1, $"load-{student}");
+                sw.Stop();
+                return (result.Success, sw.ElapsedMilliseconds, result.Success ? "" : result.Message);
+            }
+            catch (Exception ex)
+            {
+                sw.Stop();
+                return (false, sw.ElapsedMilliseconds, $"{ex.GetType().Name}: {ex.Message}");
+            }
+        }));
+    }
+
+    var wall = Stopwatch.StartNew();
+    gate.SetResult();
+    var outcomes = await Task.WhenAll(tasks);
+    wall.Stop();
+
+    await using (var db = factory.CreateDbContext())
+    {
+        var stored = await db.AttendanceRecords.CountAsync();
+        Out($"CONCURRENCY_RECORDS|{concurrency}|stored={stored}");
+    }
+
+    SqliteConnection.ClearAllPools();
+
+    var durations = outcomes.Select(o => (double)o.Ms).ToList();
+    var errors = outcomes.Where(o => !o.Success)
+        .GroupBy(o => o.Error)
+        .Select(g => $"{g.Count()}x {Truncate(g.Key, 90)}")
+        .ToList();
+
+    return new ConcurrencyResult
+    {
+        Success = outcomes.Count(o => o.Success),
+        Failed = outcomes.Count(o => !o.Success),
+        WallMs = wall.ElapsedMilliseconds,
+        AvgMs = durations.Average(),
+        P95Ms = Percentile(durations, 95),
+        MaxMs = durations.Max(),
+        Throughput = outcomes.Length / (wall.Elapsed.TotalMilliseconds / 1000.0),
+        ErrorSummary = errors.Count == 0 ? "none" : string.Join(" ; ", errors)
+    };
+}
+
+static async Task RunRecovery(string workDir)
+{
+    var dbPath = Path.Combine(workDir, "recovery.db");
+    DeleteDb(dbPath);
+    var connectionString = $"Data Source={dbPath};Foreign Keys=False";
+    var factory = MakeFactory(connectionString);
+
+    await using (var db = factory.CreateDbContext())
+    {
+        await db.Database.EnsureCreatedAsync();
+        db.SchoolYears.Add(new SchoolYear { Id = 1, Name = "Test Year", Status = "ACTIVE" });
+        db.ClassOfferings.Add(new ClassOffering { Id = 1, SchoolYearId = 1, SectionId = 1, Status = "ACTIVE" });
+        db.AttendanceSessions.Add(new AttendanceSession
+        {
+            Id = 1,
+            ClassOfferingId = 1,
+            SessionDate = DateTime.UtcNow,
+            Status = "ACTIVE",
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        });
+        db.ClassSchedules.Add(new ClassSchedule
+        {
+            Id = 1,
+            ClassOfferingId = 1,
+            DayOfWeek = (byte)(((int)DateTime.Now.DayOfWeek + 6) % 7 + 1),
+            StartTime = TimeOnly.FromDateTime(DateTime.Now.AddMinutes(-14)),
+            EndTime = TimeOnly.FromDateTime(DateTime.Now.AddMinutes(45))
+        });
+        for (var i = 1; i <= 3; i++)
+        {
+            db.Students.Add(new Student
+            {
+                Id = i,
+                UserId = i,
+                Lrn = $"LRN{i}",
+                StudentNumber = $"S{i}",
+                FirstName = $"Student{i}",
+                LastName = "Recovery",
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            });
+            db.Enrollments.Add(new Enrollment { Id = i, StudentId = i, SchoolYearId = 1, SectionId = 1, Status = "ACTIVE" });
+            db.QrTokens.Add(new QrToken
+            {
+                Id = i,
+                Token = $"rec-{i}",
+                ModelType = QrTokenModelType.STUDENT,
+                ModelId = i,
+                ExpiresAt = DateTime.UtcNow.AddHours(1)
+            });
+        }
+        await db.SaveChangesAsync();
+    }
+
+    var scanner = new TeacherSessionService(factory, new TestAudit());
+
+    // Recovery 1: committed records survive a full close of every pooled connection.
+    for (var i = 1; i <= 3; i++)
+        await scanner.ScanStudentQrAsync(1, 1, $"rec-{i}");
+    int beforeRestart = 0;
+    await using (var db = factory.CreateDbContext())
+        beforeRestart = await db.AttendanceRecords.CountAsync();
+
+    SqliteConnection.ClearAllPools();
+
+    int afterRestart;
+    await using (var db = factory.CreateDbContext())
+        afterRestart = await db.AttendanceRecords.CountAsync();
+    Out($"RECOVERY|restart|expected={beforeRestart}|actual={afterRestart}" +
+        $"|result={(afterRestart == beforeRestart ? "recovered" : "data lost")}");
+
+    // Recovery 2: an interrupted transaction must leave no partial row.
+    await using (var db = factory.CreateDbContext())
+    {
+        await db.Database.BeginTransactionAsync();
+        db.AttendanceRecords.Add(new AttendanceRecord
+        {
+            AttendanceSessionId = 1,
+            StudentId = 99,
+            MarkedByUserId = 1,
+            Status = "PRESENT",
+            Hash = "interrupted",
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        });
+        await db.SaveChangesAsync();
+        // Simulated interruption: the context is torn down before COMMIT.
+    }
+
+    int afterInterrupt;
+    await using (var db = factory.CreateDbContext())
+        afterInterrupt = await db.AttendanceRecords.CountAsync();
+    Out($"RECOVERY|interrupted-transaction|expected={beforeRestart}|actual={afterInterrupt}" +
+        $"|result={(afterInterrupt == beforeRestart ? "rolled back cleanly" : "partial row persisted")}");
+
+    // Recovery 3: normal operation resumes after every database handle is released.
+    var resumeReport = await new ReportService(factory).GetReportAsync();
+    ScanResult resume;
+    try
+    {
+        resume = await scanner.ScanStudentQrAsync(1, 1, "rec-1");
+        Out($"RECOVERY|resume-after-release|read=ok|sessions={resumeReport.Summary.TotalSessions}" +
+            $"|scanResponded=yes|scanSuccess={resume.Success}|scanMessage={resume.Message}");
+    }
+    catch (Exception ex)
+    {
+        Out($"RECOVERY|resume-after-release|read={(resumeReport.Summary.TotalSessions >= 0 ? "ok" : "failed")}" +
+            $"|scanResponded=no|error={ex.GetType().Name}: {ex.Message}");
+    }
+
+    int afterResume;
+    await using (var db = factory.CreateDbContext())
+        afterResume = await db.AttendanceRecords.CountAsync();
+    Out($"RECOVERY|final-record-count|expected={beforeRestart}|actual={afterResume}");
+
+    SqliteConnection.ClearAllPools();
+}
+
+static void DeleteDb(string path)
+{
+    SqliteConnection.ClearAllPools();
+    foreach (var suffix in new[] { "", "-wal", "-shm" })
+    {
+        var file = path + suffix;
+        if (File.Exists(file))
+            File.Delete(file);
+    }
+}
+
+static string Truncate(string value, int max) =>
+    value.Length <= max ? value : value[..max] + "...";
+
+sealed record ScanCheck(string Name, bool ExpectedSuccess, string? ExpectedStatus, ScanResult Actual)
+{
+    public bool Passed =>
+        Actual.Success == ExpectedSuccess &&
+        (ExpectedStatus is null || Actual.Status == ExpectedStatus);
+}
+
+sealed record LoginCheck(string Name, bool Expected, LoginResponse Actual)
+{
+    public bool Passed => Actual.Success == Expected;
+}
+
+sealed class ConcurrencyResult
+{
+    public int Success { get; init; }
+    public int Failed { get; init; }
+    public long WallMs { get; init; }
+    public double AvgMs { get; init; }
+    public double P95Ms { get; init; }
+    public double MaxMs { get; init; }
+    public double Throughput { get; init; }
+    public string ErrorSummary { get; init; } = "";
+}
+
+sealed class TestFactory(DbContextOptions<SchoolDbContext> options) : IDbContextFactory<SchoolDbContext>
+{
+    public SchoolDbContext CreateDbContext() => new(options);
+}
+
+sealed class TestAudit : IAuditService
+{
+    public Task LogAsync(long actorId, string actorName, string actorRole, string action, string entityType, long? entityId, string summary, string? metadata = null, CancellationToken ct = default) => Task.CompletedTask;
+    public Task<AuditLogResult> QueryAsync(AuditLogQuery query, CancellationToken ct = default) => Task.FromResult(new AuditLogResult());
+    public Task<int> GetTodayCountAsync(CancellationToken ct = default) => Task.FromResult(0);
+    public Task<List<AuditActionStats>> GetActionBreakdownAsync(CancellationToken ct = default) => Task.FromResult(new List<AuditActionStats>());
+}

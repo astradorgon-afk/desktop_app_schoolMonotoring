@@ -59,7 +59,7 @@ else
     <div class="students-toolbar">
         <div class="search-wrapper">
             <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-            <input class="search-input" placeholder="Search by actor name…" @bind="_searchQuery" @bind:after="OnFilterChanged" />
+            <input class="search-input" aria-label="Search by actor name" placeholder="Search by actor name…" @bind="_searchQuery" @bind:after="OnFilterChanged" />
         </div>
         <input class="filter-select audit-date-input" type="date" @bind="@_dateFromValue" @bind:after="OnFilterChanged" />
         <input class="filter-select audit-date-input" type="date" @bind="@_dateToValue" @bind:after="OnFilterChanged" />
@@ -147,8 +147,7 @@ else
 @* ── Detail Modal ── *@
 @if (_detailEntry is not null)
 {
-    <div class="modal-overlay" @onclick="CloseDetail">
-        <div class="modal-content modal-content--wide" @onclick:stopPropagation>
+    <Modal Title="Audit Entry Detail" ContentClass="modal-content--wide" OnClose="CloseDetail">
             <div class="modal-header">
                 <h3>Audit Entry Detail</h3>
                 <button class="modal-close" @onclick="CloseDetail">
@@ -158,33 +157,33 @@ else
             <div class="modal-body">
                 <div class="detail-grid">
                     <div class="detail-field">
-                        <label>Timestamp</label>
+                        <span class="detail-label">Timestamp</span>
                         <span>@_detailEntry.CreatedAt.ToLocalTime().ToString("MMM dd, yyyy h:mm:ss tt")</span>
                     </div>
                     <div class="detail-field">
-                        <label>Actor</label>
+                        <span class="detail-label">Actor</span>
                         <span>@_detailEntry.ActorName <span class="role-badge @GetRoleBadgeClass(_detailEntry.ActorRole)">@_detailEntry.ActorRole</span></span>
                     </div>
                     <div class="detail-field">
-                        <label>Actor ID</label>
+                        <span class="detail-label">Actor ID</span>
                         <span>@_detailEntry.ActorId</span>
                     </div>
                     <div class="detail-field">
-                        <label>Action</label>
+                        <span class="detail-label">Action</span>
                         <span><span class="audit-action-badge @GetActionBadgeClass(_detailEntry.Action)">@FormatAction(_detailEntry.Action)</span></span>
                     </div>
                     <div class="detail-field">
-                        <label>Entity</label>
+                        <span class="detail-label">Entity</span>
                         <span>@_detailEntry.EntityType@(_detailEntry.EntityId.HasValue ? $" #{_detailEntry.EntityId}" : "")</span>
                     </div>
                     <div class="detail-field detail-field--full">
-                        <label>Summary</label>
+                        <span class="detail-label">Summary</span>
                         <span>@_detailEntry.Summary</span>
                     </div>
                     @if (!string.IsNullOrEmpty(_detailEntry.Metadata))
                     {
                         <div class="detail-field detail-field--full">
-                            <label>Metadata</label>
+                            <span class="detail-label">Metadata</span>
                             <pre class="audit-metadata">@_detailEntry.Metadata</pre>
                         </div>
                     }
@@ -193,8 +192,7 @@ else
             <div class="modal-footer">
                 <button class="btn btn-ghost" @onclick="CloseDetail">Close</button>
             </div>
-        </div>
-    </div>
+    </Modal>
 }
 
 @code {

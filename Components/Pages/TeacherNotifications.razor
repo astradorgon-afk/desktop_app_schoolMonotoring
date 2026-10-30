@@ -45,7 +45,7 @@ else
             {
                 <div style="display:flex;align-items:flex-start;gap:14px;padding:16px 20px;background:var(--clr-surface);border:1px solid var(--clr-border);border-radius:12px;box-shadow:var(--shadow-card);">
                     <div style="width:36px;height:36px;border-radius:50%;background:@n.IconBg;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="@n.IconColor" stroke-width="2">@n.IconPath</svg>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="@n.IconColor" stroke-width="2">@((MarkupString)n.IconPath)</svg>
                     </div>
                     <div style="flex:1;min-width:0;">
                         <div style="font-size:14px;font-weight:600;color:var(--clr-text);">@n.Title</div>
@@ -137,8 +137,20 @@ else
                         Body = $"Status: {h.Status}",
                         Time = h.Date.ToLocalTime().ToString("MMM dd, yyyy · h:mm tt"),
                         Read = true,
-                        IconBg = h.Status == "PRESENT" ? "rgba(34,197,94,0.12)" : "rgba(239,68,68,0.12)",
-                        IconColor = h.Status == "PRESENT" ? "rgb(34,197,94)" : "rgb(239,68,68)",
+                        IconBg = h.Status switch
+                        {
+                            "PRESENT" => "rgba(34,197,94,0.12)",
+                            "LATE" => "rgba(234,179,8,0.12)",
+                            "EXCUSED" => "rgba(59,130,246,0.12)",
+                            _ => "rgba(239,68,68,0.12)"
+                        },
+                        IconColor = h.Status switch
+                        {
+                            "PRESENT" => "rgb(34,197,94)",
+                            "LATE" => "rgb(202,138,4)",
+                            "EXCUSED" => "rgb(59,130,246)",
+                            _ => "rgb(239,68,68)"
+                        },
                         IconPath = "<path d=\"M22 11.08V12a10 10 0 1 1-5.93-9.14\"/><polyline points=\"22 4 12 14.01 9 11.01\"/>"
                     });
                 }

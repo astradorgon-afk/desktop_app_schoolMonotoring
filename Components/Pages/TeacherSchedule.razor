@@ -69,8 +69,7 @@ else
     @* ── Leave Request Modal ── *@
     @if (_showLeaveModal)
     {
-        <div class="modal-overlay" @onclick="CloseLeaveModal">
-            <div class="modal-content" style="max-width:500px;" @onclick:stopPropagation>
+        <Modal Title="@($"Request Leave — {_selectedDay}")" ContentStyle="max-width:500px;" OnClose="CloseLeaveModal">
                 <div class="modal-header">
                     <h3>Request Leave — @_selectedDay</h3>
                     <button type="button" class="modal-close" @onclick="CloseLeaveModal">
@@ -79,16 +78,16 @@ else
                 </div>
                 <div class="modal-body" style="align-items:stretch;">
                     <div class="form-group">
-                        <label class="form-label">Start Date</label>
-                        <input type="date" class="form-input" @bind="_leaveStartDate" @bind:after="PreviewLeaveSchedule" style="padding-left:16px;" />
+                        <label class="form-label" for="ts-leave-startdate">Start Date</label>
+                        <input id="ts-leave-startdate" type="date" class="form-input" @bind="_leaveStartDate" @bind:after="PreviewLeaveSchedule" style="padding-left:16px;" />
                     </div>
                     <div class="form-group">
-                        <label class="form-label">End Date</label>
-                        <input type="date" class="form-input" @bind="_leaveEndDate" @bind:after="PreviewLeaveSchedule" style="padding-left:16px;" />
+                        <label class="form-label" for="ts-leave-enddate">End Date</label>
+                        <input id="ts-leave-enddate" type="date" class="form-input" @bind="_leaveEndDate" @bind:after="PreviewLeaveSchedule" style="padding-left:16px;" />
                     </div>
                     <div class="form-group">
-                        <label class="form-label">Category</label>
-                        <select class="form-input" @bind="_leaveCategory" style="padding-left:16px;">
+                        <label class="form-label" for="ts-leave-category">Category</label>
+                        <select id="ts-leave-category" class="form-input" @bind="_leaveCategory" style="padding-left:16px;">
                             <option value="">Select category...</option>
                             @foreach (var cat in LeaveCategories.All)
                             {
@@ -97,14 +96,14 @@ else
                         </select>
                     </div>
                     <div class="form-group">
-                        <label class="form-label">Reason</label>
-                        <textarea class="form-input" @bind="_leaveReason" placeholder="Why are you requesting leave?" rows="3" style="padding-left:16px;resize:vertical;min-height:80px;"></textarea>
+                        <label class="form-label" for="ts-leave-reason">Reason</label>
+                        <textarea id="ts-leave-reason" class="form-input" @bind="_leaveReason" placeholder="Why are you requesting leave?" rows="3" style="padding-left:16px;resize:vertical;min-height:80px;"></textarea>
                     </div>
 
                     @if (_leaveAffectedSchedules.Count > 0)
                     {
                         <div style="margin-bottom:8px;">
-                            <label class="form-label" style="margin-bottom:8px;">Affected Classes (@_leaveAffectedSchedules.Count)</label>
+                            <span class="form-label" style="display:block;margin-bottom:8px;">Affected Classes (@_leaveAffectedSchedules.Count)</span>
                             <div class="leave-affected-list">
                                 @foreach (var s in _leaveAffectedSchedules)
                                 {
@@ -139,8 +138,7 @@ else
                         }
                     </button>
                 </div>
-            </div>
-        </div>
+        </Modal>
     }
 
     @* ── Weekly Timetable (CSS Grid) ── *@

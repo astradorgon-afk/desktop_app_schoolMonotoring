@@ -42,7 +42,7 @@ else
     <div class="students-toolbar">
         <div class="search-wrapper">
             <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-            <input type="text" class="search-input" placeholder="Search by name, LRN, or student number..." @bind="_searchTerm" @bind:after="ApplyFilter" />
+            <input type="text" class="search-input" aria-label="Search by name, LRN, or student number" placeholder="Search by name, LRN, or student number..." @bind="_searchTerm" @bind:after="ApplyFilter" />
         </div>
         <select class="filter-select" @bind="_sectionFilter" @bind:after="ApplyFilter">
             <option value="">All Sections</option>
@@ -133,8 +133,7 @@ else
 
 @if (_profileStudent is not null)
 {
-    <div class="modal-overlay" @onclick="CloseProfileModal">
-        <div class="modal-content modal-content--wide" @onclick:stopPropagation>
+    <Modal Title="Student Profile" ContentClass="modal-content--wide" OnClose="CloseProfileModal">
             <div class="modal-header">
                 <h3>Student Profile</h3>
                 <button class="modal-close" @onclick="CloseProfileModal">
@@ -242,8 +241,7 @@ else
             <div class="modal-footer">
                 <button class="action-btn" @onclick="CloseProfileModal">Close</button>
             </div>
-        </div>
-    </div>
+    </Modal>
 }
 
 @code {

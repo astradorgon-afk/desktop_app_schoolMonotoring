@@ -67,7 +67,7 @@ else
     <div class="students-toolbar">
         <div class="search-wrapper">
             <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-            <input class="search-input" placeholder="Search by name or username…" @bind="_searchQuery" @bind:after="ApplyFilters" />
+            <input class="search-input" aria-label="Search by name or username" placeholder="Search by name or username…" @bind="_searchQuery" @bind:after="ApplyFilters" />
         </div>
         <select class="filter-select" @bind="_roleFilter" @bind:after="ApplyFilters">
             <option value="">All Roles</option>
@@ -119,7 +119,7 @@ else
                                     </div>
                                 </div>
                             </td>
-                            <td style="font-size:13px;color:#64748b;">@user.Username</td>
+                            <td style="font-size:13px;color:var(--clr-text-secondary);">@user.Username</td>
                             <td>
                                 <span class="role-badge role-badge--@user.Role.ToString().ToLower()">@FormatRole(user.Role)</span>
                             </td>
@@ -136,25 +136,27 @@ else
                                     <span class="status-badge status-badge--inactive">Disabled</span>
                                 }
                             </td>
-                            <td style="font-size:13px;color:#64748b;">@user.CreatedAt.ToString("MMM dd, yyyy")</td>
+                            <td style="font-size:13px;color:var(--clr-text-secondary);">@user.CreatedAt.ToString("MMM dd, yyyy")</td>
                             <td class="col-actions">
-                                <button class="action-icon-btn" title="Edit account" @onclick="() => OpenEditModal(user)">
+                                <button class="action-icon-btn" title="Edit account" aria-label="Edit account" @onclick="() => OpenEditModal(user)">
                                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                                 </button>
-                                <button class="action-icon-btn" title="Reset password" @onclick="() => OpenResetModal(user)">
-                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                                <button class="action-icon-btn" title="Reset password" aria-label="Reset password" @onclick="() => OpenResetModal(user)">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21 2-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0 3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
                                 </button>
-                                <button class="action-icon-btn" title="@(user.Status == UserStatus.LOCKED ? "Unlock account" : "Lock account")" @onclick="() => ToggleLockAsync(user)">
-                                    @if (user.Status == UserStatus.LOCKED)
-                                    {
+                                @if (user.Status == UserStatus.LOCKED)
+                                {
+                                    <button class="action-icon-btn action-icon-btn--unlock" title="Unlock account" aria-label="Unlock account" @onclick="() => ToggleLockAsync(user)">
                                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>
-                                    }
-                                    else
-                                    {
-                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0"/></svg>
-                                    }
-                                </button>
-                                <button class="action-icon-btn action-icon-btn--danger" title="Delete account" @onclick="() => OpenDeleteModal(user)">
+                                    </button>
+                                }
+                                else
+                                {
+                                    <button class="action-icon-btn action-icon-btn--lock" title="Lock account" aria-label="Lock account" @onclick="() => ToggleLockAsync(user)">
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                                    </button>
+                                }
+                                <button class="action-icon-btn action-icon-btn--danger" title="Delete account" aria-label="Delete account" @onclick="() => OpenDeleteModal(user)">
                                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
                                 </button>
                             </td>
@@ -169,8 +171,7 @@ else
 @* ── Add / Edit Modal ── *@
 @if (_showAddEditModal)
 {
-    <div class="modal-overlay" @onclick:stopPropagation @onclick="() => _showAddEditModal = false">
-        <div class="modal-content" @onclick:stopPropagation>
+    <Modal Title="@(_editTarget is null ? "Add Account" : "Edit Account")" OnClose="() => _showAddEditModal = false">
             <div class="modal-header">
                 <h3>@(_editTarget is null ? "Add Account" : "Edit Account")</h3>
                 <button class="modal-close" @onclick="() => _showAddEditModal = false">
@@ -218,7 +219,7 @@ else
                                 }
                             </button>
                             <button class="btn btn-xs btn-ghost" @onclick="GeneratePassword" title="Generate strong password">
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21 2-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0 3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
                             </button>
                         </div>
                         @if (_passwordError is not null)
@@ -271,15 +272,13 @@ else
                     @(_editTarget is null ? "Create Account" : "Save Changes")
                 </button>
             </div>
-        </div>
-    </div>
+    </Modal>
 }
 
 @* ── Reset Password Modal ── *@
 @if (_showResetModal && _resetTarget is not null)
 {
-    <div class="modal-overlay" @onclick:stopPropagation @onclick="() => _showResetModal = false">
-        <div class="modal-content" style="max-width:400px;" @onclick:stopPropagation>
+    <Modal Title="Reset Password" ContentStyle="max-width:400px;" OnClose="() => _showResetModal = false">
             <div class="modal-header">
                 <h3>Reset Password</h3>
                 <button class="modal-close" @onclick="() => _showResetModal = false">
@@ -287,14 +286,14 @@ else
                 </button>
             </div>
             <div class="modal-body" style="gap:16px;align-items:stretch;">
-                <p style="font-size:14px;color:#475569;">
+                <p style="font-size:14px;color:var(--clr-text-secondary);">
                     Set a new password for <strong>@_resetTarget.Username</strong>.
                 </p>
 
                 <div class="form-group">
-                    <label class="form-label">New Password</label>
+                    <label class="form-label" for="acct-newpassword">New Password</label>
                     <div class="password-row">
-                        <input class="form-input-inner @(_resetPasswordError is not null ? "input-error" : "")"
+                        <input id="acct-newpassword" class="form-input-inner @(_resetPasswordError is not null ? "input-error" : "")"
                                type="@(_showResetPassword ? "text" : "password")" placeholder="Min 6 characters"
                                @bind="_resetPassword" />
                         <button class="btn btn-xs btn-ghost" @onclick="ToggleShowResetPassword" title="@(_showResetPassword ? "Hide password" : "Show password")">
@@ -308,7 +307,7 @@ else
                             }
                         </button>
                         <button class="btn btn-xs btn-ghost" @onclick="GenerateResetPassword" title="Generate strong password">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21 2-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0 3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
                         </button>
                     </div>
                     @if (_resetPasswordError is not null)
@@ -318,8 +317,8 @@ else
                 </div>
 
                 <div class="form-group">
-                    <label class="form-label">Confirm Password</label>
-                    <input class="form-input-inner @(_resetConfirmError is not null ? "input-error" : "")"
+                    <label class="form-label" for="acct-confirmpassword">Confirm Password</label>
+                    <input id="acct-confirmpassword" class="form-input-inner @(_resetConfirmError is not null ? "input-error" : "")"
                            type="@(_showResetPassword ? "text" : "password")" placeholder="Repeat the new password"
                            @bind="_resetConfirm" />
                     @if (_resetConfirmError is not null)
@@ -347,15 +346,13 @@ else
                     Reset Password
                 </button>
             </div>
-        </div>
-    </div>
+    </Modal>
 }
 
 @* ── Delete Confirmation Modal ── *@
 @if (_showDeleteModal && _deleteTarget is not null)
 {
-    <div class="modal-overlay" @onclick:stopPropagation @onclick="() => _showDeleteModal = false">
-        <div class="modal-content" style="max-width:400px;" @onclick:stopPropagation>
+    <Modal Title="Delete Account" ContentStyle="max-width:400px;" OnClose="() => _showDeleteModal = false">
             <div class="modal-header">
                 <h3 style="color:#ef4444;">Delete Account</h3>
                 <button class="modal-close" @onclick="() => _showDeleteModal = false">
@@ -363,11 +360,11 @@ else
                 </button>
             </div>
             <div class="modal-body" style="gap:12px;align-items:stretch;">
-                <div style="display:flex;align-items:center;gap:12px;padding:12px;background:#fef2f2;border-radius:10px;border:1px solid #fecaca;">
+                <div style="display:flex;align-items:center;gap:12px;padding:12px;background:var(--clr-danger-bg);border-radius:10px;border:1px solid var(--clr-danger-border);">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
                     <div>
-                        <p style="font-size:14px;font-weight:600;color:#991b1b;">Are you sure?</p>
-                        <p style="font-size:13px;color:#b91c1c;margin-top:2px;">
+                        <p style="font-size:14px;font-weight:600;color:var(--clr-danger-text);">Are you sure?</p>
+                        <p style="font-size:13px;color:var(--clr-danger-text-soft);margin-top:2px;">
                             This will permanently delete the account <strong>@_deleteTarget.Username</strong>. This action cannot be undone.
                         </p>
                     </div>
@@ -387,8 +384,7 @@ else
                     Delete Account
                 </button>
             </div>
-        </div>
-    </div>
+    </Modal>
 }
 
 @code {
@@ -664,7 +660,7 @@ else
             await UserService.ToggleLockAsync(user.Id);
             await LoadAsync();
         }
-        catch (Exception ex)
+        catch
         {
             // Ignore — refresh will show current state
             await LoadAsync();

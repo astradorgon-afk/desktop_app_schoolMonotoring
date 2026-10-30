@@ -1,0 +1,569 @@
+@page "/admin/export"
+@layout MainLayout
+@using AttendanceUI.Data.Entities
+@using AttendanceUI.Models.Auth
+@using AttendanceUI.Services
+@inject IExportService ExportService
+@inject ISf2ReportService Sf2Service
+@inject IAuthService AuthService
+@inject NavigationManager Navigation
+
+<PageHeader Title="Export Data" Subtitle="Export school records to CSV files">
+    <div class="header-actions">
+        <span class="header-date">@DateTime.Now.ToString("MMM dd, yyyy")</span>
+    </div>
+</PageHeader>
+
+@if (!_authorized)
+{
+    <div class="error-banner" style="margin: 0 32px 24px;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+        <span>You do not have permission to export records.</span>
+    </div>
+}
+else
+{
+    <div class="export-page">
+        <p class="export-intro">
+            Choose a record set to export. Files are saved to your <strong>Desktop</strong> as CSV,
+            which opens directly in Excel or Google Sheets.
+        </p>
+
+        @if (_message is not null)
+        {
+            <div class="success-banner" style="margin: 0 0 20px;">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                <span>@_message</span>
+            </div>
+        }
+        @if (_error is not null)
+        {
+            <div class="error-banner" style="margin: 0 0 20px;">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+                <span>@_error</span>
+            </div>
+        }
+
+        <div class="export-grid">
+            @* Students *@
+            <div class="export-card">
+                <div class="export-card-icon export-card-icon--green">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                </div>
+                <div class="export-card-body">
+                    <h3 class="export-card-title">Students</h3>
+                    <p class="export-card-desc">LRN, student number, personal &amp; guardian details, grade level and section.</p>
+                </div>
+                <button class="btn btn-primary export-card-btn" @onclick="() => OpenPreviewAsync(ExportDataset.Students)" disabled="@_busy">
+                    @if (_busyDataset == ExportDataset.Students) { <span class="spinner-sm"></span> }
+                    else
+                    {
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                    }
+                    <span>Preview &amp; Export</span>
+                </button>
+            </div>
+
+            @* Teachers *@
+            <div class="export-card">
+                <div class="export-card-icon export-card-icon--cyan">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg>
+                </div>
+                <div class="export-card-body">
+                    <h3 class="export-card-title">Teachers</h3>
+                    <p class="export-card-desc">Employee number, contact info, specialization and employment status.</p>
+                </div>
+                <button class="btn btn-primary export-card-btn" @onclick="() => OpenPreviewAsync(ExportDataset.Teachers)" disabled="@_busy">
+                    @if (_busyDataset == ExportDataset.Teachers) { <span class="spinner-sm"></span> }
+                    else
+                    {
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                    }
+                    <span>Preview &amp; Export</span>
+                </button>
+            </div>
+
+            @* Sections *@
+            <div class="export-card">
+                <div class="export-card-icon export-card-icon--orange">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg>
+                </div>
+                <div class="export-card-body">
+                    <h3 class="export-card-title">Sections</h3>
+                    <p class="export-card-desc">Section name, grade level, school year, adviser, capacity and enrolled count.</p>
+                </div>
+                <button class="btn btn-primary export-card-btn" @onclick="() => OpenPreviewAsync(ExportDataset.Sections)" disabled="@_busy">
+                    @if (_busyDataset == ExportDataset.Sections) { <span class="spinner-sm"></span> }
+                    else
+                    {
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                    }
+                    <span>Preview &amp; Export</span>
+                </button>
+            </div>
+
+            @* Teacher Sessions *@
+            <div class="export-card">
+                <div class="export-card-icon export-card-icon--cyan">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                </div>
+                <div class="export-card-body">
+                    <h3 class="export-card-title">Teacher Sessions</h3>
+                    <p class="export-card-desc">Each teacher's session history with the students marked present, late or absent in every session.</p>
+
+                    <div class="export-card-filter">
+                        <label class="export-card-filter-label" for="export-teacher-filter">Teacher</label>
+                        <select id="export-teacher-filter" class="filter-select export-card-filter-select"
+                                @bind="_sessionTeacherId" disabled="@_busy">
+                            <option value="0">All teachers</option>
+                            @foreach (var t in _teacherOptions)
+                            {
+                                <option value="@t.Id">@t.Name@(string.IsNullOrWhiteSpace(t.EmployeeNo) ? "" : $" · {t.EmployeeNo}")</option>
+                            }
+                        </select>
+                        @if (_teacherOptions.Count == 0)
+                        {
+                            <span class="export-card-filter-hint">No teachers are assigned to a class yet.</span>
+                        }
+                        else if (_sessionTeacherId != 0)
+                        {
+                            <span class="export-card-filter-hint">Only this teacher's records will be exported.</span>
+                        }
+                    </div>
+                </div>
+                <button class="btn btn-primary export-card-btn" @onclick="OpenTeacherSessionsPreviewAsync" disabled="@_busy">
+                    @if (_busyDataset == ExportDataset.TeacherSessions) { <span class="spinner-sm"></span> }
+                    else
+                    {
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                    }
+                    <span>Preview &amp; Export</span>
+                </button>
+            </div>
+
+            @* Student Attendance *@
+            <div class="export-card">
+                <div class="export-card-icon export-card-icon--green">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+                </div>
+                <div class="export-card-body">
+                    <h3 class="export-card-title">Student Attendance</h3>
+                    <p class="export-card-desc">Every attendance record per student — date, subject, teacher, and whether they were present, late or absent.</p>
+
+                    <div class="export-card-filter">
+                        <label class="export-card-filter-label" for="export-section-filter">Section</label>
+                        <select id="export-section-filter" class="filter-select export-card-filter-select"
+                                value="@_attendanceSectionId" @onchange="OnAttendanceSectionChangedAsync" disabled="@_busy">
+                            <option value="0">All sections</option>
+                            @foreach (var s in _sectionOptions)
+                            {
+                                <option value="@s.Id">@(string.IsNullOrWhiteSpace(s.GradeLevel) ? s.Name : $"{s.GradeLevel} — {s.Name}")</option>
+                            }
+                        </select>
+                    </div>
+
+                    <div class="export-card-filter">
+                        <label class="export-card-filter-label" for="export-student-filter">Student</label>
+                        <select id="export-student-filter" class="filter-select export-card-filter-select"
+                                @bind="_attendanceStudentId" disabled="@(_busy || _loadingStudents)">
+                            <option value="0">@(_attendanceSectionId == 0 ? "All students" : "All students in this section")</option>
+                            @foreach (var s in _studentOptions)
+                            {
+                                <option value="@s.Id">@s.Name@(string.IsNullOrWhiteSpace(s.Lrn) ? "" : $" · {s.Lrn}")</option>
+                            }
+                        </select>
+                        @if (_loadingStudents)
+                        {
+                            <span class="export-card-filter-hint">Loading students…</span>
+                        }
+                        else if (_studentOptions.Count == 0)
+                        {
+                            <span class="export-card-filter-hint">No students with attendance records here yet.</span>
+                        }
+                        else if (_attendanceStudentId != 0)
+                        {
+                            <span class="export-card-filter-hint">Only this student's records will be exported.</span>
+                        }
+                    </div>
+                </div>
+                <button class="btn btn-primary export-card-btn" @onclick="OpenStudentAttendancePreviewAsync" disabled="@_busy">
+                    @if (_busyDataset == ExportDataset.StudentAttendance) { <span class="spinner-sm"></span> }
+                    else
+                    {
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                    }
+                    <span>Preview &amp; Export</span>
+                </button>
+            </div>
+
+            @* SF2 monthly report *@
+            <div class="export-card">
+                <div class="export-card-icon export-card-icon--purple">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                </div>
+                <div class="export-card-body">
+                    <h3 class="export-card-title">SF2 Monthly Attendance</h3>
+                    <p class="export-card-desc">DepEd School Form 2 layout for one section and month: learners by sex, a column per class day, and absent/tardy totals.</p>
+
+                    <div class="export-card-filter">
+                        <label class="export-card-filter-label" for="sf2-section">Section</label>
+                        <select id="sf2-section" class="filter-select export-card-filter-select" @bind="_sf2SectionId" disabled="@_busy">
+                            <option value="0">Choose a section…</option>
+                            @foreach (var s in _sectionOptions)
+                            {
+                                <option value="@s.Id">@(string.IsNullOrWhiteSpace(s.GradeLevel) ? s.Name : $"{s.GradeLevel} — {s.Name}")</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="export-card-filter">
+                        <label class="export-card-filter-label" for="sf2-month">Month</label>
+                        <input id="sf2-month" type="month" class="filter-select export-card-filter-select" @bind="_sf2Month" @bind:format="yyyy-MM" disabled="@_busy" />
+                    </div>
+                </div>
+                <button class="btn btn-primary export-card-btn" @onclick="ExportSf2Async" disabled="@(_busy || _sf2SectionId == 0)">
+                    @if (_sf2Busy) { <span class="spinner-sm"></span> }
+                    else
+                    {
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                    }
+                    <span>Export SF2</span>
+                </button>
+            </div>
+
+            @* All *@
+            <div class="export-card export-card--all">
+                <div class="export-card-icon export-card-icon--purple">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16v16H4z" opacity="0"/><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><polyline points="9 15 12 18 15 15"/></svg>
+                </div>
+                <div class="export-card-body">
+                    <h3 class="export-card-title">Export All</h3>
+                    <p class="export-card-desc">Generate every file (students, teachers, sections, teacher sessions, and student attendance) at once.</p>
+                </div>
+                <button class="btn btn-primary export-card-btn" @onclick="OpenPreviewAllAsync" disabled="@_busy">
+                    @if (_busyAll) { <span class="spinner-sm"></span> }
+                    else
+                    {
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                    }
+                    <span>Preview &amp; Export All</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    @* ── Preview modal (one dataset, or all four behind tabs) ── *@
+    @if (_previews.Count > 0)
+    {
+        var active = _previews[Math.Clamp(_previewTab, 0, _previews.Count - 1)];
+        var totalRows = _previews.Sum(p => p.TotalRows);
+
+        <Modal Title="@(_previewIsAll ? "Preview — Export All" : $"Preview — {active.Title}")" ContentClass="export-preview-modal" OnClose="ClosePreview">
+                <div class="modal-header">
+                    <h3>@(_previewIsAll ? "Preview — Export All" : $"Preview — {active.Title}")</h3>
+                    <button class="modal-close" @onclick="ClosePreview" title="Close">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                    </button>
+                </div>
+
+                @if (_previews.Count > 1)
+                {
+                    <div class="export-preview-tabs">
+                        @for (var i = 0; i < _previews.Count; i++)
+                        {
+                            var idx = i;
+                            var p = _previews[i];
+                            <button type="button"
+                                    class="export-preview-tab @(idx == _previewTab ? "export-preview-tab--active" : "")"
+                                    @onclick="() => _previewTab = idx">
+                                <span>@p.Title</span>
+                                <span class="export-preview-tab-count">@p.TotalRows</span>
+                            </button>
+                        }
+                    </div>
+                }
+
+                <div class="modal-body" style="padding: 12px 24px 0;">
+                    <p class="export-preview-note">
+                        @if (active.TotalRows == 0)
+                        {
+                            <text>No records in this set.</text>
+                        }
+                        else if (active.TotalRows > active.Rows.Count)
+                        {
+                            <text>Showing the first @active.Rows.Count of @active.TotalRows rows — the CSV file will include all @active.TotalRows.</text>
+                        }
+                        else
+                        {
+                            <text>@active.TotalRows row@(active.TotalRows == 1 ? "" : "s").</text>
+                        }
+                    </p>
+                    <div class="export-preview-table-wrap">
+                        <table class="export-preview-table">
+                            <thead>
+                                <tr>
+                                    @foreach (var header in active.Headers)
+                                    {
+                                        <th>@header</th>
+                                    }
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var row in active.Rows)
+                                {
+                                    <tr>
+                                        @foreach (var cell in row)
+                                        {
+                                            <td>@cell</td>
+                                        }
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="export-preview-footer">
+                    <button class="btn btn-ghost" @onclick="ClosePreview" disabled="@_saving">Cancel</button>
+                    <button class="btn btn-primary" @onclick="ConfirmExportAsync" disabled="@(_saving || totalRows == 0)">
+                        @if (_saving)
+                        {
+                            <span class="spinner-sm"></span>
+                        }
+                        else
+                        {
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                        }
+                        <span>@(_previewIsAll ? $"Download {_previews.Count} CSVs" : "Download CSV")</span>
+                    </button>
+                </div>
+        </Modal>
+    }
+}
+
+@code {
+    private bool _authorized = true;
+    private bool _busy;
+    private bool _busyAll;
+    private ExportDataset? _busyDataset;
+    private string? _message;
+    private string? _error;
+
+    // Teacher-sessions filter. 0 means "all teachers".
+    private List<TeacherOption> _teacherOptions = [];
+    private long _sessionTeacherId;
+
+    // Student-attendance filters. 0 means "all"; the section narrows the student list.
+    private List<SectionOption> _sectionOptions = [];
+    private List<StudentOption> _studentOptions = [];
+    private long _attendanceSectionId;
+    private long _attendanceStudentId;
+    private bool _loadingStudents;
+
+    // Preview modal state. Holds one entry for a single dataset, or every dataset for
+    // "Export All", in which case the tab strip is shown.
+    private List<ExportPreview> _previews = [];
+    private int _previewTab;
+    private bool _previewIsAll;
+    private ExportDataset? _previewDataset;
+    private ExportOptions _previewOptions = ExportOptions.None;
+    private bool _saving;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var session = await AuthService.GetCurrentSessionAsync();
+        _authorized = session is not null && session.Role == UserRole.SUPERADMIN;
+
+        if (!_authorized) return;
+
+        try
+        {
+            _teacherOptions = [.. await ExportService.GetTeacherOptionsAsync()];
+            _sectionOptions = [.. await ExportService.GetSectionOptionsAsync()];
+            _studentOptions = [.. await ExportService.GetStudentOptionsAsync()];
+        }
+        catch (Exception ex)
+        {
+            _error = $"Could not load the export filters: {ex.Message}";
+        }
+    }
+
+    private Task OpenTeacherSessionsPreviewAsync() =>
+        OpenPreviewAsync(
+            ExportDataset.TeacherSessions,
+            _sessionTeacherId == 0 ? ExportOptions.None : new ExportOptions(TeacherId: _sessionTeacherId));
+
+    // Narrowing the section reloads the student list, so the two filters stay consistent.
+    private async Task OnAttendanceSectionChangedAsync(ChangeEventArgs e)
+    {
+        _attendanceSectionId = long.TryParse(e.Value?.ToString(), out var id) ? id : 0;
+        _attendanceStudentId = 0;
+        _loadingStudents = true;
+
+        try
+        {
+            _studentOptions =
+                [.. await ExportService.GetStudentOptionsAsync(_attendanceSectionId == 0 ? null : _attendanceSectionId)];
+        }
+        catch (Exception ex)
+        {
+            _error = $"Could not load the student list: {ex.Message}";
+            _studentOptions = [];
+        }
+        finally
+        {
+            _loadingStudents = false;
+        }
+    }
+
+    private Task OpenStudentAttendancePreviewAsync() =>
+        OpenPreviewAsync(
+            ExportDataset.StudentAttendance,
+            _attendanceSectionId == 0 && _attendanceStudentId == 0
+                ? ExportOptions.None
+                : new ExportOptions(
+                    SectionId: _attendanceSectionId == 0 ? null : _attendanceSectionId,
+                    StudentId: _attendanceStudentId == 0 ? null : _attendanceStudentId));
+
+    private async Task OpenPreviewAsync(ExportDataset dataset, ExportOptions? options = null)
+    {
+        if (_busy) return;
+
+        _busy = true;
+        _busyDataset = dataset;
+        _message = null;
+        _error = null;
+
+        try
+        {
+            var opts = options ?? ExportOptions.None;
+            _previews = [await ExportService.PreviewAsync(dataset, opts)];
+            _previewTab = 0;
+            _previewIsAll = false;
+            _previewDataset = dataset;
+            _previewOptions = opts;
+        }
+        catch (Exception ex)
+        {
+            _error = $"Preview failed: {ex.Message}";
+        }
+        finally
+        {
+            _busy = false;
+            _busyDataset = null;
+        }
+    }
+
+    private async Task OpenPreviewAllAsync()
+    {
+        if (_busy) return;
+
+        _busy = true;
+        _busyAll = true;
+        _message = null;
+        _error = null;
+
+        try
+        {
+            // "Export All" is deliberately unscoped — the teacher filter applies only to
+            // the standalone Teacher Sessions export.
+            _previews = [.. await ExportService.PreviewAllAsync(ExportOptions.None)];
+            _previewTab = 0;
+            _previewIsAll = true;
+            _previewDataset = null;
+            _previewOptions = ExportOptions.None;
+        }
+        catch (Exception ex)
+        {
+            _error = $"Preview failed: {ex.Message}";
+        }
+        finally
+        {
+            _busy = false;
+            _busyAll = false;
+        }
+    }
+
+    private void ClosePreview()
+    {
+        if (_saving) return;
+        _previews = [];
+        _previewTab = 0;
+        _previewIsAll = false;
+        _previewDataset = null;
+        _previewOptions = ExportOptions.None;
+    }
+
+    private async Task ConfirmExportAsync()
+    {
+        if (_saving || _previews.Count == 0) return;
+
+        _saving = true;
+        _error = null;
+
+        try
+        {
+            if (_previewIsAll)
+            {
+                var files = await ExportService.ExportAllAsync(_previewOptions);
+                var folder = Environment.GetFolderPath(Environment.SpecialFolder.Desktop);
+                foreach (var file in files)
+                    await SaveToDesktopAsync(file);
+
+                _message = $"Exported {files.Count} files to {folder}";
+            }
+            else if (_previewDataset is not null)
+            {
+                var file = await ExportService.ExportAsync(_previewDataset.Value, _previewOptions);
+                var path = await SaveToDesktopAsync(file);
+                _message = $"Exported to {path}";
+            }
+
+            _previews = [];
+            _previewTab = 0;
+            _previewIsAll = false;
+            _previewDataset = null;
+            _previewOptions = ExportOptions.None;
+        }
+        catch (Exception ex)
+        {
+            _error = $"Export failed: {ex.Message}";
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private long _sf2SectionId;
+    private DateTime _sf2Month = new(DateTime.Today.Year, DateTime.Today.Month, 1);
+    private bool _sf2Busy;
+
+    private async Task ExportSf2Async()
+    {
+        if (_sf2SectionId == 0 || _busy) return;
+        _busy = _sf2Busy = true;
+        _error = null;
+        _message = null;
+        try
+        {
+            var file = await Sf2Service.BuildAsync(_sf2SectionId, _sf2Month.Year, _sf2Month.Month);
+            var path = await SaveToDesktopAsync(file);
+            _message = $"Exported to {path}";
+        }
+        catch (Exception ex)
+        {
+            _error = $"SF2 export failed: {ex.Message}";
+        }
+        finally
+        {
+            _busy = _sf2Busy = false;
+        }
+    }
+
+    private static async Task<string> SaveToDesktopAsync(ExportFile file)
+    {
+        var folder = Environment.GetFolderPath(Environment.SpecialFolder.Desktop);
+        var path = Path.Combine(folder, file.FileName);
+        await File.WriteAllBytesAsync(path, file.Content);
+        return path;
+    }
+}

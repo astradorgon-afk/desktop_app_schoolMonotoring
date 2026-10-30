@@ -1,12 +1,14 @@
 ﻿@using AttendanceUI.Data.Entities
 @using AttendanceUI.Models.Auth
 @using AttendanceUI.Services
+@using Microsoft.AspNetCore.Components.Routing
 @using Microsoft.JSInterop
 @inject IAuthService AuthService
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
 
 @inherits LayoutComponentBase
+@implements IDisposable
 
 @if (_isReady)
 {
@@ -15,13 +17,19 @@
         <div class="admin-bg-blob" style="position:absolute;bottom:-15%;left:-5%;width:500px;height:500px;background:radial-gradient(circle,rgba(139,92,246,0.06) 0%,transparent 70%);border-radius:50%;pointer-events:none;z-index:0;"></div>
         <div class="admin-bg-blob" style="position:absolute;top:40%;left:50%;width:400px;height:400px;background:radial-gradient(circle,rgba(59,130,246,0.05) 0%,transparent 70%);border-radius:50%;pointer-events:none;z-index:0;"></div>
 
-        <aside class="admin-sidebar @(_collapsed ? "collapsed" : "")">
+        <aside class="admin-sidebar @(_collapsed ? "collapsed" : "") @(_navOpen ? "mobile-open" : "")">
             <NavMenu Collapsed="@_collapsed" OnToggle="ToggleSidebar" Role="@_currentSession?.Role" />
         </aside>
+
+        @* Backdrop for the mobile drawer. Hidden above the mobile breakpoint. *@
+        <div class="admin-scrim @(_navOpen ? "is-open" : "")" @onclick="CloseNav"></div>
 
         <div class="admin-main">
             <header class="admin-topbar">
                 <div class="topbar-left">
+                    <button class="topbar-menu-btn" @onclick="ToggleNav" aria-label="@(_navOpen ? "Close navigation" : "Open navigation")" aria-expanded="@_navOpen">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+                    </button>
                     <span class="topbar-breadcrumb">@(_isTeacher ? "Teacher Portal" : _isStudent ? "Student Portal" : "Attendance & Classroom Monitor")</span>
                 </div>
                 <div class="topbar-right">
@@ -50,6 +58,7 @@
 
 @code {
     private bool _collapsed;
+    private bool _navOpen;
     private UserSession? _currentSession;
     private bool _isReady;
     private bool _isTeacher;
@@ -72,6 +81,8 @@
         _isTeacher = _currentSession.Role == UserRole.TEACHER;
         _isStudent = _currentSession.Role == UserRole.STUDENT;
         _isReady = true;
+
+        Navigation.LocationChanged += OnLocationChanged;
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -85,6 +96,32 @@
     private void ToggleSidebar()
     {
         _collapsed = !_collapsed;
+    }
+
+    // ── Mobile drawer ──
+    // Below the mobile breakpoint the sidebar slides in over the content instead of
+    // taking a 260px column, which would leave ~150px for the page on a phone.
+
+    private void ToggleNav() => _navOpen = !_navOpen;
+
+    private void CloseNav() => _navOpen = false;
+
+    // Picking a destination should dismiss the drawer, otherwise it covers the page
+    // that was just navigated to.
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
+    {
+        if (!_navOpen)
+        {
+            return;
+        }
+
+        _navOpen = false;
+        InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        Navigation.LocationChanged -= OnLocationChanged;
     }
 
     private async Task ToggleTheme()

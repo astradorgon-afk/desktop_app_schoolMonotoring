@@ -35,6 +35,23 @@ public class AuditService : IAuditService
         await context.SaveChangesAsync(ct);
     }
 
+    public async Task<(int Count, DateTime? Oldest)> GetRecentLoginFailuresAsync(long userId, DateTime sinceUtc, CancellationToken ct = default)
+    {
+        await using var context = await _contextFactory.CreateDbContextAsync(ct);
+
+        var lastSuccess = await context.AuditLogs
+            .Where(a => a.Action == "Login" && a.EntityType == "User" && a.EntityId == userId && a.CreatedAt >= sinceUtc)
+            .MaxAsync(a => (DateTime?)a.CreatedAt, ct);
+        var from = lastSuccess is { } s && s > sinceUtc ? s : sinceUtc;
+
+        var failures = await context.AuditLogs
+            .Where(a => a.Action == "LoginFailed" && a.EntityType == "User" && a.EntityId == userId && a.CreatedAt > from)
+            .Select(a => a.CreatedAt)
+            .ToListAsync(ct);
+
+        return (failures.Count, failures.Count > 0 ? failures.Min() : null);
+    }
+
     public async Task<AuditLogResult> QueryAsync(AuditLogQuery query, CancellationToken ct = default)
     {
         await using var context = await _contextFactory.CreateDbContextAsync(ct);

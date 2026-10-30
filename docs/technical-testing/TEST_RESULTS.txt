@@ -1,0 +1,48 @@
+﻿RESOURCE|LogMessages|<null>
+RESOURCE|ErrorMessages|Invalid username or password. Please try again.
+SCAN|Valid QR, enrolled student, 14 minutes after start|expected=True|expectedStatus=PRESENT|actual=True|status=PRESENT|message=Test, Student1 marked PRESENT
+SCAN|Same QR scanned again immediately|expected=False|expectedStatus=-|actual=False|status=-|message=Already marked as PRESENT less than 2 minutes ago.
+SCAN|Unknown QR token|expected=False|expectedStatus=-|actual=False|status=-|message=Invalid or expired QR code.
+SCAN|Expired QR token|expected=False|expectedStatus=-|actual=False|status=-|message=Invalid or expired QR code.
+SCAN|Revoked QR token|expected=False|expectedStatus=-|actual=False|status=-|message=Invalid or expired QR code.
+SCAN|Room QR passed to the student scanner|expected=False|expectedStatus=-|actual=False|status=-|message=This is not a student QR code.
+SCAN|Empty QR input|expected=False|expectedStatus=-|actual=False|status=-|message=Invalid or expired QR code.
+SCAN|Valid QR for a student not enrolled in the section|expected=False|expectedStatus=-|actual=False|status=-|message=Student is not enrolled in this class section.
+SCAN|Boundary: 14 min 59 s after start (inside 15 min grace)|expected=True|expectedStatus=PRESENT|actual=True|status=PRESENT|message=Test, Student2 marked PRESENT
+SCAN|Boundary: 15 min 01 s after start (grace exceeded)|expected=True|expectedStatus=LATE|actual=True|status=LATE|message=Test, Student3 marked LATE
+SCAN|16 minutes after start|expected=True|expectedStatus=LATE|actual=True|status=LATE|message=Test, Student4 marked LATE
+SCAN|Scan one hour before the scheduled start|expected=False|expectedStatus=-|actual=True|status=PRESENT|message=Test, Student5 marked PRESENT
+SCAN|Repeat scan more than 2 minutes after the first record|expected=False|expectedStatus=-|actual=True|status=PRESENT|message=Test, Student1 marked PRESENT
+SCAN|Scan after the session has ended|expected=False|expectedStatus=-|actual=False|status=-|message=No active session.
+SCAN_TOTAL|14|PASS=12|FAIL=2
+RECORDS|total=6|student1=2
+RECORDS_BY_STUDENT|1|count=2|statuses=PRESENT,PRESENT
+RECORDS_BY_STUDENT|2|count=1|statuses=PRESENT
+RECORDS_BY_STUDENT|3|count=1|statuses=LATE
+RECORDS_BY_STUDENT|4|count=1|statuses=LATE
+RECORDS_BY_STUDENT|5|count=1|statuses=PRESENT
+DATES|sessionUtc=2026-10-07 23:00|utcDate=07/10/2026|localDate=08/10/2026|machineLocal=08/10/2026|machineUtc=07/10/2026|tz=Singapore Standard Time
+REPORT_LOCAL|sessions=0|records=0|present=0|late=0
+REPORT_UTC|sessions=1|records=6|present=4|late=2
+LOGIN|Valid username and password|expected=True|actual=True|message=-
+LOGIN|Valid username, wrong password|expected=False|actual=False|message=Invalid username or password. Please try again.
+LOGIN|Unknown username|expected=False|actual=False|message=Invalid username or password. Please try again.
+LOGIN|Locked account|expected=False|actual=False|message=Your account has been locked. Please contact an administrator.
+LOGIN|Inactive account|expected=False|actual=False|message=Your account is inactive. Please contact an administrator.
+LOGIN|Account with login disabled|expected=False|actual=False|message=Login is disabled for this account.
+LOGIN_TOTAL|6|PASS=6|FAIL=0
+LATENCY|scan|n=50|avg=5.7|p50=4.4|p95=12.7|max=29.2
+LATENCY|report|n=50|avg=4.2|p50=3.8|p95=7.5|max=9.2
+CONCURRENCY_RECORDS|50|stored=50
+CONCURRENCY|50|ok=50|failed=0|wallMs=885|avgMs=103.0|p95Ms=406.0|maxMs=639.0|throughput=56.5|errors=none
+CONCURRENCY_RECORDS|100|stored=100
+CONCURRENCY|100|ok=100|failed=0|wallMs=2066|avgMs=146.4|p95Ms=948.0|maxMs=2065.0|throughput=48.4|errors=none
+CONCURRENCY_RECORDS|200|stored=200
+CONCURRENCY|200|ok=200|failed=0|wallMs=2763|avgMs=103.3|p95Ms=636.0|maxMs=1897.0|throughput=72.4|errors=none
+CONCURRENCY_RECORDS|500|stored=500
+CONCURRENCY|500|ok=500|failed=0|wallMs=6223|avgMs=186.7|p95Ms=1114.0|maxMs=2881.0|throughput=80.3|errors=none
+RECOVERY|restart|expected=3|actual=3|result=recovered
+RECOVERY|interrupted-transaction|expected=3|actual=3|result=rolled back cleanly
+RECOVERY|resume-after-release|read=ok|sessions=1|scanResponded=yes|scanSuccess=False|scanMessage=Already marked as PRESENT less than 2 minutes ago.
+RECOVERY|final-record-count|expected=3|actual=3
+DONE|1

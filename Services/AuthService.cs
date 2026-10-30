@@ -18,6 +18,8 @@ public class AuthService : IAuthService
     private UserSession? _currentSession;
 
     private const string SessionPrefKey = "auth_session";
+    private const int MaxFailedAttempts = 5;
+    private static readonly TimeSpan LockoutWindow = TimeSpan.FromMinutes(15);
 
     public AuthService(IUserService userService, IAuditService auditService, ILogger<AuthService> logger)
     {
@@ -77,9 +79,27 @@ public class AuthService : IAuthService
                 _errorMessages.GetString("Auth_LoginDisabled") ?? "Login is disabled.");
         }
 
+        // Brute-force guard: too many wrong passwords in a short window blocks the account
+        // until the window passes. Temporary on purpose, so the only admin can't be locked out.
+        var windowStart = DateTime.UtcNow - LockoutWindow;
+        var (failures, oldest) = await _auditService.GetRecentLoginFailuresAsync(user.Id, windowStart, cancellationToken);
+        if (failures >= MaxFailedAttempts)
+        {
+            var retryIn = oldest is { } o ? o + LockoutWindow - DateTime.UtcNow : LockoutWindow;
+            var minutes = Math.Max(1, (int)Math.Ceiling(retryIn.TotalMinutes));
+            _logger.LogWarning(
+                _logMessages.GetString("Auth_LoginFailed") ?? "Login failed for user '{Username}'. Reason: {Reason}.",
+                request.Username, "Too many failed attempts");
+            return LoginResponse.Fail(
+                $"Too many failed sign-in attempts. Try again in {minutes} minute{(minutes == 1 ? "" : "s")}.");
+        }
+
         var isValid = await _userService.ValidateCredentialsAsync(request.Username, request.Password, cancellationToken);
         if (!isValid)
         {
+            await _auditService.LogAsync(user.Id, user.Username, user.Role.ToString(), "LoginFailed", "User", user.Id,
+                $"Failed sign-in attempt for '{user.Username}' ({failures + 1} of {MaxFailedAttempts}).", ct: cancellationToken);
+
             _logger.LogWarning(
                 _logMessages.GetString("Auth_LoginFailed") ?? "Login failed for user '{Username}'. Reason: {Reason}.",
                 request.Username, "Invalid credentials");

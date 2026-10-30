@@ -11,7 +11,9 @@ public class RoomStatusItem
 
     public long? OfferingId { get; init; }
     public string? SectionName { get; init; }
+    public long? TeacherId { get; init; }
     public string? TeacherName { get; init; }
+    public byte[]? TeacherPhoto { get; init; }
     public string? SubjectTitle { get; init; }
     public TimeOnly? StartTime { get; init; }
     public TimeOnly? EndTime { get; init; }

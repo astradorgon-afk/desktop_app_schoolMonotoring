@@ -5,7 +5,7 @@
 
 <PageHeader Title="Reports" Subtitle="Attendance analytics and section breakdowns">
     <div class="header-actions">
-        <button class="btn btn-primary" @onclick="ExportCsvAsync">
+        <button class="btn btn-primary" @onclick="OpenPreview" disabled="@(_data is null)">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
             <span>Export CSV</span>
         </button>
@@ -15,17 +15,25 @@
 @* ── Date Range ── *@
 <div class="reports-toolbar">
     <div class="report-date-group">
-        <label class="report-date-label">From</label>
-        <input type="date" class="report-date-input" @bind="_fromDate" @bind:after="LoadAsync" />
+        <label class="report-date-label" for="rpt-from">From</label>
+        <input id="rpt-from" type="date" class="report-date-input" @bind="_fromDate" @bind:after="LoadAsync" />
     </div>
     <div class="report-date-group">
-        <label class="report-date-label">To</label>
-        <input type="date" class="report-date-input" @bind="_toDate" @bind:after="LoadAsync" />
+        <label class="report-date-label" for="rpt-to">To</label>
+        <input id="rpt-to" type="date" class="report-date-input" @bind="_toDate" @bind:after="LoadAsync" />
     </div>
     <button class="btn btn-ghost" @onclick="ResetDatesAsync">
         <span>Reset</span>
     </button>
 </div>
+
+@if (_exportMessage is not null)
+{
+    <div class="success-banner" style="margin: 0 32px 20px;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+        <span>@_exportMessage</span>
+    </div>
+}
 
 @if (_loading)
 {
@@ -119,7 +127,7 @@ else if (_data is not null)
                         <tr>
                             <td><span class="report-section-name">@sec.SectionName</span></td>
                             <td style="text-align:center;">@sec.EnrolledStudents</td>
-                            <td style="text-align:center;color:#64748b;">@sec.TotalRecords</td>
+                            <td style="text-align:center;color:var(--clr-text-secondary);">@sec.TotalRecords</td>
                             <td style="text-align:center;"><span class="att-badge att-badge--present">@sec.PresentCount</span></td>
                             <td style="text-align:center;"><span class="att-badge att-badge--late">@sec.LateCount</span></td>
                             <td style="text-align:center;"><span class="att-badge att-badge--absent">@sec.AbsentCount</span></td>
@@ -161,7 +169,7 @@ else if (_data is not null)
                         @foreach (var day in _data.DailyTrend)
                         {
                             <tr>
-                                <td style="font-weight:600;color:#1e293b;">@day.Date.ToString("MMM dd, yyyy")</td>
+                                <td style="font-weight:600;color:var(--clr-text);">@day.Date.ToString("MMM dd, yyyy")</td>
                                 <td style="text-align:center;">@day.Sessions</td>
                                 <td style="text-align:center;"><span class="att-badge att-badge--present">@day.PresentCount</span></td>
                                 <td style="text-align:center;"><span class="att-badge att-badge--late">@day.LateCount</span></td>
@@ -191,11 +199,111 @@ else if (_data is not null)
     </div>
 }
 
+@* ── Export preview modal ── *@
+@if (_showPreview && _data is not null)
+{
+    <Modal Title="Preview — Attendance Report" ContentClass="export-preview-modal" OnClose="ClosePreview">
+            <div class="modal-header">
+                <h3>Preview — Attendance Report</h3>
+                <button class="modal-close" @onclick="ClosePreview" title="Close">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+            </div>
+            <div class="modal-body" style="padding: 12px 24px 0;">
+                <p class="export-preview-note">
+                    @_sectionRows.Count section@(_sectionRows.Count == 1 ? "" : "s") and @_dailyRows.Count day@(_dailyRows.Count == 1 ? "" : "s") of trend data — the CSV file includes both tables below.
+                </p>
+
+                <h4 class="export-preview-subhead">Attendance by Section</h4>
+                <div class="export-preview-table-wrap">
+                    <table class="export-preview-table">
+                        <thead>
+                            <tr>
+                                @foreach (var header in SectionHeaders)
+                                {
+                                    <th>@header</th>
+                                }
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (_sectionRows.Count == 0)
+                            {
+                                <tr><td colspan="@SectionHeaders.Length" style="text-align:center;color:var(--clr-text-secondary);">No section data.</td></tr>
+                            }
+                            @foreach (var row in _sectionRows)
+                            {
+                                <tr>
+                                    @foreach (var cell in row)
+                                    {
+                                        <td>@cell</td>
+                                    }
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+
+                <h4 class="export-preview-subhead">Daily Trend</h4>
+                <div class="export-preview-table-wrap">
+                    <table class="export-preview-table">
+                        <thead>
+                            <tr>
+                                @foreach (var header in DailyHeaders)
+                                {
+                                    <th>@header</th>
+                                }
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (_dailyRows.Count == 0)
+                            {
+                                <tr><td colspan="@DailyHeaders.Length" style="text-align:center;color:var(--clr-text-secondary);">No daily data.</td></tr>
+                            }
+                            @foreach (var row in _dailyRows)
+                            {
+                                <tr>
+                                    @foreach (var cell in row)
+                                    {
+                                        <td>@cell</td>
+                                    }
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="export-preview-footer">
+                <button class="btn btn-ghost" @onclick="ClosePreview" disabled="@_saving">Cancel</button>
+                <button class="btn btn-primary" @onclick="ConfirmExportAsync" disabled="@(_saving || (_sectionRows.Count == 0 && _dailyRows.Count == 0))">
+                    @if (_saving)
+                    {
+                        <span class="spinner-sm"></span>
+                    }
+                    else
+                    {
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                    }
+                    <span>Download CSV</span>
+                </button>
+            </div>
+    </Modal>
+}
+
 @code {
     private ReportData? _data;
     private bool _loading = true;
     private DateTime? _fromDate;
     private DateTime? _toDate;
+
+    // Export preview state. Rows are built once when the preview opens and shared by
+    // both the on-screen tables and the generated CSV, so the two can never drift apart.
+    private static readonly string[] SectionHeaders = { "Section", "Enrolled", "Records", "Present", "Late", "Absent", "Rate" };
+    private static readonly string[] DailyHeaders = { "Date", "Sessions", "Present", "Late", "Absent", "Present%" };
+    private List<string[]> _sectionRows = new();
+    private List<string[]> _dailyRows = new();
+    private bool _showPreview;
+    private bool _saving;
+    private string? _exportMessage;
 
     protected override async Task OnInitializedAsync()
     {
@@ -233,32 +341,87 @@ else if (_data is not null)
         await LoadAsync();
     }
 
-    private async Task ExportCsvAsync()
+    private void OpenPreview()
     {
         if (_data is null) return;
 
-        var lines = new List<string>
-        {
-            "Section,Enrolled,Records,Present,Late,Absent,Rate"
-        };
+        _sectionRows = _data.SectionReports
+            .Select(sec => new[]
+            {
+                sec.SectionName,
+                sec.EnrolledStudents.ToString(),
+                sec.TotalRecords.ToString(),
+                sec.PresentCount.ToString(),
+                sec.LateCount.ToString(),
+                sec.AbsentCount.ToString(),
+                $"{sec.AttendanceRate}%"
+            })
+            .ToList();
 
-        foreach (var sec in _data.SectionReports)
+        _dailyRows = _data.DailyTrend
+            .Select(day => new[]
+            {
+                day.Date.ToString("yyyy-MM-dd"),
+                day.Sessions.ToString(),
+                day.PresentCount.ToString(),
+                day.LateCount.ToString(),
+                day.AbsentCount.ToString(),
+                $"{day.PresentPercent}%"
+            })
+            .ToList();
+
+        _exportMessage = null;
+        _showPreview = true;
+    }
+
+    private void ClosePreview()
+    {
+        if (_saving) return;
+        _showPreview = false;
+    }
+
+    private async Task ConfirmExportAsync()
+    {
+        if (_saving) return;
+        _saving = true;
+
+        try
         {
-            lines.Add($"{sec.SectionName},{sec.EnrolledStudents},{sec.TotalRecords},{sec.PresentCount},{sec.LateCount},{sec.AbsentCount},{sec.AttendanceRate}%");
+            var lines = new List<string> { string.Join(",", SectionHeaders) };
+            lines.AddRange(_sectionRows.Select(FormatCsvRow));
+            lines.Add("");
+            lines.Add(string.Join(",", DailyHeaders));
+            lines.AddRange(_dailyRows.Select(FormatCsvRow));
+
+            var csv = string.Join(Environment.NewLine, lines);
+            var bytes = System.Text.Encoding.UTF8.GetPreamble()
+                .Concat(System.Text.Encoding.UTF8.GetBytes(csv))
+                .ToArray();
+
+            var path = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.Desktop),
+                $"attendance-report-{DateTime.Now:yyyyMMdd-HHmmss}.csv");
+            await File.WriteAllBytesAsync(path, bytes);
+
+            _showPreview = false;
+            _exportMessage = $"Exported to {path}";
         }
-
-        lines.Add("");
-        lines.Add("Date,Sessions,Present,Late,Absent,Present%");
-        foreach (var day in _data.DailyTrend)
+        finally
         {
-            lines.Add($"{day.Date:yyyy-MM-dd},{day.Sessions},{day.PresentCount},{day.LateCount},{day.AbsentCount},{day.PresentPercent}%");
+            _saving = false;
         }
+    }
 
-        var csv = string.Join(Environment.NewLine, lines);
-        var bytes = System.Text.Encoding.UTF8.GetPreamble().Concat(System.Text.Encoding.UTF8.GetBytes(csv)).ToArray();
+    private static string FormatCsvRow(string[] cells) => string.Join(",", cells.Select(EscapeCsv));
 
-        // Trigger download via file save
-        var path = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Desktop), $"attendance-report-{DateTime.Now:yyyyMMdd-HHmmss}.csv");
-        await File.WriteAllBytesAsync(path, bytes);
+    private static string EscapeCsv(string? value)
+    {
+        if (string.IsNullOrEmpty(value))
+            return string.Empty;
+
+        if (value.Contains(',') || value.Contains('"') || value.Contains('\n') || value.Contains('\r'))
+            return $"\"{value.Replace("\"", "\"\"")}\"";
+
+        return value;
     }
 }
