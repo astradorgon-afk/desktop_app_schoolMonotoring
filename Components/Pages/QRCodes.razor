@@ -193,7 +193,7 @@ else
                                 <td class="col-qr">
                                     @if (s.QrImage is not null)
                                     {
-                                        <img src="data:image/png;base64,@Convert.ToBase64String(s.QrImage)" alt="QR code for @s.FullName" class="qr-thumb" @onclick="() => ShowPreview(s)" />
+                                        <img src="data:image/png;base64,@Convert.ToBase64String(s.QrImage)" alt="QR code for @s.FullName" class="qr-thumb" role="button" tabindex="0" @onclick="() => ShowPreview(s)" @onkeydown="e => { if (KeyActivation.IsActivation(e)) ShowPreview(s); }" />
                                         @if (IsReissued(s.QrContent))
                                         {
                                             <span class="qr-reissued-tag" title="This card was reissued; older printouts no longer scan.">Reissued</span>
@@ -268,7 +268,7 @@ else
                                 <td class="col-qr">
                                     @if (r.QrCode is not null)
                                     {
-                                        <img src="data:image/png;base64,@Convert.ToBase64String(r.QrCode.QrCode)" alt="QR code for @r.Name" class="qr-thumb" @onclick="() => ShowPreview(r)" />
+                                        <img src="data:image/png;base64,@Convert.ToBase64String(r.QrCode.QrCode)" alt="QR code for @r.Name" class="qr-thumb" role="button" tabindex="0" @onclick="() => ShowPreview(r)" @onkeydown="e => { if (KeyActivation.IsActivation(e)) ShowPreview(r); }" />
                                     }
                                     else
                                     {

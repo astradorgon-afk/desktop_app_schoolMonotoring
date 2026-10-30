@@ -6,11 +6,12 @@ using Microsoft.EntityFrameworkCore;
 namespace AttendanceUI.Services;
 
 /// <summary>
-/// Produces CSV exports of the core school records (students, teachers, sections) and a
-/// detailed teacher-sessions attendance export for administrators. Each dataset is first
-/// built as an in-memory table (headers + rows) which is shared by both the on-screen
-/// preview and the CSV file, so the two can never drift apart. CSV bytes are UTF-8 (BOM)
-/// so they open cleanly in Excel.
+/// Produces CSV or Excel exports of the core school records (students, teachers, sections)
+/// and of attendance (per teacher session, per student record, and per-student totals) for
+/// administrators. Each dataset is first built as an in-memory table (headers + rows) which
+/// is shared by both the on-screen preview and the file, so the two can never drift apart.
+/// CSV bytes are UTF-8 (BOM) so they open cleanly in Excel; Excel output is a real .xlsx
+/// workbook (one sheet per dataset) written by <see cref="XlsxWriter"/>.
 /// </summary>
 public class ExportService : IExportService
 {
@@ -24,12 +25,19 @@ public class ExportService : IExportService
         _contextFactory = contextFactory;
     }
 
-    /// <summary>An in-memory representation of an export: file kind, a display title, and its rows.</summary>
+    /// <summary>
+    /// An in-memory representation of an export: file kind, a display title, its rows, and
+    /// which columns hold numbers (so Excel stores them as numbers rather than text).
+    /// </summary>
     private sealed record ExportTable(
         string Kind,
         string Title,
         IReadOnlyList<string> Headers,
-        IReadOnlyList<string?[]> Rows);
+        IReadOnlyList<string?[]> Rows,
+        IReadOnlySet<int>? NumericColumns = null);
+
+    /// <summary>Attendance statuses accepted by <see cref="ExportOptions.Status"/>.</summary>
+    private static readonly string[] KnownStatuses = ["PRESENT", "LATE", "ABSENT", "EXCUSED"];
 
     // Datasets included in "Export All", in the order they are produced.
     private static readonly ExportDataset[] AllDatasets =
@@ -38,26 +46,35 @@ public class ExportService : IExportService
         ExportDataset.Teachers,
         ExportDataset.Sections,
         ExportDataset.TeacherSessions,
-        ExportDataset.StudentAttendance
+        ExportDataset.StudentAttendance,
+        ExportDataset.AttendanceSummary
     ];
 
     public async Task<ExportFile> ExportAsync(ExportDataset dataset, ExportOptions? options = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default, ExportFormat format = ExportFormat.Csv)
     {
         var table = await BuildTableAsync(dataset, options ?? ExportOptions.None, cancellationToken);
-        return ToFile(table);
+        return format == ExportFormat.Excel
+            ? ToWorkbook(table.Kind, [table])
+            : ToFile(table);
     }
 
     public async Task<IReadOnlyList<ExportFile>> ExportAllAsync(ExportOptions? options = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default, ExportFormat format = ExportFormat.Csv)
     {
         var opts = options ?? ExportOptions.None;
-        var files = new List<ExportFile>(AllDatasets.Length);
+        var tables = new List<ExportTable>(AllDatasets.Length);
 
         foreach (var dataset in AllDatasets)
-            files.Add(ToFile(await BuildTableAsync(dataset, opts, cancellationToken)));
+            tables.Add(await BuildTableAsync(dataset, opts, cancellationToken));
 
-        return files;
+        if (format == ExportFormat.Excel)
+        {
+            var range = DescribeRange(opts);
+            return [ToWorkbook(range is null ? "eduattend-export" : $"eduattend-export-{Slug(range)}", tables)];
+        }
+
+        return tables.Select(ToFile).ToList();
     }
 
     public async Task<ExportPreview> PreviewAsync(ExportDataset dataset, ExportOptions? options = null,
@@ -158,6 +175,7 @@ public class ExportService : IExportService
             ExportDataset.Sections => BuildSectionsAsync(ct),
             ExportDataset.TeacherSessions => BuildTeacherSessionsAsync(options, ct),
             ExportDataset.StudentAttendance => BuildStudentAttendanceAsync(options, ct),
+            ExportDataset.AttendanceSummary => BuildAttendanceSummaryAsync(options, ct),
             _ => throw new ArgumentOutOfRangeException(nameof(dataset), dataset, "Unknown export dataset.")
         };
 
@@ -172,38 +190,7 @@ public class ExportService : IExportService
             .ToListAsync(ct);
 
         // Map each student to their current section / grade level (if enrolled).
-        var activeYearId = await context.SchoolYears
-            .Where(y => y.Status == "ACTIVE")
-            .Select(y => y.Id)
-            .FirstOrDefaultAsync(ct);
-
-        // NOTE: use an explicit OR predicate rather than array.Contains(...).
-        // Pomelo/EF Core 9 cannot translate a parameterized primitive-collection
-        // Contains here and throws "An exception was thrown while attempting to
-        // evaluate a LINQ query parameter expression."
-        var enrollmentQuery = context.Enrollments
-            .AsNoTracking()
-            .Where(e => e.Status == "ACTIVE" || e.Status == "ENROLLED");
-
-        if (activeYearId != 0)
-            enrollmentQuery = enrollmentQuery.Where(e => e.SchoolYearId == activeYearId);
-
-        var placements = await (
-            from e in enrollmentQuery
-            join sec in context.Sections on e.SectionId equals sec.Id into secJoin
-            from sec in secJoin.DefaultIfEmpty()
-            join gl in context.GradeLevels on e.GradeLevelId equals gl.Id into glJoin
-            from gl in glJoin.DefaultIfEmpty()
-            select new
-            {
-                e.StudentId,
-                SectionName = sec != null ? sec.Name : null,
-                GradeName = gl != null ? gl.Name : null
-            }).ToListAsync(ct);
-
-        var placementByStudent = placements
-            .GroupBy(p => p.StudentId)
-            .ToDictionary(g => g.Key, g => g.First());
+        var placementByStudent = await LoadPlacementsAsync(context, ct);
 
         string[] headers =
         [
@@ -237,8 +224,50 @@ public class ExportService : IExportService
             ]);
         }
 
-        return new ExportTable("students", "Students", headers, rows);
+        return new ExportTable("students", "Students", headers, rows, new HashSet<int> { 7 });
     }
+
+    /// <summary>
+    /// Each student's current grade level and section, from their active enrolment in the
+    /// active school year (any year when none is marked active).
+    /// </summary>
+    private static async Task<Dictionary<long, Placement>> LoadPlacementsAsync(SchoolDbContext context, CancellationToken ct)
+    {
+        var activeYearId = await context.SchoolYears
+            .Where(y => y.Status == "ACTIVE")
+            .Select(y => y.Id)
+            .FirstOrDefaultAsync(ct);
+
+        // NOTE: use an explicit OR predicate rather than array.Contains(...).
+        // Pomelo/EF Core 9 cannot translate a parameterized primitive-collection
+        // Contains here and throws "An exception was thrown while attempting to
+        // evaluate a LINQ query parameter expression."
+        var enrollmentQuery = context.Enrollments
+            .AsNoTracking()
+            .Where(e => e.Status == "ACTIVE" || e.Status == "ENROLLED");
+
+        if (activeYearId != 0)
+            enrollmentQuery = enrollmentQuery.Where(e => e.SchoolYearId == activeYearId);
+
+        var placements = await (
+            from e in enrollmentQuery
+            join sec in context.Sections on e.SectionId equals sec.Id into secJoin
+            from sec in secJoin.DefaultIfEmpty()
+            join gl in context.GradeLevels on e.GradeLevelId equals gl.Id into glJoin
+            from gl in glJoin.DefaultIfEmpty()
+            select new
+            {
+                e.StudentId,
+                SectionName = sec != null ? sec.Name : null,
+                GradeName = gl != null ? gl.Name : null
+            }).ToListAsync(ct);
+
+        return placements
+            .GroupBy(p => p.StudentId)
+            .ToDictionary(g => g.Key, g => new Placement(g.First().GradeName, g.First().SectionName));
+    }
+
+    private sealed record Placement(string? GradeName, string? SectionName);
 
     private async Task<ExportTable> BuildTeachersAsync(CancellationToken ct)
     {
@@ -330,7 +359,7 @@ public class ExportService : IExportService
             ]);
         }
 
-        return new ExportTable("sections", "Sections", headers, rows);
+        return new ExportTable("sections", "Sections", headers, rows, new HashSet<int> { 4, 5 });
     }
 
     private async Task<ExportTable> BuildTeacherSessionsAsync(ExportOptions options, CancellationToken ct)
@@ -370,6 +399,12 @@ public class ExportService : IExportService
 
         if (options.TeacherId is { } teacherId)
             query = query.Where(x => x.TeacherId == teacherId);
+        if (StartOf(options) is { } sessionsFrom)
+            query = query.Where(x => x.SessionDate >= sessionsFrom);
+        if (EndOf(options) is { } sessionsUntil)
+            query = query.Where(x => x.SessionDate < sessionsUntil);
+        if (StatusOf(options) is { } sessionsStatus)
+            query = query.Where(x => x.Attendance == sessionsStatus);
 
         var records = await query
             .OrderBy(x => x.TeacherLast).ThenBy(x => x.TeacherFirst)
@@ -425,12 +460,8 @@ public class ExportService : IExportService
             ]);
         }
 
-        var kind = scopedTeacher is null
-            ? "teacher-sessions"
-            : $"teacher-sessions-{Slug(scopedTeacher)}";
-        var title = scopedTeacher is null
-            ? "Teacher Sessions"
-            : $"Teacher Sessions — {scopedTeacher}";
+        var (kind, title) = Label("teacher-sessions", "Teacher Sessions",
+            scopedTeacher, DescribeRange(options), DescribeStatus(options));
 
         return new ExportTable(kind, title, headers, rows);
     }
@@ -475,6 +506,12 @@ public class ExportService : IExportService
             query = query.Where(x => x.SectionId == sectionId);
         if (options.StudentId is { } studentId)
             query = query.Where(x => x.StudentId == studentId);
+        if (StartOf(options) is { } attendanceFrom)
+            query = query.Where(x => x.SessionDate >= attendanceFrom);
+        if (EndOf(options) is { } attendanceUntil)
+            query = query.Where(x => x.SessionDate < attendanceUntil);
+        if (StatusOf(options) is { } attendanceStatus)
+            query = query.Where(x => x.Attendance == attendanceStatus);
 
         var records = await query
             .OrderBy(x => x.StudentLast).ThenBy(x => x.StudentFirst)
@@ -522,10 +559,163 @@ public class ExportService : IExportService
             ? FormatName(records[0].StudentLast, records[0].StudentFirst, records[0].StudentMiddle)
             : null, ct);
 
-        var kind = scope is null ? "student-attendance" : $"student-attendance-{Slug(scope)}";
-        var title = scope is null ? "Student Attendance" : $"Student Attendance — {scope}";
+        var (kind, title) = Label("student-attendance", "Student Attendance",
+            scope, DescribeRange(options), DescribeStatus(options));
 
         return new ExportTable(kind, title, headers, rows);
+    }
+
+    private async Task<ExportTable> BuildAttendanceSummaryAsync(ExportOptions options, CancellationToken ct)
+    {
+        await using var context = await _contextFactory.CreateDbContextAsync(ct);
+
+        // One row per student: how many sessions they had in the period and how each was
+        // marked. Left join on the offering so the section filter matches the
+        // student-attendance export, and records without a teacher still count.
+        var query =
+            from r in context.AttendanceRecords.AsNoTracking()
+            join s in context.AttendanceSessions.AsNoTracking() on r.AttendanceSessionId equals s.Id
+            join stu in context.Students.AsNoTracking() on r.StudentId equals stu.Id
+            join co in context.ClassOfferings.AsNoTracking() on s.ClassOfferingId equals co.Id into coJoin
+            from co in coJoin.DefaultIfEmpty()
+            select new
+            {
+                r.AttendanceSessionId,
+                StudentId = stu.Id,
+                SectionId = co != null ? (long?)co.SectionId : null,
+                stu.Lrn,
+                stu.StudentNumber,
+                StudentLast = stu.LastName,
+                StudentFirst = stu.FirstName,
+                StudentMiddle = stu.MiddleName,
+                s.SessionDate,
+                s.SectionName,
+                Attendance = r.Status,
+                r.CreatedAt
+            };
+
+        if (options.SectionId is { } sectionId)
+            query = query.Where(x => x.SectionId == sectionId);
+        if (StartOf(options) is { } summaryFrom)
+            query = query.Where(x => x.SessionDate >= summaryFrom);
+        if (EndOf(options) is { } summaryUntil)
+            query = query.Where(x => x.SessionDate < summaryUntil);
+
+        var records = await query.ToListAsync(ct);
+        var placements = await LoadPlacementsAsync(context, ct);
+
+        string[] headers =
+        [
+            "Student LRN", "Student No", "Student", "Grade Level", "Section", "Sessions",
+            "Present", "Late", "Absent", "Excused", "Attendance Rate (%)", "First Session", "Last Session"
+        ];
+
+        var rows = records
+            // A student counts once per session: keep the latest mark if a session has several.
+            .GroupBy(x => (x.AttendanceSessionId, x.StudentId))
+            .Select(g => g.OrderByDescending(x => x.CreatedAt).First())
+            .GroupBy(x => x.StudentId)
+            .Select(g =>
+            {
+                var first = g.First();
+                var present = g.Count(x => x.Attendance == "PRESENT");
+                var late = g.Count(x => x.Attendance == "LATE");
+                var absent = g.Count(x => x.Attendance == "ABSENT");
+                var excused = g.Count(x => x.Attendance == "EXCUSED");
+
+                // Same rule as the at-risk report: excused absences don't count against the student.
+                var counted = present + late + absent;
+                double? rate = counted > 0 ? Math.Round((double)(present + late) / counted * 100, 1) : null;
+
+                placements.TryGetValue(g.Key, out var placement);
+                var latestSection = g.OrderByDescending(x => x.SessionDate).First().SectionName;
+
+                return new
+                {
+                    first.StudentLast,
+                    first.StudentFirst,
+                    Row = new string?[]
+                    {
+                        first.Lrn,
+                        first.StudentNumber,
+                        FormatName(first.StudentLast, first.StudentFirst, first.StudentMiddle),
+                        placement?.GradeName,
+                        placement?.SectionName ?? latestSection,
+                        g.Count().ToString(CultureInfo.InvariantCulture),
+                        present.ToString(CultureInfo.InvariantCulture),
+                        late.ToString(CultureInfo.InvariantCulture),
+                        absent.ToString(CultureInfo.InvariantCulture),
+                        excused.ToString(CultureInfo.InvariantCulture),
+                        rate?.ToString("0.0", CultureInfo.InvariantCulture),
+                        g.Min(x => x.SessionDate).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+                        g.Max(x => x.SessionDate).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)
+                    }
+                };
+            })
+            .OrderBy(x => x.StudentLast, StringComparer.CurrentCultureIgnoreCase)
+            .ThenBy(x => x.StudentFirst, StringComparer.CurrentCultureIgnoreCase)
+            .Select(x => x.Row)
+            .ToList();
+
+        string? sectionName = null;
+        if (options.SectionId is { } scopedSection)
+        {
+            sectionName = await context.Sections
+                .AsNoTracking()
+                .Where(x => x.Id == scopedSection)
+                .Select(x => x.Name)
+                .FirstOrDefaultAsync(ct);
+        }
+
+        var (kind, title) = Label("attendance-summary", "Attendance Summary", sectionName, DescribeRange(options));
+
+        return new ExportTable(kind, title, headers, rows, new HashSet<int> { 5, 6, 7, 8, 9, 10 });
+    }
+
+    // ── Filter helpers ──
+
+    /// <summary>Inclusive lower bound on session dates, or null when unbounded.</summary>
+    private static DateTime? StartOf(ExportOptions options) =>
+        options.From?.ToDateTime(TimeOnly.MinValue);
+
+    /// <summary>Exclusive upper bound (the day after <see cref="ExportOptions.To"/>), so sessions at any time that day count.</summary>
+    private static DateTime? EndOf(ExportOptions options) =>
+        options.To?.AddDays(1).ToDateTime(TimeOnly.MinValue);
+
+    /// <summary>The normalised status filter, or null when absent or not a known status.</summary>
+    private static string? StatusOf(ExportOptions options)
+    {
+        var status = options.Status?.Trim().ToUpperInvariant();
+        return status is not null && KnownStatuses.Contains(status) ? status : null;
+    }
+
+    /// <summary>Human-readable date range, e.g. "2026-10-01 to 2026-10-31".</summary>
+    private static string? DescribeRange(ExportOptions options) =>
+        (options.From, options.To) switch
+        {
+            (null, null) => null,
+            ({ } from, null) => $"from {from:yyyy-MM-dd}",
+            (null, { } to) => $"until {to:yyyy-MM-dd}",
+            ({ } from, { } to) when from == to => $"{from:yyyy-MM-dd}",
+            ({ } from, { } to) => $"{from:yyyy-MM-dd} to {to:yyyy-MM-dd}"
+        };
+
+    private static string? DescribeStatus(ExportOptions options) =>
+        StatusOf(options) is { } status
+            ? $"{CultureInfo.InvariantCulture.TextInfo.ToTitleCase(status.ToLowerInvariant())} only"
+            : null;
+
+    /// <summary>
+    /// Builds the file kind and display title from a base name plus whatever the export was
+    /// narrowed to, e.g. ("student-attendance-grade-7-a-absent-only", "Student Attendance — Grade 7-A · Absent only").
+    /// </summary>
+    private static (string Kind, string Title) Label(string baseKind, string baseTitle, params string?[] scopes)
+    {
+        var parts = scopes.Where(p => !string.IsNullOrWhiteSpace(p)).Select(p => p!).ToList();
+        if (parts.Count == 0)
+            return (baseKind, baseTitle);
+
+        return ($"{baseKind}-{string.Join("-", parts.Select(Slug))}", $"{baseTitle} — {string.Join(" · ", parts)}");
     }
 
     /// <summary>Names whatever the student-attendance export was narrowed to, for the title and file name.</summary>
@@ -581,7 +771,7 @@ public class ExportService : IExportService
             }
         }
 
-        return sb.ToString().Trim('-') is { Length: > 0 } slug ? slug : "teacher";
+        return sb.ToString().Trim('-') is { Length: > 0 } slug ? slug : "export";
     }
 
     // ── CSV helpers ──
@@ -596,8 +786,19 @@ public class ExportService : IExportService
         return new ExportFile(BuildFileName(table.Kind), Encode(sb));
     }
 
-    private static string BuildFileName(string kind) =>
-        $"{kind}-{DateTime.Now:yyyyMMdd-HHmmss}.csv";
+    private static ExportFile ToWorkbook(string kind, IReadOnlyList<ExportTable> tables)
+    {
+        // Tab names are capped at 31 characters, so they carry only the dataset name
+        // ("Teacher Sessions"); the filters are already in the file name.
+        var sheets = tables
+            .Select(t => new XlsxSheet(t.Title.Split(" — ")[0], t.Headers, t.Rows, t.NumericColumns))
+            .ToList();
+
+        return new ExportFile(BuildFileName(kind, "xlsx"), XlsxWriter.Write(sheets));
+    }
+
+    private static string BuildFileName(string kind, string extension = "csv") =>
+        $"{kind}-{DateTime.Now:yyyyMMdd-HHmmss}.{extension}";
 
     private static byte[] Encode(StringBuilder sb) =>
         Encoding.UTF8.GetPreamble()
@@ -618,6 +819,10 @@ public class ExportService : IExportService
     {
         if (string.IsNullOrEmpty(value))
             return string.Empty;
+
+        // Stop spreadsheet apps from evaluating a cell as a formula (CSV injection).
+        if (value[0] is '=' or '+' or '-' or '@' or '\t' or '\r')
+            value = "'" + value;
 
         var needsQuoting = value.Contains(',') || value.Contains('"')
             || value.Contains('\n') || value.Contains('\r');

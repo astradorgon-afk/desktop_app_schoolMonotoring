@@ -7,18 +7,35 @@ public enum ExportDataset
     Teachers,
     Sections,
     TeacherSessions,
-    StudentAttendance
+    StudentAttendance,
+    AttendanceSummary
 }
 
-/// <summary>A single generated export file: its suggested name and CSV bytes.</summary>
+/// <summary>File format an export is written in.</summary>
+public enum ExportFormat
+{
+    Csv,
+    Excel
+}
+
+/// <summary>A single generated export file: its suggested name and contents (CSV or .xlsx bytes).</summary>
 public sealed record ExportFile(string FileName, byte[] Content);
 
 /// <summary>
 /// Optional narrowing applied when building an export. <see cref="TeacherId"/> scopes the
 /// teacher-sessions dataset; <see cref="SectionId"/> and <see cref="StudentId"/> scope the
-/// student-attendance dataset. Each is ignored by the datasets it does not apply to.
+/// student-attendance dataset (and <see cref="SectionId"/> the attendance summary).
+/// <see cref="From"/>/<see cref="To"/> (inclusive session dates) apply to every attendance
+/// dataset, and <see cref="Status"/> (PRESENT, LATE, ABSENT or EXCUSED) to the two
+/// per-record attendance datasets. Each is ignored by the datasets it does not apply to.
 /// </summary>
-public sealed record ExportOptions(long? TeacherId = null, long? SectionId = null, long? StudentId = null)
+public sealed record ExportOptions(
+    long? TeacherId = null,
+    long? SectionId = null,
+    long? StudentId = null,
+    DateOnly? From = null,
+    DateOnly? To = null,
+    string? Status = null)
 {
     public static readonly ExportOptions None = new();
 }
@@ -45,13 +62,16 @@ public sealed record ExportPreview(
 
 public interface IExportService
 {
-    /// <summary>Builds a CSV export for a single dataset.</summary>
+    /// <summary>Builds a CSV or Excel export for a single dataset.</summary>
     Task<ExportFile> ExportAsync(ExportDataset dataset, ExportOptions? options = null,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default, ExportFormat format = ExportFormat.Csv);
 
-    /// <summary>Builds CSV exports for every dataset (students, teachers, sections, teacher sessions).</summary>
+    /// <summary>
+    /// Builds an export of every dataset: one CSV file per dataset, or a single Excel
+    /// workbook with one sheet per dataset.
+    /// </summary>
     Task<IReadOnlyList<ExportFile>> ExportAllAsync(ExportOptions? options = null,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default, ExportFormat format = ExportFormat.Csv);
 
     /// <summary>Builds a tabular preview (headers + rows) of a single dataset.</summary>
     Task<ExportPreview> PreviewAsync(ExportDataset dataset, ExportOptions? options = null,

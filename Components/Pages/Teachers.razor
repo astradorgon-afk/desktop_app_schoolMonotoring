@@ -31,7 +31,7 @@ else
             <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
             <input type="text" class="search-input" aria-label="Search by name, employee no, or specialization" placeholder="Search by name, employee no, or specialization..." @bind="_searchTerm" @bind:after="ApplyFilter" />
         </div>
-        <select class="filter-select" @bind="_statusFilter" @bind:after="ApplyFilter">
+        <select aria-label="Filter by status" class="filter-select" @bind="_statusFilter" @bind:after="ApplyFilter">
             <option value="">All Status</option>
             <option value="ACTIVE">Active</option>
             <option value="INACTIVE">Inactive</option>
@@ -58,11 +58,11 @@ else
                 }
                 else
                 {
-                    @foreach (var teacher in _filteredTeachers)
+                    @foreach (var teacher in Pager.Slice(_filteredTeachers, _page, _pageSize))
                     {
                         <tr>
                             <td>
-                                <div class="student-info-cell" @onclick="() => ShowProfile(teacher.Id)" style="cursor:pointer;">
+                                <div class="student-info-cell" role="button" tabindex="0" aria-label="View profile of @teacher.FirstName @teacher.LastName" @onclick="() => ShowProfile(teacher.Id)" @onkeydown="async e => { if (KeyActivation.IsActivation(e)) await ShowProfile(teacher.Id); }" style="cursor:pointer;">
                                     <div class="student-avatar">
                                         @teacher.FirstName[0]@teacher.LastName[0]
                                     </div>
@@ -86,6 +86,7 @@ else
             </tbody>
         </table>
     </div>
+    <Pager TotalItems="@_filteredTeachers.Count" @bind-Page="_page" @bind-PageSize="_pageSize" Label="Teachers pages" Class="pager--table" />
 }
 
 @if (_profileTeacher is not null)
@@ -93,7 +94,7 @@ else
     <Modal Title="Teacher Profile" ContentClass="modal-content--wide modal-content--profile" OnClose="CloseProfile">
             <div class="modal-header">
                 <h3>Teacher Profile</h3>
-                <button class="modal-close" @onclick="CloseProfile">
+                <button type="button" aria-label="Close" title="Close" class="modal-close" @onclick="CloseProfile">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                 </button>
             </div>
@@ -224,6 +225,11 @@ else
 @code {
     private List<Teacher> _teachers = [];
     private List<Teacher> _filteredTeachers = [];
+    // Paging over the filtered list (see Pager). The page resets only when a filter changes,
+    // so reloading after an edit keeps the user where they were.
+    private int _page = 1;
+    private int _pageSize = Pager.PageSizes[0];
+    private string? _lastFilterKey;
     private bool _isLoading = true;
     private string? _error;
     private string _searchTerm = "";
@@ -259,6 +265,12 @@ else
 
     private void ApplyFilter()
     {
+        var filterKey = $"{_searchTerm}|{_statusFilter}";
+        if (filterKey != _lastFilterKey)
+        {
+            _page = 1;
+            _lastFilterKey = filterKey;
+        }
         var query = _teachers.AsEnumerable();
 
         if (!string.IsNullOrWhiteSpace(_searchTerm))

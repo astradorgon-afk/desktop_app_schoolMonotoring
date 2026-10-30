@@ -10,12 +10,18 @@
 @if (_isReady)
 {
     <div class="dash-shell">
-        @Body
+        <AppErrorBoundary @ref="_errorBoundary">
+            @Body
+        </AppErrorBoundary>
     </div>
 }
 
 @code {
+    private AppErrorBoundary? _errorBoundary;
     private bool _isReady;
+
+    // A new page arrives as new parameters: clear any error the previous page left behind.
+    protected override void OnParametersSet() => _errorBoundary?.Recover();
 
     protected override async Task OnInitializedAsync()
     {

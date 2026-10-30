@@ -1,0 +1,54 @@
+@using AttendanceUI.Data.Entities
+@using AttendanceUI.Models.Auth
+@using AttendanceUI.Services
+@using Microsoft.AspNetCore.Components.Web
+@inherits ErrorBoundary
+@inject IAuthService AuthService
+@inject NavigationManager Navigation
+
+@*
+    Catches an unexpected exception thrown while a page renders, loads, or handles a click,
+    and shows a recoverable message in place of that page. Without it Blazor shows its global
+    "An unhandled error has occurred" bar and the whole app stops responding. The layouts
+    call Recover() on every navigation, so moving to another page clears the error.
+*@
+@if (CurrentException is null)
+{
+    @ChildContent
+}
+else
+{
+    <div class="app-error" role="alert">
+        <div class="app-error-card">
+            <div class="app-error-icon">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            </div>
+            <h2 class="app-error-title">Something went wrong on this page</h2>
+            <p class="app-error-text">
+                The rest of the app still works. Try again, or go back to your dashboard.
+                If it keeps happening, tell your administrator what you were doing.
+            </p>
+            <div class="app-error-actions">
+                <button type="button" class="btn btn-primary" @onclick="Recover">Try again</button>
+                <button type="button" class="btn btn-ghost" @onclick="GoToDashboardAsync">Go to dashboard</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private async Task GoToDashboardAsync()
+    {
+        var session = await AuthService.GetCurrentSessionAsync();
+        var target = session?.Role switch
+        {
+            UserRole.TEACHER => "/teacher/dashboard",
+            UserRole.STUDENT => "/student/dashboard",
+            null => "/login",
+            _ => "/dashboard"
+        };
+
+        Recover();
+        Navigation.NavigateTo(target);
+    }
+}

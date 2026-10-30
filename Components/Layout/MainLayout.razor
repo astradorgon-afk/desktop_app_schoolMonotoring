@@ -50,14 +50,20 @@
             </header>
 
             <main class="admin-content">
-                @Body
+                <AppErrorBoundary @ref="_errorBoundary">
+                    @Body
+                </AppErrorBoundary>
             </main>
         </div>
     </div>
 }
 
 @code {
+    private AppErrorBoundary? _errorBoundary;
     private bool _collapsed;
+
+    // A new page arrives as new parameters: clear any error the previous page left behind.
+    protected override void OnParametersSet() => _errorBoundary?.Recover();
     private bool _navOpen;
     private UserSession? _currentSession;
     private bool _isReady;

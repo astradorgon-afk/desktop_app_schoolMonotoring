@@ -172,7 +172,7 @@
                         else
                         {
                             <div class="ss-section-picker">
-                                <div @ref="_triggerRef" @onclick="ToggleDropdown" class="ss-select-trigger">
+                                <div @ref="_triggerRef" role="button" tabindex="0" aria-haspopup="listbox" aria-expanded="@_showDropdown" @onclick="ToggleDropdown" @onkeydown="async e => { if (KeyActivation.IsActivation(e)) await ToggleDropdown(); }" class="ss-select-trigger">
                                     <span class="ss-select-label" style="color:@(_selectedOfferingId == 0 ? "var(--clr-text-muted)" : "var(--clr-text)");">
                                         @(_selectedOfferingId == 0 ? "Choose a section..." : _selectedSectionText)
                                     </span>
@@ -203,7 +203,7 @@
                                             }
 
                                             var isSelected = (sec.OfferingId ?? 0) == _selectedOfferingId;
-                                            <div class="@($"ss-dd-opt {(isSelected ? "ss-dd-opt-sel" : "")}")" @onclick="() => SelectSection(sec)">
+                                            <div class="@($"ss-dd-opt {(isSelected ? "ss-dd-opt-sel" : "")}")" role="option" tabindex="0" aria-selected="@isSelected" @onclick="() => SelectSection(sec)" @onkeydown="async e => { if (KeyActivation.IsActivation(e)) await SelectSection(sec); }">
                                                 <div class="ss-dd-opt-info">
                                                     <span class="ss-dd-opt-name">
                                                         @sec.SectionName
@@ -239,7 +239,7 @@
                         {
                             <div class="ss-notification ss-notify-@n.Type">
                                 <span>@n.Text</span>
-                                <button class="ss-notify-dismiss" @onclick="() => DismissNotification(n)">✕</button>
+                                <button type="button" aria-label="Dismiss" title="Dismiss" class="ss-notify-dismiss" @onclick="() => DismissNotification(n)">✕</button>
                             </div>
                         }
                     </div>
@@ -312,7 +312,7 @@
                                         var badgeBg = s.Status == "PRESENT" ? "rgba(34,197,94,0.15)" : s.Status == "LATE" ? "rgba(234,179,8,0.15)" : "rgba(239,68,68,0.15)";
                                         var badgeText = s.Status == "PRESENT" ? "#4ade80" : s.Status == "LATE" ? "#facc15" : "#f87171";
                                         var badgeTime = s.ScannedAt.HasValue ? s.ScannedAt.Value.ToString("h:mm tt") : "";
-                                        <span class="ss-badge ss-badge-@s.Status.ToLower()" @onclick="() => UndoMarkAsync(s.StudentId)" title="Click to undo">
+                                        <span class="ss-badge ss-badge-@s.Status.ToLower()" role="button" tabindex="0" aria-label="@($"{s.Status} — undo this mark")" @onclick="() => UndoMarkAsync(s.StudentId)" @onkeydown="async e => { if (KeyActivation.IsActivation(e)) await UndoMarkAsync(s.StudentId); }" title="Click to undo">
                                             @s.Status @badgeTime
                                         </span>
                                     }

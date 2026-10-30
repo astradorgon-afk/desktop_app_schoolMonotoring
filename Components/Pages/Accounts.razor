@@ -69,13 +69,13 @@ else
             <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
             <input class="search-input" aria-label="Search by name or username" placeholder="Search by name or username…" @bind="_searchQuery" @bind:after="ApplyFilters" />
         </div>
-        <select class="filter-select" @bind="_roleFilter" @bind:after="ApplyFilters">
+        <select aria-label="Filter by role" class="filter-select" @bind="_roleFilter" @bind:after="ApplyFilters">
             <option value="">All Roles</option>
             <option value="SUPERADMIN">Super Admin</option>
             <option value="TEACHER">Teacher</option>
             <option value="STUDENT">Student</option>
         </select>
-        <select class="filter-select" @bind="_statusFilter" @bind:after="ApplyFilters">
+        <select aria-label="Filter by status" class="filter-select" @bind="_statusFilter" @bind:after="ApplyFilters">
             <option value="">All Statuses</option>
             <option value="ACTIVE">Active</option>
             <option value="INACTIVE">Inactive</option>
@@ -108,7 +108,7 @@ else
                 }
                 else
                 {
-                    @foreach (var user in _filteredUsers)
+                    @foreach (var user in Pager.Slice(_filteredUsers, _page, _pageSize))
                     {
                         <tr>
                             <td>
@@ -166,6 +166,7 @@ else
             </tbody>
         </table>
     </div>
+    <Pager TotalItems="@_filteredUsers.Count" @bind-Page="_page" @bind-PageSize="_pageSize" Label="Accounts pages" Class="pager--table" />
 }
 
 @* ── Add / Edit Modal ── *@
@@ -174,7 +175,7 @@ else
     <Modal Title="@(_editTarget is null ? "Add Account" : "Edit Account")" OnClose="() => _showAddEditModal = false">
             <div class="modal-header">
                 <h3>@(_editTarget is null ? "Add Account" : "Edit Account")</h3>
-                <button class="modal-close" @onclick="() => _showAddEditModal = false">
+                <button type="button" aria-label="Close" title="Close" class="modal-close" @onclick="() => _showAddEditModal = false">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                 </button>
             </div>
@@ -281,7 +282,7 @@ else
     <Modal Title="Reset Password" ContentStyle="max-width:400px;" OnClose="() => _showResetModal = false">
             <div class="modal-header">
                 <h3>Reset Password</h3>
-                <button class="modal-close" @onclick="() => _showResetModal = false">
+                <button type="button" aria-label="Close" title="Close" class="modal-close" @onclick="() => _showResetModal = false">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                 </button>
             </div>
@@ -355,7 +356,7 @@ else
     <Modal Title="Delete Account" ContentStyle="max-width:400px;" OnClose="() => _showDeleteModal = false">
             <div class="modal-header">
                 <h3 style="color:#ef4444;">Delete Account</h3>
-                <button class="modal-close" @onclick="() => _showDeleteModal = false">
+                <button type="button" aria-label="Close" title="Close" class="modal-close" @onclick="() => _showDeleteModal = false">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                 </button>
             </div>
@@ -391,6 +392,11 @@ else
     // ── State ──
     private List<User> _users = [];
     private List<User> _filteredUsers = [];
+    // Paging over the filtered list (see Pager). The page resets only when a filter changes,
+    // so reloading after an edit keeps the user where they were.
+    private int _page = 1;
+    private int _pageSize = Pager.PageSizes[0];
+    private string? _lastFilterKey;
     private bool _loading = true;
 
     // ── Filters ──
@@ -461,6 +467,12 @@ else
 
     private void ApplyFilters()
     {
+        var filterKey = $"{_searchQuery}|{_roleFilter}|{_statusFilter}";
+        if (filterKey != _lastFilterKey)
+        {
+            _page = 1;
+            _lastFilterKey = filterKey;
+        }
         var q = _searchQuery?.Trim().ToLowerInvariant() ?? "";
         _filteredUsers = _users
             .Where(u => string.IsNullOrEmpty(q) || u.Username.Contains(q, StringComparison.OrdinalIgnoreCase) || u.Name.Contains(q, StringComparison.OrdinalIgnoreCase))

@@ -34,7 +34,7 @@ else if (_data is not null)
             <div style="display:flex;align-items:center;gap:8px;padding:10px 14px;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.2);border-radius:10px;color:#ef4444;font-size:13px;">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
                 <span style="flex:1;">@_uploadError</span>
-                <button type="button" @onclick="() => _uploadError = null" style="background:none;border:none;color:rgba(239,68,68,0.6);cursor:pointer;padding:2px;">
+                <button aria-label="Dismiss" title="Dismiss" type="button" @onclick="() => _uploadError = null" style="background:none;border:none;color:rgba(239,68,68,0.6);cursor:pointer;padding:2px;">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                 </button>
             </div>

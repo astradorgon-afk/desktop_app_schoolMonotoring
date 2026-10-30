@@ -1,0 +1,117 @@
+@using Microsoft.AspNetCore.Components.Web
+@*
+    Page navigation for a list that is already loaded and filtered in memory. The page shows
+    Pager.Slice(...) of its filtered list and binds @bind-Page / @bind-PageSize here. Hidden
+    while every item fits on the smallest page size.
+*@
+@if (TotalItems > PageSizes[0])
+{
+    var pageCount = PageCount(TotalItems, PageSize);
+    var current = ClampPage(Page, TotalItems, PageSize);
+    var first = (current - 1) * PageSize + 1;
+    var last = Math.Min(current * PageSize, TotalItems);
+
+    <nav class="pager @Class" aria-label="@Label">
+        <span class="pager-summary">Showing @first–@last of @TotalItems</span>
+
+        <div class="pager-pages">
+            <button type="button" class="btn btn-sm btn-ghost" disabled="@(current <= 1)" aria-label="Previous page"
+                    @onclick="() => GoToAsync(current - 1)">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+                Prev
+            </button>
+            @foreach (var p in PageWindow(current, pageCount))
+            {
+                if (p == 0)
+                {
+                    <span class="pager-gap" aria-hidden="true">…</span>
+                }
+                else
+                {
+                    <button type="button" class="btn btn-sm @(p == current ? "btn-primary" : "btn-ghost")"
+                            aria-label="Page @p" aria-current="@(p == current ? "page" : null)"
+                            @onclick="() => GoToAsync(p)">@p</button>
+                }
+            }
+            <button type="button" class="btn btn-sm btn-ghost" disabled="@(current >= pageCount)" aria-label="Next page"
+                    @onclick="() => GoToAsync(current + 1)">
+                Next
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
+            </button>
+        </div>
+
+        <label class="pager-size">
+            <span>Rows per page</span>
+            <select class="filter-select" value="@PageSize" @onchange="OnPageSizeChangedAsync">
+                @foreach (var size in PageSizes)
+                {
+                    <option value="@size">@size</option>
+                }
+            </select>
+        </label>
+    </nav>
+}
+
+@code {
+    public static readonly int[] PageSizes = [25, 50, 100];
+
+    [Parameter] public int TotalItems { get; set; }
+    [Parameter] public int Page { get; set; } = 1;
+    [Parameter] public EventCallback<int> PageChanged { get; set; }
+    [Parameter] public int PageSize { get; set; } = 25;
+    [Parameter] public EventCallback<int> PageSizeChanged { get; set; }
+    [Parameter] public string Label { get; set; } = "Pagination";
+    [Parameter] public string? Class { get; set; }
+
+    public static int PageCount(int total, int size) => Math.Max(1, (total + size - 1) / size);
+
+    /// <summary>Keeps a page number valid after the list shrinks (e.g. a filter was applied).</summary>
+    public static int ClampPage(int page, int total, int size) => Math.Clamp(page, 1, PageCount(total, size));
+
+    /// <summary>The items on <paramref name="page"/> of <paramref name="items"/>.</summary>
+    public static IEnumerable<T> Slice<T>(IReadOnlyCollection<T> items, int page, int size) =>
+        items.Skip((ClampPage(page, items.Count, size) - 1) * size).Take(size);
+
+    /// <summary>
+    /// Page numbers to show: all of them when there are 7 or fewer, otherwise the first, the
+    /// last and the neighbours of the current page, with 0 marking a gap ("…").
+    /// </summary>
+    internal static IReadOnlyList<int> PageWindow(int current, int pageCount)
+    {
+        if (pageCount <= 7)
+            return Enumerable.Range(1, pageCount).ToList();
+
+        var start = Math.Max(2, current - 1);
+        var end = Math.Min(pageCount - 1, current + 1);
+        if (current <= 3) end = 4;
+        if (current >= pageCount - 2) start = pageCount - 3;
+
+        // A gap that would hide a single page shows that page instead.
+        if (start == 3) start = 2;
+        if (end == pageCount - 2) end = pageCount - 1;
+
+        var pages = new List<int> { 1 };
+        if (start > 2) pages.Add(0);
+        for (var p = start; p <= end; p++) pages.Add(p);
+        if (end < pageCount - 1) pages.Add(0);
+        pages.Add(pageCount);
+        return pages;
+    }
+
+    private async Task GoToAsync(int page)
+    {
+        var target = ClampPage(page, TotalItems, PageSize);
+        if (target != Page)
+            await PageChanged.InvokeAsync(target);
+    }
+
+    // Keep the first visible row in view when the page size changes.
+    private async Task OnPageSizeChangedAsync(ChangeEventArgs e)
+    {
+        if (!int.TryParse(e.Value?.ToString(), out var size) || !PageSizes.Contains(size)) return;
+
+        var firstIndex = (ClampPage(Page, TotalItems, PageSize) - 1) * PageSize;
+        await PageSizeChanged.InvokeAsync(size);
+        await PageChanged.InvokeAsync(firstIndex / size + 1);
+    }
+}

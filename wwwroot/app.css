@@ -505,6 +505,101 @@ input::-webkit-contacts-auto-fill-button {
     to { transform: rotate(360deg); }
 }
 
+/* ── Pager (long lists) ── */
+.pager {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px 20px;
+    margin-top: 16px;
+    padding: 4px 0;
+}
+
+.pager-summary {
+    font-size: 13px;
+    color: var(--clr-text-secondary);
+}
+
+.pager-pages {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px;
+}
+
+.pager-gap {
+    padding: 0 4px;
+    color: var(--clr-text-muted);
+}
+
+.pager-size {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--clr-text-secondary);
+}
+
+.pager-size .filter-select {
+    width: auto;
+}
+
+/* Under a .students-table-wrapper: line up with the table and sit inside its bottom margin. */
+.pager--table {
+    margin: -16px 32px 32px;
+}
+
+/* ── Page error boundary (AppErrorBoundary) ── */
+.app-error {
+    display: flex;
+    justify-content: center;
+    padding: 48px 16px;
+}
+
+.app-error-card {
+    max-width: 480px;
+    padding: 32px 28px;
+    text-align: center;
+    background: var(--clr-surface);
+    border: 1px solid var(--clr-border);
+    border-radius: 14px;
+    box-shadow: var(--shadow-card);
+}
+
+.app-error-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 56px;
+    height: 56px;
+    margin-bottom: 16px;
+    border-radius: 50%;
+    background: rgba(239, 68, 68, 0.12);
+    color: var(--clr-danger);
+}
+
+.app-error-title {
+    margin: 0 0 8px;
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--clr-text);
+}
+
+.app-error-text {
+    margin: 0 0 20px;
+    font-size: 14px;
+    line-height: 1.6;
+    color: var(--clr-text-secondary);
+}
+
+.app-error-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 10px;
+}
+
 .error-banner {
     display: flex;
     align-items: center;
@@ -5500,6 +5595,81 @@ tr.row-selected:hover {
     color: var(--clr-text-muted);
 }
 
+.export-card-filter-hint--error {
+    color: var(--clr-danger, #ef4444);
+}
+
+/* Page-wide export choices: file format and the attendance date range. */
+.export-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px 32px;
+    margin: 0 0 20px;
+}
+
+.export-toolbar-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+}
+
+.export-segmented {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    padding: 3px;
+    background: var(--clr-surface);
+    border: 1px solid var(--clr-border);
+    border-radius: 10px;
+}
+
+.export-segmented .tab-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.export-range {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}
+
+.export-range-input {
+    width: auto;
+    min-width: 140px;
+}
+
+.export-range-sep {
+    font-size: 13px;
+    color: var(--clr-text-muted);
+}
+
+/* "Open" / "Show in folder" after a successful export. */
+.export-banner-actions {
+    display: flex;
+    gap: 8px;
+    margin-left: auto;
+}
+
+.export-banner-btn {
+    padding: 5px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    font-family: inherit;
+    color: inherit;
+    background: transparent;
+    border: 1px solid currentColor;
+    border-radius: 6px;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.export-banner-btn:hover {
+    background: rgba(34, 197, 94, 0.15);
+}
+
 /* ── Field label ──
    Small uppercase caption above a form control or read-only value.
    Use <label class="field-label" for="..."> when a control follows,
@@ -5678,6 +5848,7 @@ tr.row-selected:hover {
     }
 
     .students-table-wrapper,
+    .pager--table,
     .monitor-empty,
     .report-table-section,
     .timetable-wrapper,

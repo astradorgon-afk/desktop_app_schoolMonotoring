@@ -86,7 +86,7 @@ else
         else
         {
             <div class="excuse-list excuse-list--cards">
-                @foreach (var e in _filtered)
+                @foreach (var e in Pager.Slice(_filtered, _page, _pageSize))
                 {
                     <div class="excuse-item page-card">
                         <div class="excuse-item-head">
@@ -118,6 +118,7 @@ else
                     </div>
                 }
             </div>
+            <Pager TotalItems="@_filtered.Count" @bind-Page="_page" @bind-PageSize="_pageSize" Label="Excuse letter pages" />
         }
     </div>
 }
@@ -163,6 +164,11 @@ else
     private bool _messageIsError;
     private List<StudentExcuseView> _all = [];
     private List<StudentExcuseView> _filtered = [];
+    // Paging over the filtered list (see Pager). The page resets only when a filter changes,
+    // so reloading after an edit keeps the user where they were.
+    private int _page = 1;
+    private int _pageSize = Pager.PageSizes[0];
+    private string? _lastFilterKey;
     private bool _pendingOnly = true;
     private string _search = "";
 
@@ -211,6 +217,12 @@ else
 
     private void ApplyFilter()
     {
+        var filterKey = $"{_pendingOnly}";
+        if (filterKey != _lastFilterKey)
+        {
+            _page = 1;
+            _lastFilterKey = filterKey;
+        }
         var query = _all.AsEnumerable();
         if (_pendingOnly)
             query = query.Where(e => e.IsPending);

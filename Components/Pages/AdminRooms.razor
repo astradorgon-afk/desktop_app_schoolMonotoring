@@ -82,7 +82,7 @@ else
             <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
             <input class="search-input" aria-label="Search by room name or code" placeholder="Search by room name or code…" @bind="_searchQuery" @bind:after="ApplyFilters" />
         </div>
-        <select class="filter-select" @bind="_statusFilter" @bind:after="ApplyFilters">
+        <select aria-label="Filter by status" class="filter-select" @bind="_statusFilter" @bind:after="ApplyFilters">
             <option value="">All</option>
             <option value="with">With Schedule</option>
             <option value="without">Without Schedule</option>
@@ -98,7 +98,7 @@ else
             <thead>
                 <tr>
                     <th class="col-check">
-                        <input type="checkbox" class="select-checkbox" checked="@_allSelected" @onchange="ToggleSelectAll" />
+                        <input aria-label="Select all rooms" type="checkbox" class="select-checkbox" checked="@_allSelected" @onchange="ToggleSelectAll" />
                     </th>
                     <th>Room</th>
                     <th>Code</th>
@@ -118,7 +118,7 @@ else
                     {
                         <tr class="@(_selectedIds.Contains(room.Id) ? "row-selected" : "")">
                             <td class="col-check">
-                                <input type="checkbox" class="select-checkbox" checked="@_selectedIds.Contains(room.Id)" @onchange="() => ToggleSelect(room.Id)" />
+                                <input aria-label="Select room @room.Name" type="checkbox" class="select-checkbox" checked="@_selectedIds.Contains(room.Id)" @onchange="() => ToggleSelect(room.Id)" />
                             </td>
                             <td>
                                 <div class="student-info-cell">
@@ -138,7 +138,7 @@ else
                             <td class="col-qr">
                                 @if (room.QrCode is not null)
                                 {
-                                    <img src="data:image/png;base64,@_qrBase64.GetValueOrDefault(room.Id)" alt="QR Code for @room.Name" class="qr-thumb" @onclick="() => ShowQrModal(room)" style="cursor:pointer;" />
+                                    <img src="data:image/png;base64,@_qrBase64.GetValueOrDefault(room.Id)" alt="QR Code for @room.Name" class="qr-thumb" role="button" tabindex="0" @onclick="() => ShowQrModal(room)" @onkeydown="e => { if (KeyActivation.IsActivation(e)) ShowQrModal(room); }" style="cursor:pointer;" />
                                 }
                                 else
                                 {
@@ -158,7 +158,7 @@ else
     <Modal Title="@_selectedRoom.Name" ContentClass="modal-content--wide" OnClose="CloseQrModal">
             <div class="modal-header">
                 <h3>@_selectedRoom.Name</h3>
-                <button class="modal-close" @onclick="CloseQrModal">
+                <button type="button" aria-label="Close" title="Close" class="modal-close" @onclick="CloseQrModal">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                 </button>
             </div>
