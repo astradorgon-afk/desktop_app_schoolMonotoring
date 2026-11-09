@@ -32,11 +32,25 @@ else
                 <button type="button" class="btn btn-primary" @onclick="Recover">Try again</button>
                 <button type="button" class="btn btn-ghost" @onclick="GoToDashboardAsync">Go to dashboard</button>
             </div>
+            @if (ShowDetails)
+            {
+                @* Debug builds only: the exception, so a developer can see what failed. *@
+                <details class="app-error-details">
+                    <summary>Technical details</summary>
+                    <pre>@CurrentException.ToString()</pre>
+                </details>
+            }
         </div>
     </div>
 }
 
 @code {
+#if DEBUG
+    private const bool ShowDetails = true;
+#else
+    private const bool ShowDetails = false;
+#endif
+
     private async Task GoToDashboardAsync()
     {
         var session = await AuthService.GetCurrentSessionAsync();

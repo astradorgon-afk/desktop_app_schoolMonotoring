@@ -65,7 +65,7 @@ public class LiveMonitoringService : ILiveMonitoringService
         var sectionIds = todaySchedules.Select(s => s.OfferingSectionId).Distinct().ToList();
         var enrollmentCounts = sectionIds.Count > 0
             ? await context.Enrollments
-                .Where(e => sectionIds.Contains(e.SectionId) && e.Status == "ENROLLED")
+                .Where(e => sectionIds.Contains(e.SectionId) && (e.Status == "ACTIVE" || e.Status == "ENROLLED"))
                 .GroupBy(e => e.SectionId)
                 .Select(g => new { SectionId = g.Key, Count = g.Count() })
                 .ToDictionaryAsync(g => g.SectionId, g => g.Count, ct)

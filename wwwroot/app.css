@@ -1341,13 +1341,18 @@ input::-webkit-contacts-auto-fill-button {
 .page-title {
     font-size: 24px;
     font-weight: 700;
+    line-height: 1.25;
     color: var(--clr-text);
-    margin-bottom: 4px;
+    margin: 0 0 4px;
 }
 
+/* No global reset exists, so the browser's default h1/p margins used to push the
+   subtitle ~30px below the title. */
 .page-subtitle {
     color: var(--clr-text-secondary);
     font-size: 14px;
+    line-height: 1.5;
+    margin: 0;
 }
 
 .header-actions {
@@ -1467,6 +1472,7 @@ input::-webkit-contacts-auto-fill-button {
     font-size: 16px;
     font-weight: 600;
     color: var(--clr-text);
+    margin-top: 0; /* drop the browser's default h2 margin above card titles */
     margin-bottom: 4px;
 }
 
@@ -5332,6 +5338,8 @@ tr.row-selected:hover {
 .dash-setting-card {
     display: flex;
     align-items: center;
+    text-align: left; /* buttons centre text by default, which split label and value */
+    width: 100%;
     gap: 14px;
     padding: 18px 20px;
     background: var(--clr-surface);
@@ -5349,31 +5357,6 @@ tr.row-selected:hover {
     -webkit-backdrop-filter: blur(12px);
     border-color: rgba(255, 255, 255, 0.06);
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
-}
-
-/* Backup Mode: subtle progress-style indicator at bottom */
-.dash-setting-card:first-child::after {
-    content: '';
-    position: absolute;
-    bottom: 14px;
-    right: 20px;
-    width: 60px;
-    height: 4px;
-    border-radius: 2px;
-    background: var(--clr-border);
-    overflow: hidden;
-}
-
-.dash-setting-card:first-child::before {
-    content: '';
-    position: absolute;
-    bottom: 14px;
-    right: 20px;
-    width: 42px;
-    height: 4px;
-    border-radius: 2px;
-    background: linear-gradient(90deg, var(--clr-success), #4ade80);
-    z-index: 1;
 }
 
 .dash-setting-card--clickable {
@@ -6294,3 +6277,21 @@ tr.row-selected:hover {
 }
 
 
+/* Debug builds only (see AppErrorBoundary). */
+.app-error-details {
+    margin-top: 16px;
+    text-align: left;
+    font-size: 12px;
+    color: var(--clr-text-secondary);
+}
+
+.app-error-details pre {
+    max-height: 240px;
+    overflow: auto;
+    padding: 10px;
+    margin: 8px 0 0;
+    background: var(--clr-surface-alt);
+    border-radius: 8px;
+    white-space: pre-wrap;
+    word-break: break-word;
+}

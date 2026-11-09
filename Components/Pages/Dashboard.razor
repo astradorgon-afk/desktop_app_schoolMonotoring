@@ -4,6 +4,7 @@
 @inject IAnalyticsService AnalyticsService
 @inject IRoomService RoomService
 @inject IJSRuntime JS
+@implements IDisposable
 
 <div class="dash-page">
     <div class="dash-ambient dash-ambient--1"></div>
@@ -35,7 +36,7 @@
             <div class="dash-banner-right">
                 <div class="dash-banner-time">
                     <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-                    <span>@DateTime.Now.ToString("hh:mm tt")</span>
+                    <span>@_now.ToString("h:mm tt")</span>
                 </div>
                 <div class="dash-banner-row">
                     <button class="dash-theme-toggle" @onclick="ToggleTheme" title="@(_isDark ? "Switch to light mode" : "Switch to dark mode")">
@@ -60,11 +61,10 @@
             </div>
             <div class="dash-metric-body">
                 <div class="dash-metric-label">
-                    <span class="dash-metric-abbr">RM</span>
-                    ACTIVE ROOMS
+                    Active rooms
                 </div>
                 <div class="dash-metric-value">@_activeRoomCount</div>
-                <div class="dash-metric-desc">@_activeRoomCount rooms active right now</div>
+                <div class="dash-metric-desc">of @_roomCount rooms available for classes</div>
             </div>
         </div>
         <div class="dash-metric dash-metric--green">
@@ -73,11 +73,10 @@
             </div>
             <div class="dash-metric-body">
                 <div class="dash-metric-label">
-                    <span class="dash-metric-abbr">TC</span>
-                    TEACHERS ON DUTY
+                    Teachers
                 </div>
                 <div class="dash-metric-value">@_teacherCount</div>
-                <div class="dash-metric-desc">@_teacherCount teachers scheduled now</div>
+                <div class="dash-metric-desc">active teacher accounts</div>
             </div>
         </div>
         <div class="dash-metric dash-metric--purple">
@@ -86,11 +85,10 @@
             </div>
             <div class="dash-metric-body">
                 <div class="dash-metric-label">
-                    <span class="dash-metric-abbr">ST</span>
-                    STUDENTS REGISTERED
+                    Students
                 </div>
                 <div class="dash-metric-value">@_studentCount</div>
-                <div class="dash-metric-desc">@_studentCount registered students</div>
+                <div class="dash-metric-desc">active student records</div>
             </div>
         </div>
         <div class="dash-metric dash-metric--orange">
@@ -99,11 +97,10 @@
             </div>
             <div class="dash-metric-body">
                 <div class="dash-metric-label">
-                    <span class="dash-metric-abbr">%</span>
-                    ATTENDANCE RATE
+                    Attendance rate
                 </div>
                 <div class="dash-metric-value">@(_attendanceRate)%</div>
-                <div class="dash-metric-desc">Overall attendance rate</div>
+                <div class="dash-metric-desc">present or late, all recorded classes</div>
             </div>
         </div>
     </div>
@@ -123,7 +120,7 @@
             </div>
             <div class="dash-tile-body">
                 <span class="dash-tile-name">Analytics</span>
-                <span class="dash-tile-desc">Trends and KPIs</span>
+                <span class="dash-tile-desc">Live trends and breakdowns</span>
             </div>
             <div class="dash-tile-arrow">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
@@ -146,8 +143,8 @@
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
             </div>
             <div class="dash-tile-body">
-                <span class="dash-tile-name">Students Profile</span>
-                <span class="dash-tile-desc">Open a learner profile</span>
+                <span class="dash-tile-name">Students</span>
+                <span class="dash-tile-desc">Learner records and profiles</span>
             </div>
             <div class="dash-tile-arrow">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
@@ -158,8 +155,8 @@
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg>
             </div>
             <div class="dash-tile-body">
-                <span class="dash-tile-name">Students Rooms</span>
-                <span class="dash-tile-desc">Generate print QR codes</span>
+                <span class="dash-tile-name">Rooms</span>
+                <span class="dash-tile-desc">Classrooms and room QR codes</span>
             </div>
             <div class="dash-tile-arrow">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
@@ -170,8 +167,8 @@
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="12" cy="10" r="3"/><path d="M16 21v-1a4 4 0 0 0-4-4h0a4 4 0 0 0-4 4v1"/></svg>
             </div>
             <div class="dash-tile-body">
-                <span class="dash-tile-name">Account</span>
-                <span class="dash-tile-desc">Manage student accounts</span>
+                <span class="dash-tile-name">Accounts</span>
+                <span class="dash-tile-desc">Logins and access for all users</span>
             </div>
             <div class="dash-tile-arrow">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
@@ -182,7 +179,7 @@
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg>
             </div>
             <div class="dash-tile-body">
-                <span class="dash-tile-name">Teachers Info</span>
+                <span class="dash-tile-name">Teachers</span>
                 <span class="dash-tile-desc">Browse teacher records</span>
             </div>
             <div class="dash-tile-arrow">
@@ -207,7 +204,7 @@
             </div>
             <div class="dash-tile-body">
                 <span class="dash-tile-name">Reports</span>
-                <span class="dash-tile-desc">Attendance analytics &amp; CSV</span>
+                <span class="dash-tile-desc">Attendance reports &amp; exports</span>
             </div>
             <div class="dash-tile-arrow">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
@@ -221,7 +218,7 @@
                 </div>
                 <div class="dash-setting-card-body">
                     <div class="dash-setting-card-label">Export Data</div>
-                    <div class="dash-setting-card-value">Open</div>
+                    <div class="dash-setting-card-value">CSV or Excel files</div>
                 </div>
             </button>
             <button class="dash-setting-card dash-setting-card--clickable" @onclick='() => NavigateTo("/teacher/profile")'>
@@ -230,7 +227,7 @@
                 </div>
                 <div class="dash-setting-card-body">
                     <div class="dash-setting-card-label">Profile Settings</div>
-                    <div class="dash-setting-card-value">Open</div>
+                    <div class="dash-setting-card-value">Your account details</div>
                 </div>
             </button>
             <button class="dash-setting-card dash-setting-card--danger dash-setting-card--clickable" @onclick="NavigateToLogout">
@@ -247,6 +244,9 @@
 
 @code {
     private int _activeRoomCount;
+    private int _roomCount;
+    private DateTime _now = DateTime.Now;
+    private readonly CancellationTokenSource _cts = new();
     private int _teacherCount;
     private int _studentCount;
     private double _attendanceRate;
@@ -268,6 +268,7 @@
             var rooms = await roomsTask;
 
             _activeRoomCount = rooms.Count(r => r.IsActive);
+            _roomCount = rooms.Count;
             _teacherCount = analytics.TotalTeachers;
             _studentCount = analytics.TotalStudents;
             _attendanceRate = analytics.OverallAttendanceRate;
@@ -276,6 +277,31 @@
         {
             // Metrics will remain at their default (0) values
         }
+
+        _ = RunClockAsync();
+    }
+
+    // The banner clock used to be drawn once and never change.
+    private async Task RunClockAsync()
+    {
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(15));
+        try
+        {
+            while (await timer.WaitForNextTickAsync(_cts.Token))
+            {
+                var now = DateTime.Now;
+                if (now.Minute == _now.Minute && now.Hour == _now.Hour) continue;
+                _now = now;
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+        catch (OperationCanceledException) { }
+    }
+
+    public void Dispose()
+    {
+        _cts.Cancel();
+        _cts.Dispose();
     }
 
     private async Task ToggleTheme()

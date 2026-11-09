@@ -38,7 +38,7 @@ public class ScheduleService : IScheduleService
             .ToDictionaryAsync(gl => gl.Id, gl => gl.Name, ct);
 
         var enrollmentCounts = await context.Enrollments
-            .Where(e => e.Status == "ENROLLED")
+            .Where(e => (e.Status == "ACTIVE" || e.Status == "ENROLLED"))
             .GroupBy(e => e.SectionId)
             .Select(g => new { SectionId = g.Key, Count = g.Count() })
             .ToDictionaryAsync(e => e.SectionId, e => e.Count, ct);
