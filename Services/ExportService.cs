@@ -448,7 +448,7 @@ public class ExportService : IExportService
             [
                 x.EmployeeNo,
                 FormatName(x.TeacherLast, x.TeacherFirst, x.TeacherMiddle),
-                x.SessionDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+                SessionDates.LocalDate(x.SessionDate).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
                 x.SectionName,
                 x.SubjectName,
                 x.SessionStatus,
@@ -456,7 +456,7 @@ public class ExportService : IExportService
                 x.StudentNumber,
                 FormatName(x.StudentLast, x.StudentFirst, x.StudentMiddle),
                 x.Attendance,
-                x.MarkedAt.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture)
+                SessionDates.ToLocal(x.MarkedAt).ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture)
             ]);
         }
 
@@ -545,13 +545,13 @@ public class ExportService : IExportService
                 FormatName(x.StudentLast, x.StudentFirst, x.StudentMiddle),
                 gradeLookup.GetValueOrDefault(x.StudentId),
                 x.SectionName,
-                x.SessionDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+                SessionDates.LocalDate(x.SessionDate).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
                 x.SubjectName,
                 x.TeacherLast is null ? null : FormatName(x.TeacherLast, x.TeacherFirst!, x.TeacherMiddle),
                 x.SessionStatus,
                 x.Attendance,
                 x.Reason,
-                x.MarkedAt.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture)
+                SessionDates.ToLocal(x.MarkedAt).ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture)
             ]);
         }
 
@@ -647,8 +647,8 @@ public class ExportService : IExportService
                         absent.ToString(CultureInfo.InvariantCulture),
                         excused.ToString(CultureInfo.InvariantCulture),
                         rate?.ToString("0.0", CultureInfo.InvariantCulture),
-                        g.Min(x => x.SessionDate).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
-                        g.Max(x => x.SessionDate).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)
+                        SessionDates.LocalDate(g.Min(x => x.SessionDate)).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+                        SessionDates.LocalDate(g.Max(x => x.SessionDate)).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)
                     }
                 };
             })
@@ -674,13 +674,15 @@ public class ExportService : IExportService
 
     // ── Filter helpers ──
 
-    /// <summary>Inclusive lower bound on session dates, or null when unbounded.</summary>
-    private static DateTime? StartOf(ExportOptions options) =>
-        options.From?.ToDateTime(TimeOnly.MinValue);
+    // Session dates are stored as UTC, so the local From/To days are converted to UTC bounds.
 
-    /// <summary>Exclusive upper bound (the day after <see cref="ExportOptions.To"/>), so sessions at any time that day count.</summary>
+    /// <summary>Inclusive lower bound on session dates (UTC), or null when unbounded.</summary>
+    private static DateTime? StartOf(ExportOptions options) =>
+        options.From is { } from ? SessionDates.LocalDayStartUtc(from) : null;
+
+    /// <summary>Exclusive upper bound (start of the local day after <see cref="ExportOptions.To"/>, in UTC), so sessions at any time that day count.</summary>
     private static DateTime? EndOf(ExportOptions options) =>
-        options.To?.AddDays(1).ToDateTime(TimeOnly.MinValue);
+        options.To is { } to ? SessionDates.LocalDayStartUtc(to.AddDays(1)) : null;
 
     /// <summary>The normalised status filter, or null when absent or not a known status.</summary>
     private static string? StatusOf(ExportOptions options)

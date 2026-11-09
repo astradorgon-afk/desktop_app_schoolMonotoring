@@ -12,43 +12,39 @@ public class ReportService : IReportService
         _contextFactory = contextFactory;
     }
 
+    /// <summary>
+    /// Attendance between two local calendar days, inclusive. Session dates are stored as UTC,
+    /// so the bounds are converted to UTC and every grouping uses the session's local date
+    /// (a class at 7:30 AM local is still that day, not the previous UTC day).
+    /// </summary>
     public async Task<ReportData> GetReportAsync(DateOnly? from = null, DateOnly? to = null, CancellationToken ct = default)
     {
         await using var context = await _contextFactory.CreateDbContextAsync(ct);
 
-        // Determine available date range from data
-        var dateBounds = await context.AttendanceSessions
-            .AsNoTracking()
-            .Select(s => (DateTime?)s.SessionDate)
-            .FirstOrDefaultAsync(ct);
+        // ── Available range: the earliest and latest local days that have sessions ──
+        var firstStored = await context.AttendanceSessions.AsNoTracking().MinAsync(s => (DateTime?)s.SessionDate, ct);
+        var lastStored = await context.AttendanceSessions.AsNoTracking().MaxAsync(s => (DateTime?)s.SessionDate, ct);
 
-        var defaultMin = dateBounds.HasValue
-            ? DateOnly.FromDateTime(dateBounds.Value)
-            : DateOnly.FromDateTime(DateTime.Today);
-        var defaultMax = defaultMin;
-
-        // If we have sessions, get actual max date
-        if (dateBounds.HasValue)
-        {
-            var maxDate = await context.AttendanceSessions
-                .AsNoTracking()
-                .MaxAsync(s => (DateTime?)s.SessionDate, ct);
-            defaultMax = maxDate.HasValue ? DateOnly.FromDateTime(maxDate.Value) : defaultMin;
-        }
+        var today = DateOnly.FromDateTime(DateTime.Today);
+        var defaultMin = firstStored is { } f ? SessionDates.LocalDate(f) : today;
+        var defaultMax = lastStored is { } l ? SessionDates.LocalDate(l) : defaultMin;
 
         var fromDate = from ?? defaultMin;
         var toDate = to ?? defaultMax;
-        var fromDateTime = fromDate.ToDateTime(TimeOnly.MinValue);
-        var toDateTime = toDate.ToDateTime(TimeOnly.MaxValue);
+        if (fromDate > toDate)
+            (fromDate, toDate) = (toDate, fromDate);
 
-        // Get session IDs in range
-        var sessionIds = await context.AttendanceSessions
+        var fromUtc = SessionDates.LocalDayStartUtc(fromDate);
+        var untilUtc = SessionDates.LocalDayStartUtc(toDate.AddDays(1)); // exclusive
+
+        // ── Sessions in range, with their section ──
+        var sessions = await context.AttendanceSessions
             .AsNoTracking()
-            .Where(s => s.SessionDate >= fromDateTime && s.SessionDate <= toDateTime)
-            .Select(s => s.Id)
+            .Where(s => s.SessionDate >= fromUtc && s.SessionDate < untilUtc)
+            .Select(s => new { s.Id, s.SessionDate, SectionId = (long?)s.ClassOffering!.SectionId })
             .ToListAsync(ct);
 
-        if (sessionIds.Count == 0)
+        if (sessions.Count == 0)
         {
             return new ReportData
             {
@@ -60,106 +56,86 @@ public class ReportService : IReportService
             };
         }
 
+        var sessionById = sessions.ToDictionary(s => s.Id);
+
+        // ── Records in range (filtered by the same bounds in the database, no id list) ──
+        var records = (await context.AttendanceRecords
+                .AsNoTracking()
+                .Where(r => r.Session!.SessionDate >= fromUtc && r.Session.SessionDate < untilUtc)
+                .Select(r => new { r.AttendanceSessionId, r.Status })
+                .ToListAsync(ct))
+            .Where(r => sessionById.ContainsKey(r.AttendanceSessionId))
+            .ToList();
+
+        static int Count<T>(IEnumerable<T> items, Func<T, string> status, string value) => items.Count(i => status(i) == value);
+
         // ── Summary ──
-        var presentCount = await context.AttendanceRecords
-            .AsNoTracking().CountAsync(r => sessionIds.Contains(r.AttendanceSessionId) && r.Status == "PRESENT", ct);
-        var lateCount = await context.AttendanceRecords
-            .AsNoTracking().CountAsync(r => sessionIds.Contains(r.AttendanceSessionId) && r.Status == "LATE", ct);
-        var absentCount = await context.AttendanceRecords
-            .AsNoTracking().CountAsync(r => sessionIds.Contains(r.AttendanceSessionId) && r.Status == "ABSENT", ct);
-        var totalRecords = presentCount + lateCount + absentCount;
+        // Excused records stay out of the totals, so they never count against the rate.
+        var presentCount = Count(records, r => r.Status, "PRESENT");
+        var lateCount = Count(records, r => r.Status, "LATE");
+        var absentCount = Count(records, r => r.Status, "ABSENT");
 
         var summary = new ReportSummary
         {
-            TotalSessions = sessionIds.Distinct().Count(),
-            TotalRecords = totalRecords,
+            TotalSessions = sessions.Count,
+            TotalRecords = presentCount + lateCount + absentCount,
             PresentCount = presentCount,
             LateCount = lateCount,
             AbsentCount = absentCount
         };
 
-        // ── Daily Trend ──
-        var trendRaw = await context.AttendanceSessions
-            .AsNoTracking()
-            .Where(s => s.SessionDate >= fromDateTime && s.SessionDate <= toDateTime)
-            .Select(s => new
+        // ── Daily trend, by local calendar day ──
+        var recordsBySession = records.ToLookup(r => r.AttendanceSessionId);
+        var dailyTrend = sessions
+            .GroupBy(s => SessionDates.LocalDate(s.SessionDate))
+            .Select(g =>
             {
-                Date = s.SessionDate,
-                Present = s.Records.Count(r => r.Status == "PRESENT"),
-                Late = s.Records.Count(r => r.Status == "LATE"),
-                Absent = s.Records.Count(r => r.Status == "ABSENT")
-            })
-            .ToListAsync(ct);
-
-        var dailyTrend = trendRaw
-            .GroupBy(x => DateOnly.FromDateTime(x.Date))
-            .Select(g => new DailyTrendItem
-            {
-                Date = g.Key,
-                Sessions = g.Count(),
-                PresentCount = g.Sum(x => x.Present),
-                LateCount = g.Sum(x => x.Late),
-                AbsentCount = g.Sum(x => x.Absent)
+                var dayRecords = g.SelectMany(s => recordsBySession[s.Id]).ToList();
+                return new DailyTrendItem
+                {
+                    Date = g.Key,
+                    Sessions = g.Count(),
+                    PresentCount = Count(dayRecords, r => r.Status, "PRESENT"),
+                    LateCount = Count(dayRecords, r => r.Status, "LATE"),
+                    AbsentCount = Count(dayRecords, r => r.Status, "ABSENT")
+                };
             })
             .OrderByDescending(d => d.Date)
             .ToList();
 
-        // ── Section Breakdown ──
-        // Get offering → section mapping for sessions in range
-        var sectionMap = await context.AttendanceSessions
-            .AsNoTracking()
-            .Where(s => sessionIds.Contains(s.Id))
-            .Select(s => new { s.Id, SectionName = s.ClassOffering!.Section!.Name })
-            .Distinct()
-            .ToListAsync(ct);
-
-        var sessionToSection = sectionMap.ToDictionary(s => s.Id, s => s.SectionName);
-
-        // Get all attendance records for these sessions with their section mapping
-        var sectionData = await context.AttendanceRecords
-            .AsNoTracking()
-            .Where(r => sessionIds.Contains(r.AttendanceSessionId))
-            .Select(r => new { r.AttendanceSessionId, r.Status })
-            .ToListAsync(ct);
-
-        var sectionGroups = sectionData
-            .GroupBy(r => sessionToSection.GetValueOrDefault(r.AttendanceSessionId, "Unknown"))
+        // ── Section breakdown (by section id: two sections may share a name across years) ──
+        var sectionGroups = records
+            .GroupBy(r => sessionById[r.AttendanceSessionId].SectionId)
             .Select(g => new
             {
-                SectionName = g.Key,
-                Total = g.Count(),
-                Present = g.Count(r => r.Status == "PRESENT"),
-                Late = g.Count(r => r.Status == "LATE"),
-                Absent = g.Count(r => r.Status == "ABSENT")
+                SectionId = g.Key,
+                Total = g.Count(r => r.Status is "PRESENT" or "LATE" or "ABSENT"),
+                Present = Count(g, r => r.Status, "PRESENT"),
+                Late = Count(g, r => r.Status, "LATE"),
+                Absent = Count(g, r => r.Status, "ABSENT")
             })
-            .OrderByDescending(x => x.Total)
+            .Where(g => g.Total > 0)
+            .OrderByDescending(g => g.Total)
             .ToList();
 
-        // Enrich with enrollment counts
-        var secNames = sectionGroups.Select(s => s.SectionName).ToList();
-        // Enrich with enrollment counts — simpler query
-        var sectionLookup = await context.Sections
+        var sectionIds = sectionGroups.Where(g => g.SectionId is not null).Select(g => g.SectionId!.Value).ToList();
+        var sectionNames = await context.Sections
             .AsNoTracking()
-            .Where(s => secNames.Contains(s.Name))
+            .Where(s => sectionIds.Contains(s.Id))
             .Select(s => new { s.Id, s.Name })
-            .ToListAsync(ct);
+            .ToDictionaryAsync(s => s.Id, s => s.Name, ct);
 
-        var sectionIds = sectionLookup.Select(s => s.Id).ToList();
-        var enrollCounts = await context.Enrollments
+        var enrollmentCounts = await context.Enrollments
             .AsNoTracking()
-            .Where(e => sectionIds.Contains(e.SectionId) && e.Status == "ENROLLED")
+            .Where(e => sectionIds.Contains(e.SectionId) && (e.Status == "ACTIVE" || e.Status == "ENROLLED"))
             .GroupBy(e => e.SectionId)
             .Select(g => new { SectionId = g.Key, Count = g.Count() })
-            .ToListAsync(ct);
-
-        var enrollmentCounts = sectionLookup.ToDictionary(
-            s => s.Name,
-            s => enrollCounts.FirstOrDefault(e => e.SectionId == s.Id)?.Count ?? 0);
+            .ToDictionaryAsync(x => x.SectionId, x => x.Count, ct);
 
         var sectionReports = sectionGroups.Select(g => new SectionReportItem
         {
-            SectionName = g.SectionName,
-            EnrolledStudents = enrollmentCounts.GetValueOrDefault(g.SectionName, 0),
+            SectionName = g.SectionId is { } id && sectionNames.TryGetValue(id, out var name) ? name : "Unknown",
+            EnrolledStudents = g.SectionId is { } sid ? enrollmentCounts.GetValueOrDefault(sid) : 0,
             TotalRecords = g.Total,
             PresentCount = g.Present,
             LateCount = g.Late,
