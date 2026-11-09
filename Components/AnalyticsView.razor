@@ -1,0 +1,717 @@
+@*
+    The analytics dashboard shared by Admin Analytics (/admin/analytics, school-wide) and the
+    teacher Analytics page (/analytics, TeacherId set: only that teacher's own classes).
+    Filters (period, grade, section, subject), live auto-refresh and charts all live here;
+    the pages only decide who may see it and for which scope.
+*@
+@implements IAsyncDisposable
+@inject IAnalyticsService AnalyticsService
+@inject IJSRuntime JS
+
+<PageHeader Title="@Title" Subtitle="@Subtitle">
+    <div class="header-actions an-header-actions">
+        <span class="an-updated" aria-live="polite">
+            @if (_refreshing)
+            {
+                <span class="spinner-sm"></span><span>Updating…</span>
+            }
+            else if (_data is not null)
+            {
+                <span>Updated @_data.GeneratedAt.ToString("h:mm:ss tt")</span>
+            }
+        </span>
+        <button type="button" class="an-live @(_live ? "an-live--on" : "")" aria-pressed="@_live" @onclick="ToggleLive"
+                title="@(_live ? "Auto-refresh is on: figures update every 30 seconds" : "Turn on auto-refresh")">
+            <span class="an-live-dot"></span>
+            <span>@(_live ? "Live" : "Paused")</span>
+        </button>
+        <button type="button" class="btn btn-ghost" @onclick="() => LoadAsync()" disabled="@(_refreshing || _isLoading)">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+            <span>Refresh</span>
+        </button>
+    </div>
+</PageHeader>
+
+@* ── Filters ── *@
+<div class="an-toolbar">
+    <div class="an-filter-group">
+        <span class="an-filter-label" id="an-period-label">Period</span>
+        <div class="an-segmented" role="group" aria-labelledby="an-period-label">
+            @foreach (var preset in Presets)
+            {
+                var p = preset;
+                <button type="button" class="@(_period == p.Key ? "tab-btn tab-btn--active" : "tab-btn")"
+                        aria-pressed="@(_period == p.Key)" @onclick="() => SelectPeriodAsync(p.Key)">@p.Label</button>
+            }
+        </div>
+    </div>
+
+    @if (_period == Period.Custom)
+    {
+        <div class="an-filter-group">
+            <span class="an-filter-label">Dates</span>
+            <div class="an-range">
+                <input type="date" class="filter-select an-date" aria-label="From date" value="@_customFrom?.ToString("yyyy-MM-dd")"
+                       max="@_customTo?.ToString("yyyy-MM-dd")" @onchange="e => OnCustomDateAsync(e, isFrom: true)" />
+                <span class="an-range-sep">to</span>
+                <input type="date" class="filter-select an-date" aria-label="To date" value="@_customTo?.ToString("yyyy-MM-dd")"
+                       min="@_customFrom?.ToString("yyyy-MM-dd")" @onchange="e => OnCustomDateAsync(e, isFrom: false)" />
+            </div>
+        </div>
+    }
+
+    @* A teacher with classes in one grade gains nothing from a grade filter. *@
+    @if ((_options?.GradeLevels.Count ?? 0) > 1)
+    {
+        <div class="an-filter-group">
+            <label class="an-filter-label" for="an-grade">Grade level</label>
+            <select id="an-grade" class="filter-select" value="@_gradeId" @onchange="OnGradeChangedAsync">
+                <option value="0">All grade levels</option>
+                @foreach (var g in _options?.GradeLevels ?? [])
+                {
+                    <option value="@g.Id">@g.Name</option>
+                }
+            </select>
+        </div>
+    }
+
+    <div class="an-filter-group">
+        <label class="an-filter-label" for="an-section">Section</label>
+        <select id="an-section" class="filter-select" value="@_sectionId" @onchange="OnSectionChangedAsync">
+            <option value="0">@(_gradeId != 0 ? "All sections in this grade" : IsTeacherScope ? "All my sections" : "All sections")</option>
+            @foreach (var s in VisibleSections)
+            {
+                <option value="@s.Id">@s.Name</option>
+            }
+        </select>
+    </div>
+
+    @if ((_options?.Subjects.Count ?? 0) > 1)
+    {
+        <div class="an-filter-group">
+            <label class="an-filter-label" for="an-subject">Subject</label>
+            <select id="an-subject" class="filter-select" value="@_subjectId" @onchange="OnSubjectChangedAsync">
+                <option value="0">@(IsTeacherScope ? "All my subjects" : "All subjects")</option>
+                @foreach (var su in _options?.Subjects ?? [])
+                {
+                    <option value="@su.Id">@su.Name</option>
+                }
+            </select>
+        </div>
+    }
+
+    @if (HasFilters)
+    {
+        <button type="button" class="an-clear" @onclick="ClearFiltersAsync">Clear filters</button>
+    }
+</div>
+
+<p class="an-scope">
+    Showing <strong>@ScopeLabel</strong> · <strong>@PeriodLabel</strong>
+</p>
+
+@if (_error is not null)
+{
+    <div class="error-banner" style="margin: 0 32px 20px;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+        <span>@_error</span>
+    </div>
+}
+
+@if (_isLoading)
+{
+    <div class="loading-state">
+        <div class="spinner"></div>
+        <p>Loading analytics…</p>
+    </div>
+}
+else if (IsTeacherScope && _options is { Sections.Count: 0 })
+{
+    <div class="chart-card an-empty-card">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg>
+        <h2 class="card-heading">No classes assigned yet</h2>
+        <p class="text-muted">Once you're assigned a class and start taking attendance, your analytics will appear here.</p>
+    </div>
+}
+else if (_data is not null)
+{
+    const double circumference = 326.7;
+    var hasTodaySessions = _data.TotalTodayRecords > 0;
+    var todayPct = hasTodaySessions ? Math.Round((double)(_data.PresentToday + _data.LateToday) / _data.TotalTodayRecords * 100, 1) : 0;
+
+    <div class="@(_refreshing ? "an-body an-body--refreshing" : "an-body")">
+        <div class="stats-grid an-kpis">
+            <div class="stat-card">
+                <div class="stat-icon stat-icon--blue">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                </div>
+                <div class="stat-info">
+                    <span class="stat-value">@_data.TotalStudents.ToString("N0")</span>
+                    <span class="stat-label">@(IsTeacherScope ? "My students" : HasScope ? "Students enrolled" : "Active students")</span>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon stat-icon--teal">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
+                </div>
+                <div class="stat-info">
+                    <span class="stat-value">@_data.TotalSections.ToString("N0")</span>
+                    <span class="stat-label">
+                        @(IsTeacherScope
+                            ? $"Section{(_data.TotalSections == 1 ? "" : "s")} · {_data.TotalSubjects} subject{(_data.TotalSubjects == 1 ? "" : "s")}"
+                            : $"Sections · {_data.TotalTeachers} teachers")
+                    </span>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon stat-icon--indigo">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                </div>
+                <div class="stat-info">
+                    <span class="stat-value">@_data.TotalSessions.ToString("N0")</span>
+                    <span class="stat-label">Class sessions</span>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon stat-icon--purple">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><polyline points="9 15 11 17 15 13"/></svg>
+                </div>
+                <div class="stat-info">
+                    <span class="stat-value">@_data.TotalRecords.ToString("N0")</span>
+                    <span class="stat-label">Records · @_data.TotalStudentsWithRecords student@(_data.TotalStudentsWithRecords == 1 ? "" : "s")</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="analytics-grid">
+            @RingCard("Attendance rate", _data.OverallAttendanceRate, $"{_data.TotalPresent + _data.TotalLate:N0} of {_data.TotalRecords:N0}", "", _data.TotalRecords > 0, circumference)
+            @RingCard("Late rate", _data.LateRate, $"{_data.TotalLate:N0} late", "ring-fill--yellow", _data.TotalRecords > 0, circumference)
+            @RingCard("Absent rate", _data.AbsentRate, $"{_data.TotalAbsent:N0} absent", "ring-fill--red", _data.TotalRecords > 0, circumference)
+            @RingCard("Today", todayPct, hasTodaySessions ? $"{_data.PresentToday + _data.LateToday} of {_data.TotalTodayRecords} in class" : "No classes yet", "ring-fill--green", hasTodaySessions, circumference)
+        </div>
+
+        @if (_data.TotalRecords == 0)
+        {
+            <div class="chart-card an-empty-card">
+                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+                <h2 class="card-heading">No attendance in this period</h2>
+                <p class="text-muted">
+                    @if (_options?.FirstSessionDate is { } first && _options.LastSessionDate is { } last)
+                    {
+                        <text>@(IsTeacherScope ? "Your recorded classes" : "Recorded classes") run from @first.ToString("MMM d, yyyy") to @last.ToString("MMM d, yyyy").</text>
+                    }
+                    else if (IsTeacherScope)
+                    {
+                        <text>Start a session and scan your students in to see your analytics here.</text>
+                    }
+                    Try a longer period or clear the filters.
+                </p>
+                @if (HasFilters)
+                {
+                    <button type="button" class="btn btn-primary" @onclick="ClearFiltersAsync">@(IsTeacherScope ? "Show all time, all my classes" : "Show all time, all sections")</button>
+                }
+            </div>
+        }
+        else
+        {
+            <div class="analytics-content">
+                <div class="chart-card">
+                    <div class="an-card-head">
+                        <h2 class="card-heading">Daily attendance</h2>
+                        <span class="an-card-meta">@_data.DailyTrend.Count day@(_data.DailyTrend.Count == 1 ? "" : "s") with records</span>
+                    </div>
+                    <div class="chart-container" style="height:240px;">
+                        <canvas id="chart-daily" aria-label="Present, late and absent students per day" role="img"></canvas>
+                    </div>
+                </div>
+                @if (IsTeacherScope)
+                {
+                    <div class="chart-card">
+                        <div class="an-card-head">
+                            <h2 class="card-heading">By subject</h2>
+                            <span class="an-card-meta">share of records</span>
+                        </div>
+                        <div class="chart-container" style="height:@(ChartHeight(_data.SubjectStats.Count, 240))px;">
+                            <canvas id="chart-subject" aria-label="Attendance by subject" role="img"></canvas>
+                        </div>
+                    </div>
+                }
+                else
+                {
+                    <div class="chart-card">
+                        <div class="an-card-head">
+                            <h2 class="card-heading">By grade level</h2>
+                            <span class="an-card-meta">share of records</span>
+                        </div>
+                        <div class="chart-container" style="height:@(ChartHeight(_data.GradeLevelStats.Count, 240))px;">
+                            <canvas id="chart-grade" aria-label="Attendance by grade level" role="img"></canvas>
+                        </div>
+                    </div>
+                }
+            </div>
+
+            <div class="analytics-content">
+                <div class="chart-card">
+                    <div class="an-card-head">
+                        <h2 class="card-heading">By section</h2>
+                        <span class="an-card-meta">@_data.SectionStats.Count section@(_data.SectionStats.Count == 1 ? "" : "s") · share of records</span>
+                    </div>
+                    <div class="chart-container" style="height:@(ChartHeight(_data.SectionStats.Count, 220))px;">
+                        <canvas id="chart-section" aria-label="Attendance by section" role="img"></canvas>
+                    </div>
+                </div>
+                <div class="chart-card">
+                    <div class="an-card-head">
+                        <h2 class="card-heading">By day of week</h2>
+                        <span class="an-card-meta">attendance rate</span>
+                    </div>
+                    <div class="chart-container" style="height:220px;">
+                        <canvas id="chart-dow" aria-label="Attendance rate by day of week" role="img"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <div class="analytics-content analytics-footer-row">
+                <div class="chart-card">
+                    <div class="an-card-head">
+                        <h2 class="card-heading">Lowest attendance sections</h2>
+                        <span class="an-card-meta">needs attention first</span>
+                    </div>
+                    <div class="table-scroll">
+                        <table class="students-table an-table">
+                            <thead>
+                                <tr>
+                                    <th>Section</th>
+                                    <th class="num">Enrolled</th>
+                                    <th class="num">Records</th>
+                                    <th class="num">Present</th>
+                                    <th class="num">Late</th>
+                                    <th class="num">Absent</th>
+                                    <th class="num">Rate</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var s in _data.SectionStats.OrderBy(s => s.Percentage).ThenByDescending(s => s.LateCount).Take(6))
+                                {
+                                    var sec = s;
+                                    <tr>
+                                        <td>
+                                            <button type="button" class="an-link" title="Show only this section" @onclick="() => FocusSectionAsync(sec.SectionId)">@sec.SectionName</button>
+                                            @if (!string.IsNullOrEmpty(sec.GradeLevel))
+                                            {
+                                                <span class="an-sub">@sec.GradeLevel</span>
+                                            }
+                                        </td>
+                                        <td class="num">@sec.EnrolledStudents</td>
+                                        <td class="num">@sec.TotalRecords</td>
+                                        <td class="num"><span class="att-badge att-badge--present">@sec.PresentCount</span></td>
+                                        <td class="num"><span class="att-badge att-badge--late">@sec.LateCount</span></td>
+                                        <td class="num"><span class="att-badge att-badge--absent">@sec.AbsentCount</span></td>
+                                        <td class="num">
+                                            <span class="report-rate-indicator @(sec.Percentage >= 90 ? "rate--good" : sec.Percentage >= 75 ? "rate--ok" : "rate--bad")">@sec.Percentage%</span>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="chart-card">
+                    <div class="an-card-head">
+                        <h2 class="card-heading">Monthly trend</h2>
+                        @if (_data.MonthlyTrends.Count > 1)
+                        {
+                            var change = _data.TrendChange;
+                            <span class="an-delta @(change > 0 ? "an-delta--up" : change < 0 ? "an-delta--down" : "")">
+                                @(change > 0 ? "▲" : change < 0 ? "▼" : "■") @Math.Abs(change) pts vs previous month
+                            </span>
+                        }
+                    </div>
+                    @if (_data.MonthlyTrends.Count > 1)
+                    {
+                        <div class="chart-container" style="height:220px;">
+                            <canvas id="chart-trend" aria-label="Attendance rate per month" role="img"></canvas>
+                        </div>
+                    }
+                    else
+                    {
+                        var single = _data.MonthlyTrends.FirstOrDefault();
+                        <div class="an-single-month">
+                            <div class="an-single-value">@(single?.Percentage ?? 0)%</div>
+                            <div class="an-single-label">@(single?.Label ?? "This period") attendance rate</div>
+                            <div class="text-muted an-single-note">A trend line appears once the period covers two or more months.</div>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    [Parameter, EditorRequired] public string Title { get; set; } = "";
+    [Parameter] public string Subtitle { get; set; } = "";
+
+    /// <summary>When set, every figure covers only this teacher's own classes.</summary>
+    [Parameter] public long? TeacherId { get; set; }
+
+    private enum Period { Today, Week, Month, ThisMonth, All, Custom }
+
+    private static readonly (Period Key, string Label)[] Presets =
+    [
+        (Period.Today, "Today"),
+        (Period.Week, "7 days"),
+        (Period.Month, "30 days"),
+        (Period.ThisMonth, "This month"),
+        (Period.All, "All time"),
+        (Period.Custom, "Custom"),
+    ];
+
+    private static readonly string[] ChartIds = ["chart-daily", "chart-grade", "chart-subject", "chart-section", "chart-dow", "chart-trend"];
+
+    // How often "Live" re-reads the figures.
+    private static readonly TimeSpan LiveInterval = TimeSpan.FromSeconds(30);
+
+    private readonly CancellationTokenSource _cts = new();
+    private AdminAnalyticsData? _data;
+    private AnalyticsFilterOptions? _options;
+    private bool _isLoading = true;
+    private bool _refreshing;
+    private bool _chartsDirty;
+    private string? _error;
+
+    private Period _period = Period.All;
+    private DateOnly? _customFrom;
+    private DateOnly? _customTo;
+    private long _gradeId;
+    private long _sectionId;
+    private long _subjectId;
+
+    private bool _live = true;
+    private PeriodicTimer? _timer;
+    private int _loadVersion;
+
+    private bool IsTeacherScope => TeacherId is not null;
+    private bool HasScope => _gradeId != 0 || _sectionId != 0 || _subjectId != 0;
+    private bool HasFilters => HasScope || _period != Period.All;
+
+    private IEnumerable<AnalyticsOption> VisibleSections =>
+        (_options?.Sections ?? []).Where(s => _gradeId == 0 || s.GradeLevelId == _gradeId);
+
+    private string ScopeLabel
+    {
+        get
+        {
+            var where =
+                _sectionId != 0 ? _options?.Sections.FirstOrDefault(s => s.Id == _sectionId)?.Name ?? "one section"
+                : _gradeId != 0 ? _options?.GradeLevels.FirstOrDefault(g => g.Id == _gradeId)?.Name ?? "one grade level"
+                : IsTeacherScope ? "all my classes" : "all sections";
+            var subject = _subjectId != 0 ? _options?.Subjects.FirstOrDefault(s => s.Id == _subjectId)?.Name : null;
+            return subject is null ? where : $"{subject} · {where}";
+        }
+    }
+
+    private string PeriodLabel
+    {
+        get
+        {
+            var (from, to) = Range();
+            return (from, to) switch
+            {
+                (null, null) => "all time",
+                ({ } f, { } t) when f == t => f.ToString("MMM d, yyyy"),
+                ({ } f, { } t) => $"{f:MMM d} – {t:MMM d, yyyy}",
+                ({ } f, null) => $"from {f:MMM d, yyyy}",
+                (null, { } t) => $"until {t:MMM d, yyyy}",
+            };
+        }
+    }
+
+    private (DateOnly? From, DateOnly? To) Range()
+    {
+        var today = DateOnly.FromDateTime(DateTime.Today);
+        return _period switch
+        {
+            Period.Today => (today, today),
+            Period.Week => (today.AddDays(-6), today),
+            Period.Month => (today.AddDays(-29), today),
+            Period.ThisMonth => (new DateOnly(today.Year, today.Month, 1), today),
+            Period.Custom => (_customFrom, _customTo),
+            _ => (null, null)
+        };
+    }
+
+    // Horizontal bar charts grow with the number of rows so labels never overlap.
+    private static int ChartHeight(int rows, int min) => Math.Max(min, rows * 30 + 60);
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _options = await AnalyticsService.GetFilterOptionsAsync(TeacherId, _cts.Token);
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception ex)
+        {
+            _error = $"Failed to load the filters: {ex.Message}";
+        }
+
+        await LoadAsync(initial: true);
+        StartLiveTimer();
+    }
+
+    private async Task LoadAsync(bool initial = false)
+    {
+        // Several loads can overlap (a filter change during a live refresh);
+        // only the newest one is allowed to update the page.
+        var version = ++_loadVersion;
+        if (initial) _isLoading = true; else _refreshing = true;
+        _error = null;
+
+        try
+        {
+            var (from, to) = Range();
+            var filter = new AnalyticsFilter(from, to,
+                SectionId: _sectionId == 0 ? null : _sectionId,
+                GradeLevelId: _gradeId == 0 ? null : _gradeId,
+                SubjectId: _subjectId == 0 ? null : _subjectId,
+                TeacherId: TeacherId);
+
+            var data = await AnalyticsService.GetAdminAnalyticsAsync(filter, _cts.Token);
+            if (version != _loadVersion) return;
+
+            _data = data;
+            _chartsDirty = true;
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception ex)
+        {
+            if (version == _loadVersion)
+                _error = $"Failed to load analytics: {ex.Message}";
+        }
+        finally
+        {
+            if (version == _loadVersion)
+            {
+                _isLoading = false;
+                _refreshing = false;
+            }
+        }
+    }
+
+    private async Task SelectPeriodAsync(Period period)
+    {
+        if (period == _period) return;
+        _period = period;
+
+        if (period == Period.Custom)
+        {
+            // Start the custom range from the data that exists, so it is never empty.
+            _customFrom ??= _options?.FirstSessionDate ?? DateOnly.FromDateTime(DateTime.Today).AddDays(-29);
+            _customTo ??= _options?.LastSessionDate ?? DateOnly.FromDateTime(DateTime.Today);
+        }
+
+        await LoadAsync();
+    }
+
+    private async Task OnCustomDateAsync(ChangeEventArgs e, bool isFrom)
+    {
+        DateOnly? value = DateOnly.TryParse(e.Value?.ToString(), out var d) ? d : null;
+        if (isFrom) _customFrom = value; else _customTo = value;
+
+        // Keep the range valid by moving the other end instead of showing an error.
+        if (_customFrom is { } f && _customTo is { } t && f > t)
+        {
+            if (isFrom) _customTo = f; else _customFrom = t;
+        }
+
+        await LoadAsync();
+    }
+
+    private async Task OnGradeChangedAsync(ChangeEventArgs e)
+    {
+        _gradeId = long.TryParse(e.Value?.ToString(), out var id) ? id : 0;
+        if (_sectionId != 0 && !VisibleSections.Any(s => s.Id == _sectionId))
+            _sectionId = 0;
+        await LoadAsync();
+    }
+
+    private async Task OnSectionChangedAsync(ChangeEventArgs e)
+    {
+        _sectionId = long.TryParse(e.Value?.ToString(), out var id) ? id : 0;
+        await LoadAsync();
+    }
+
+    private async Task OnSubjectChangedAsync(ChangeEventArgs e)
+    {
+        _subjectId = long.TryParse(e.Value?.ToString(), out var id) ? id : 0;
+        await LoadAsync();
+    }
+
+    private async Task FocusSectionAsync(long sectionId)
+    {
+        _sectionId = sectionId;
+        var grade = _options?.Sections.FirstOrDefault(s => s.Id == sectionId)?.GradeLevelId;
+        if (_gradeId != 0 && grade != _gradeId) _gradeId = 0;
+        await LoadAsync();
+    }
+
+    private async Task ClearFiltersAsync()
+    {
+        _period = Period.All;
+        _gradeId = 0;
+        _sectionId = 0;
+        _subjectId = 0;
+        await LoadAsync();
+    }
+
+    private void ToggleLive()
+    {
+        _live = !_live;
+        if (_live) StartLiveTimer(); else StopLiveTimer();
+    }
+
+    private void StartLiveTimer()
+    {
+        if (!_live || _timer is not null) return;
+        _timer = new PeriodicTimer(LiveInterval);
+        _ = RunLiveLoopAsync(_timer);
+    }
+
+    private void StopLiveTimer()
+    {
+        _timer?.Dispose();
+        _timer = null;
+    }
+
+    private async Task RunLiveLoopAsync(PeriodicTimer timer)
+    {
+        try
+        {
+            while (await timer.WaitForNextTickAsync(_cts.Token))
+            {
+                if (_refreshing || _isLoading) continue;
+                await InvokeAsync(async () =>
+                {
+                    await LoadAsync();
+                    StateHasChanged();
+                });
+            }
+        }
+        catch (OperationCanceledException) { }
+        catch (ObjectDisposedException) { }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!_chartsDirty || _data is null) return;
+        _chartsDirty = false;
+
+        try
+        {
+            await DrawChartsAsync(_data);
+        }
+        catch (JSDisconnectedException) { }
+        catch (TaskCanceledException) { }
+        catch (JSException ex)
+        {
+            // A chart that fails to draw must not take the figures and tables down with it.
+            _error = $"Some charts could not be drawn: {ex.Message}";
+            StateHasChanged();
+        }
+    }
+
+    private async Task DrawChartsAsync(AdminAnalyticsData data)
+    {
+        // Charts that are no longer on the page (e.g. now empty) are torn down first.
+        // The cast stops the array being spread into separate JS arguments.
+        await JS.InvokeVoidAsync("AttendanceCharts.destroy", (object)ChartIds);
+        if (data.TotalRecords == 0) return;
+
+        const string present = "#22c55e", late = "#eab308", absent = "#ef4444", excused = "#60a5fa";
+
+        object[] Series(IEnumerable<int> p, IEnumerable<int> l, IEnumerable<int> a, IEnumerable<int>? x = null)
+        {
+            var list = new List<object>
+            {
+                new { label = "Present", data = p.ToArray(), color = present },
+                new { label = "Late", data = l.ToArray(), color = late },
+                new { label = "Absent", data = a.ToArray(), color = absent },
+            };
+            var xs = x?.ToArray();
+            if (xs is not null && xs.Any(v => v > 0))
+                list.Add(new { label = "Excused", data = xs, color = excused });
+            return list.ToArray();
+        }
+
+        var days = data.DailyTrend;
+        await JS.InvokeVoidAsync("AttendanceCharts.initStackedBarChart", "chart-daily",
+            days.Select(d => d.Date.ToString(days.Count > 0 && days[0].Date.Year != days[^1].Date.Year ? "MMM d, yy" : "MMM d")).ToArray(),
+            Series(days.Select(d => d.PresentCount), days.Select(d => d.LateCount), days.Select(d => d.AbsentCount), days.Select(d => d.ExcusedCount)),
+            new { horizontal = false, percent = false });
+
+        if (IsTeacherScope)
+        {
+            var subjects = data.SubjectStats;
+            await JS.InvokeVoidAsync("AttendanceCharts.initStackedBarChart", "chart-subject",
+                subjects.Select(s => s.SubjectName).ToArray(),
+                Series(subjects.Select(s => s.PresentCount), subjects.Select(s => s.LateCount), subjects.Select(s => s.AbsentCount), subjects.Select(s => s.ExcusedCount)),
+                new { horizontal = true, percent = true });
+        }
+        else
+        {
+            var grades = data.GradeLevelStats;
+            await JS.InvokeVoidAsync("AttendanceCharts.initStackedBarChart", "chart-grade",
+                grades.Select(g => g.GradeLevel).ToArray(),
+                Series(grades.Select(g => g.PresentCount), grades.Select(g => g.LateCount), grades.Select(g => g.AbsentCount)),
+                new { horizontal = true, percent = true });
+        }
+
+        var sections = data.SectionStats;
+        await JS.InvokeVoidAsync("AttendanceCharts.initStackedBarChart", "chart-section",
+            sections.Select(s => s.SectionName).ToArray(),
+            Series(sections.Select(s => s.PresentCount), sections.Select(s => s.LateCount), sections.Select(s => s.AbsentCount), sections.Select(s => s.ExcusedCount)),
+            new { horizontal = true, percent = true });
+
+        await JS.InvokeVoidAsync("AttendanceCharts.initBarChart", "chart-dow",
+            data.DayOfWeekStats.Select(d => d.Day[..3]).ToArray(),
+            data.DayOfWeekStats.Select(d => d.Percentage).ToArray(),
+            data.DayOfWeekStats.Select(_ => "rgba(99, 102, 241, 0.75)").ToArray());
+
+        if (data.MonthlyTrends.Count > 1)
+        {
+            await JS.InvokeVoidAsync("AttendanceCharts.initLineChart", "chart-trend",
+                data.MonthlyTrends.Select(m => m.Label).ToArray(),
+                data.MonthlyTrends.Select(m => m.Percentage).ToArray());
+        }
+    }
+
+    private RenderFragment RingCard(string label, double pct, string sub, string fillClass, bool hasData, double circumference) => __builder =>
+    {
+        var offset = hasData ? circumference * (1 - Math.Clamp(pct, 0, 100) / 100) : circumference;
+        <div class="ring-card">
+            <div class="ring-label">@label</div>
+            <svg class="ring-svg" viewBox="0 0 120 120" role="img" aria-label="@($"{label}: {(hasData ? $"{pct}%" : "no data")}")">
+                <circle class="ring-bg" cx="60" cy="60" r="52" />
+                <circle class="ring-fill @fillClass" cx="60" cy="60" r="52" stroke-dasharray="326.7" stroke-dashoffset="@offset" transform="rotate(-90 60 60)" />
+                <text x="60" y="56" text-anchor="middle" class="ring-value">@(hasData ? $"{pct}%" : "—")</text>
+                <text x="60" y="72" text-anchor="middle" class="ring-sub">@sub</text>
+            </svg>
+        </div>
+    };
+
+    public async ValueTask DisposeAsync()
+    {
+        StopLiveTimer();
+        _cts.Cancel();
+        _cts.Dispose();
+
+        try
+        {
+            await JS.InvokeVoidAsync("AttendanceCharts.destroy", (object)ChartIds);
+        }
+        catch (JSDisconnectedException) { }
+        catch (ObjectDisposedException) { }
+        catch (TaskCanceledException) { }
+    }
+}
