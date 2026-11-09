@@ -1,0 +1,414 @@
+@page "/admin/encryption"
+@layout MainLayout
+@using AttendanceUI.Data
+@using AttendanceUI.Data.Entities
+@inject IEncryptionDemoService DemoService
+@inject IDataEncryptionService EncryptionService
+@inject IAuthService AuthService
+@implements IDisposable
+
+<PageHeader Title="Encryption Demo" Subtitle="See what the database stores versus what the app shows" />
+
+@if (!_authorized)
+{
+    <div class="error-banner" style="margin: 0 32px 24px;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+        <span>Only the super administrator can view the encryption demo.</span>
+    </div>
+}
+else
+{
+    @* ── 1. Status ── *@
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-icon stat-icon--purple">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            </div>
+            <div class="stat-info">
+                <span class="stat-value enc-stat-small">AES-256-GCM</span>
+                <span class="stat-label">Algorithm (authenticated)</span>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon stat-icon--indigo">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
+            </div>
+            <div class="stat-info">
+                <span class="stat-value enc-stat-small enc-mono" title="First 8 bytes of SHA-256(key). The key itself is never shown.">@_fingerprint</span>
+                <span class="stat-label">Key fingerprint · @_keySource</span>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon stat-icon--green">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg>
+            </div>
+            <div class="stat-info">
+                <span class="stat-value">@(_status?.EncryptedValues.ToString("N0") ?? "–")</span>
+                <span class="stat-label">Values encrypted</span>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon stat-icon--yellow">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>
+            </div>
+            <div class="stat-info">
+                <span class="stat-value">@(_status?.PlainValues.ToString("N0") ?? "–")</span>
+                <span class="stat-label">Still plain text</span>
+            </div>
+        </div>
+    </div>
+
+    @if (_error is not null)
+    {
+        <div class="error-banner enc-banner">@_error</div>
+    }
+    @if (_result is not null)
+    {
+        <div class="success-banner enc-banner">@_result</div>
+    }
+
+    @if (_status is { PlainValues: > 0 })
+    {
+        <div class="page-card enc-card">
+            <h2 class="card-heading">Encrypt the existing records</h2>
+            <p class="text-muted enc-help">
+                @_status.PlainValues.ToString("N0") value@(_status.PlainValues == 1 ? " was" : "s were") saved before encryption was turned on and
+                @(_status.PlainValues == 1 ? "is" : "are") still readable by anyone who opens the database. New and edited records are already encrypted.
+            </p>
+            @if (!_confirming)
+            {
+                <button class="btn btn-primary" @onclick="() => _confirming = true" disabled="@_encrypting">Encrypt existing records…</button>
+            }
+            else
+            {
+                <div class="enc-confirm" role="alert">
+                    <p>
+                        This rewrites @_status.PlainValues.ToString("N0") value@(_status.PlainValues == 1 ? "" : "s") in the database.
+                        <strong>Back up the encryption key first</strong>: data encrypted with a lost key cannot be recovered.
+                    </p>
+                    <div class="enc-actions">
+                        <button class="btn btn-primary" @onclick="EncryptExistingAsync" disabled="@_encrypting">
+                            @if (_encrypting) { <span class="spinner-sm"></span> }
+                            Yes, encrypt now
+                        </button>
+                        <button class="btn btn-ghost" @onclick="() => _confirming = false" disabled="@_encrypting">Cancel</button>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+
+    @* ── 2. Database vs. app ── *@
+    <div class="page-card enc-card">
+        <div class="enc-card-head">
+            <div>
+                <h2 class="card-heading">Database vs. app</h2>
+                <p class="text-muted enc-help">
+                    The left column is read straight from the database, the way anyone with database access would see it.
+                    The right column is the same value after the app decrypts it with its key.
+                </p>
+            </div>
+            <button class="btn btn-ghost" @onclick="LoadAllAsync" disabled="@_loadingRows">
+                @if (_loadingRows) { <span class="spinner-sm"></span> }
+                Refresh
+            </button>
+        </div>
+
+        <div class="enc-tabs" role="tablist" aria-label="Table">
+            @foreach (var t in _tables)
+            {
+                var table = t;
+                <button type="button" role="tab" aria-selected="@(table.Table == _table)"
+                        class="@(table.Table == _table ? "tab-btn tab-btn--active" : "tab-btn")"
+                        @onclick="() => SelectTableAsync(table.Table)">@table.DisplayName</button>
+            }
+        </div>
+
+        @if (_loadingRows && _rows.Count == 0)
+        {
+            <div class="loading-state"><span class="spinner"></span><p>Reading the database…</p></div>
+        }
+        else if (_rows.Count == 0)
+        {
+            <p class="text-muted">No records with encrypted fields in this table yet.</p>
+        }
+        else
+        {
+            <div class="table-scroll">
+                <table class="students-table enc-table">
+                    <thead>
+                        <tr>
+                            <th>Record</th>
+                            <th>Field</th>
+                            <th>Stored in database</th>
+                            <th>Shown in app</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var row in _rows)
+                        {
+                            @for (var i = 0; i < row.Cells.Count; i++)
+                            {
+                                var cell = row.Cells[i];
+                                <tr class="@(i == 0 ? "enc-row-first" : "")">
+                                    @if (i == 0)
+                                    {
+                                        <td rowspan="@row.Cells.Count" class="enc-record">@row.Label</td>
+                                    }
+                                    <td class="enc-field">@cell.Column</td>
+                                    <td>
+                                        @if (cell.StoredValue != "NULL")
+                                        {
+                                            <span class="att-badge att-badge--sm @(cell.IsEncrypted ? "att-badge--present" : "att-badge--late")">@(cell.IsEncrypted ? "Encrypted" : "Plain text")</span>
+                                        }
+                                        <code class="enc-raw @(cell.IsEncrypted ? "enc-raw--cipher" : "")" title="@cell.StoredValue">@Shorten(cell.StoredValue)</code>
+                                    </td>
+                                    <td class="enc-plain @(cell.AppValue == DataEncryption.Unreadable ? "enc-plain--bad" : "")">@Shorten(cell.AppValue)</td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+            <p class="text-muted enc-footnote">Showing the newest @_rows.Count record@(_rows.Count == 1 ? "" : "s"). Hover a stored value to see all of it.</p>
+        }
+    </div>
+
+    @* ── 3. Try it ── *@
+    <div class="page-card enc-card">
+        <h2 class="card-heading">Try it yourself</h2>
+        <p class="text-muted enc-help">
+            Runs in memory with the app's real key. Nothing is written to the database.
+        </p>
+
+        <div class="enc-try-input">
+            <label class="form-label" for="enc-input">Text to encrypt</label>
+            <div class="enc-actions">
+                <input id="enc-input" class="form-input" @bind="_input" @bind:event="oninput" placeholder="e.g. 09171234567" maxlength="500" />
+                <button class="btn btn-primary" @onclick="EncryptSample" disabled="@string.IsNullOrEmpty(_input)">Encrypt</button>
+            </div>
+        </div>
+
+        @if (_cipher is not null)
+        {
+            <div class="enc-steps">
+                <div class="enc-step">
+                    <span class="enc-step-num">1</span>
+                    <div class="enc-step-body">
+                        <span class="enc-step-title">Encrypted value (this is what gets saved)</span>
+                        <code class="enc-raw enc-raw--cipher enc-raw--full">@_cipher</code>
+                        <span class="text-muted enc-step-note">
+                            Format: <code>enc:v1:</code> + base64( 12-byte random nonce | ciphertext | 16-byte authentication tag )
+                        </span>
+                    </div>
+                </div>
+
+                <div class="enc-step">
+                    <span class="enc-step-num">2</span>
+                    <div class="enc-step-body">
+                        <span class="enc-step-title">Same text, encrypted again</span>
+                        <code class="enc-raw enc-raw--cipher enc-raw--full">@_cipher2</code>
+                        <span class="text-muted enc-step-note">
+                            Different every time because of the random nonce, so identical values (e.g. two students on the same street)
+                            can't be spotted in the database.
+                        </span>
+                    </div>
+                </div>
+
+                <div class="enc-step">
+                    <span class="enc-step-num">3</span>
+                    <div class="enc-step-body">
+                        <span class="enc-step-title">Decrypted with the app's key</span>
+                        <span class="enc-plain enc-plain--ok">@DataEncryption.DecryptText(_cipher)</span>
+                    </div>
+                </div>
+
+                <div class="enc-step">
+                    <span class="enc-step-num">4</span>
+                    <div class="enc-step-body">
+                        <span class="enc-step-title">Tamper test</span>
+                        @if (_tampered is null)
+                        {
+                            <span class="text-muted enc-step-note">@(_tamperNote ?? "Change a single bit of the stored value, the way an attacker editing the database might.")</span>
+                            <div><button class="btn btn-ghost" @onclick="TamperSample">Flip one bit</button></div>
+                        }
+                        else
+                        {
+                            <code class="enc-raw enc-raw--cipher enc-raw--full">@_tampered</code>
+                            <span class="text-muted enc-step-note">@_tamperNote</span>
+                            <span>Decrypts to: <span class="enc-plain enc-plain--bad">@DataEncryption.DecryptText(_tampered)</span></span>
+                            <span class="text-muted enc-step-note">
+                                The authentication tag no longer matches, so the app refuses the value instead of showing altered data.
+                            </span>
+                        }
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    private readonly CancellationTokenSource _cts = new();
+    private UserSession? _session;
+    private bool _authorized = true;
+    private string? _error;
+    private string? _result;
+
+    private string _fingerprint = "–";
+    private string _keySource = "";
+    private EncryptionStatus? _status;
+    private bool _confirming;
+    private bool _encrypting;
+
+    private IReadOnlyList<EncryptedTableInfo> _tables = [];
+    private string? _table;
+    private IReadOnlyList<EncryptedRowSample> _rows = [];
+    private bool _loadingRows;
+    private const int SampleSize = 10;
+
+    private string _input = "";
+    private string? _cipher;
+    private string? _cipher2;
+    private string? _tampered;
+    private string? _tamperNote;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _session = await AuthService.GetCurrentSessionAsync();
+        _authorized = _session?.Role == UserRole.SUPERADMIN;
+        if (!_authorized) return;
+
+        try
+        {
+            _fingerprint = DataEncryption.KeyFingerprint;
+            _keySource = DataEncryption.KeySource;
+            _tables = DemoService.GetTables();
+            _table = _tables.FirstOrDefault(t => t.Table == "students")?.Table ?? _tables.FirstOrDefault()?.Table;
+        }
+        catch (Exception ex)
+        {
+            _error = $"Encryption is not set up: {ex.Message}";
+            return;
+        }
+
+        await LoadAllAsync();
+    }
+
+    private async Task LoadAllAsync()
+    {
+        await LoadStatusAsync();
+        await LoadRowsAsync();
+    }
+
+    private async Task LoadStatusAsync()
+    {
+        try
+        {
+            _status = await EncryptionService.GetStatusAsync(_cts.Token);
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception ex)
+        {
+            _error = $"Failed to check encryption status: {ex.Message}";
+        }
+    }
+
+    private async Task SelectTableAsync(string table)
+    {
+        if (table == _table) return;
+        _table = table;
+        _rows = [];
+        await LoadRowsAsync();
+    }
+
+    private async Task LoadRowsAsync()
+    {
+        if (_table is null) return;
+        _loadingRows = true;
+        try
+        {
+            _rows = await DemoService.GetSamplesAsync(_table, SampleSize, _cts.Token);
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception ex)
+        {
+            _error = $"Failed to read the database: {ex.Message}";
+            _rows = [];
+        }
+        finally
+        {
+            _loadingRows = false;
+        }
+    }
+
+    private async Task EncryptExistingAsync()
+    {
+        if (_session is null || _encrypting) return;
+        _encrypting = true;
+        _error = null;
+        _result = null;
+        try
+        {
+            var updated = await EncryptionService.EncryptExistingAsync(
+                _session.UserId, _session.DisplayName, _session.Role.ToString(), _cts.Token);
+            _result = $"Encrypted {updated:N0} existing record{(updated == 1 ? "" : "s")}. The table below now shows the encrypted values.";
+            _confirming = false;
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception ex)
+        {
+            _error = $"Failed to encrypt existing records: {ex.Message}";
+        }
+        finally
+        {
+            _encrypting = false;
+        }
+
+        await LoadAllAsync();
+    }
+
+    private void EncryptSample()
+    {
+        if (string.IsNullOrEmpty(_input)) return;
+        _cipher = DataEncryption.EncryptText(_input);
+        _cipher2 = DataEncryption.EncryptText(_input);
+        _tampered = null;
+        _tamperNote = null;
+    }
+
+    // Flips the lowest bit of the first ciphertext byte (just after the 12-byte nonce),
+    // or of the tag when the input was too short to have ciphertext bytes.
+    private void TamperSample()
+    {
+        if (_cipher is null) return;
+
+        byte[] bytes;
+        try
+        {
+            bytes = Convert.FromBase64String(_cipher[DataEncryption.TextPrefix.Length..]);
+        }
+        catch (FormatException)
+        {
+            // The typed text already looked like "enc:v1:…" so it was kept as-is.
+            _tamperNote = "Type ordinary text to run the tamper test.";
+            return;
+        }
+        if (bytes.Length == 0) return;
+
+        var index = bytes.Length > 12 + 16 ? 12 : bytes.Length - 1;
+        var before = bytes[index];
+        bytes[index] ^= 0x01;
+
+        _tampered = DataEncryption.TextPrefix + Convert.ToBase64String(bytes);
+        _tamperNote = $"Byte {index} changed from 0x{before:X2} to 0x{bytes[index]:X2}: one bit out of {bytes.Length * 8:N0}.";
+    }
+
+    private static string Shorten(string value) => value.Length <= 90 ? value : value[..90] + "…";
+
+    public void Dispose()
+    {
+        _cts.Cancel();
+        _cts.Dispose();
+    }
+}

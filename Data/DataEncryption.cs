@@ -67,6 +67,19 @@ public static class DataEncryption
     private static byte[] Key =>
         _key ?? throw new InvalidOperationException("Data encryption has not been configured.");
 
+    /// <summary>
+    /// A short, non-reversible identifier of the active key (first 8 bytes of its SHA-256),
+    /// so two installs can confirm they share a key without ever showing the key itself.
+    /// </summary>
+    public static string KeyFingerprint =>
+        Convert.ToHexString(SHA256.HashData(Key).AsSpan(0, 8)).ToLowerInvariant();
+
+    /// <summary>Where the active key came from, for display only.</summary>
+    public static string KeySource =>
+        string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable(KeyEnvironmentVariable))
+            ? "appsettings.json"
+            : "environment variable";
+
     public static bool IsEncrypted(string? value) =>
         value is not null && value.StartsWith(TextPrefix, StringComparison.Ordinal);
 

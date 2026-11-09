@@ -55,6 +55,7 @@ public static class MauiProgram
 		builder.Services.AddSingleton<IAtRiskService, AtRiskService>();
 		builder.Services.AddSingleton<ISf2ReportService, Sf2ReportService>();
 		builder.Services.AddSingleton<IDataEncryptionService, DataEncryptionService>();
+		builder.Services.AddSingleton<IEncryptionDemoService, EncryptionDemoService>();
 
 #if DEBUG
 		builder.Services.AddBlazorWebViewDeveloperTools();
