@@ -1,4 +1,5 @@
-﻿using AttendanceUI.Data;
+﻿using System.Text.Json;
+using AttendanceUI.Data;
 using AttendanceUI.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -18,6 +19,9 @@ public static class MauiProgram
 			});
 
 		builder.Services.AddMauiBlazorWebView();
+
+		// Sensitive columns are encrypted with this key (see Data/DataEncryption.cs).
+		DataEncryption.Configure(ReadConfiguredDataKey());
 
 		// Database connection is switchable at runtime (chosen on the login page).
 		// The initial profile comes from the SCHOOL_SMS_DB_PROFILE environment
@@ -50,6 +54,7 @@ public static class MauiProgram
 		builder.Services.AddSingleton<IAttendanceSettingsService, AttendanceSettingsService>();
 		builder.Services.AddSingleton<IAtRiskService, AtRiskService>();
 		builder.Services.AddSingleton<ISf2ReportService, Sf2ReportService>();
+		builder.Services.AddSingleton<IDataEncryptionService, DataEncryptionService>();
 
 #if DEBUG
 		builder.Services.AddBlazorWebViewDeveloperTools();
@@ -57,5 +62,21 @@ public static class MauiProgram
 #endif
 
 		return builder.Build();
+	}
+
+	/// <summary>Encryption:DataKey from the bundled appsettings.json, or null when absent.</summary>
+	private static string? ReadConfiguredDataKey()
+	{
+		try
+		{
+			using var stream = Task.Run(() => FileSystem.OpenAppPackageFileAsync("appsettings.json")).GetAwaiter().GetResult();
+			using var json = JsonDocument.Parse(stream);
+			return json.RootElement.TryGetProperty("Encryption", out var section)
+				&& section.TryGetProperty("DataKey", out var key) ? key.GetString() : null;
+		}
+		catch (Exception ex) when (ex is FileNotFoundException or JsonException)
+		{
+			return null;
+		}
 	}
 }

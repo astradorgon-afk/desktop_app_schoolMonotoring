@@ -1,5 +1,7 @@
 using AttendanceUI.Data.Entities;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 namespace AttendanceUI.Data;
 
@@ -26,6 +28,26 @@ public class SchoolDbContext(DbContextOptions<SchoolDbContext> options) : DbCont
     public DbSet<AuditLogEntry> AuditLogs => Set<AuditLogEntry>();
     public DbSet<StudentExcuseRequest> StudentExcuseRequests => Set<StudentExcuseRequest>();
     public DbSet<AppSetting> AppSettings => Set<AppSetting>();
+
+    public enum EncryptedKind { Text, Bytes, Json }
+
+    // Sensitive columns are encrypted on save and decrypted on read (see DataEncryption),
+    // so they must never be filtered, sorted or searched in a query: compare in memory.
+    private static readonly ValueConverter EncryptedText =
+        new ValueConverter<string, string>(v => DataEncryption.EncryptText(v), v => DataEncryption.DecryptText(v));
+    private static readonly ValueConverter EncryptedBytes =
+        new ValueConverter<byte[], byte[]>(v => DataEncryption.EncryptBytes(v), v => DataEncryption.DecryptBytes(v));
+    private static readonly ValueConverter EncryptedJson =
+        new ValueConverter<string, string>(v => DataEncryption.EncryptJson(v), v => DataEncryption.DecryptJson(v));
+
+    /// <summary>How a mapped property is encrypted, or null when it is stored as-is.</summary>
+    public static EncryptedKind? EncryptionOf(IReadOnlyProperty property) => property.GetValueConverter() switch
+    {
+        var c when ReferenceEquals(c, EncryptedText) => EncryptedKind.Text,
+        var c when ReferenceEquals(c, EncryptedBytes) => EncryptedKind.Bytes,
+        var c when ReferenceEquals(c, EncryptedJson) => EncryptedKind.Json,
+        _ => null
+    };
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -58,15 +80,15 @@ public class SchoolDbContext(DbContextOptions<SchoolDbContext> options) : DbCont
             entity.Property(e => e.MiddleName).HasColumnName("middle_name");
             entity.Property(e => e.Birthdate).HasColumnName("birthdate");
             entity.Property(e => e.Sex).HasColumnName("sex");
-            entity.Property(e => e.Address).HasColumnName("address");
-            entity.Property(e => e.GuardianName).HasColumnName("guardian_name");
-            entity.Property(e => e.GuardianContact).HasColumnName("guardian_contact");
+            entity.Property(e => e.Address).HasColumnName("address").HasConversion(EncryptedText);
+            entity.Property(e => e.GuardianName).HasColumnName("guardian_name").HasConversion(EncryptedText);
+            entity.Property(e => e.GuardianContact).HasColumnName("guardian_contact").HasConversion(EncryptedText);
             entity.Property(e => e.Status).HasColumnName("status").IsRequired();
             entity.Property(e => e.CreatedAt).HasColumnName("created_at");
             entity.Property(e => e.UpdatedAt).HasColumnName("updated_at");
             entity.Property(e => e.StudentNumber).HasColumnName("student_number").IsRequired();
             entity.Property(e => e.Age).HasColumnName("age");
-            entity.Property(e => e.ContactNo).HasColumnName("contact_no");
+            entity.Property(e => e.ContactNo).HasColumnName("contact_no").HasConversion(EncryptedText);
             entity.Property(e => e.PreviousSchool).HasColumnName("previous_school");
             entity.Property(e => e.PreferredGradeLevelId).HasColumnName("preferred_grade_level_id");
             entity.Property(e => e.PreferredCurriculumId).HasColumnName("preferred_curriculum_id");
@@ -102,8 +124,8 @@ public class SchoolDbContext(DbContextOptions<SchoolDbContext> options) : DbCont
             entity.Property(e => e.FirstName).HasColumnName("first_name").IsRequired();
             entity.Property(e => e.LastName).HasColumnName("last_name").IsRequired();
             entity.Property(e => e.MiddleName).HasColumnName("middle_name");
-            entity.Property(e => e.Email).HasColumnName("email");
-            entity.Property(e => e.ContactNo).HasColumnName("contact_no");
+            entity.Property(e => e.Email).HasColumnName("email").HasConversion(EncryptedText);
+            entity.Property(e => e.ContactNo).HasColumnName("contact_no").HasConversion(EncryptedText);
             entity.Property(e => e.HireDate).HasColumnName("hire_date");
             entity.Property(e => e.Status).HasColumnName("status").IsRequired();
             entity.Property(e => e.CreatedAt).HasColumnName("created_at");
@@ -321,14 +343,14 @@ public class SchoolDbContext(DbContextOptions<SchoolDbContext> options) : DbCont
             entity.HasKey(e => e.Id);
             entity.Property(e => e.Id).HasColumnName("Id");
             entity.Property(e => e.StudentId).HasColumnName("student_id").IsRequired();
-            entity.Property(e => e.Reason).HasColumnName("reason").IsRequired();
+            entity.Property(e => e.Reason).HasColumnName("reason").IsRequired().HasConversion(EncryptedText);
             entity.Property(e => e.Category).HasColumnName("category").HasMaxLength(50);
             entity.Property(e => e.StartDate).HasColumnName("start_date").IsRequired();
             entity.Property(e => e.EndDate).HasColumnName("end_date").IsRequired();
             entity.Property(e => e.Status).HasColumnName("status").IsRequired().HasMaxLength(20).HasDefaultValue("PENDING");
             entity.Property(e => e.ReviewedByUserId).HasColumnName("reviewed_by_user_id");
-            entity.Property(e => e.ReviewNotes).HasColumnName("review_notes");
-            entity.Property(e => e.Attachment).HasColumnName("attachment");
+            entity.Property(e => e.ReviewNotes).HasColumnName("review_notes").HasConversion(EncryptedText);
+            entity.Property(e => e.Attachment).HasColumnName("attachment").HasConversion(EncryptedBytes);
             entity.Property(e => e.AttachmentName).HasColumnName("attachment_name").HasMaxLength(255);
             entity.Property(e => e.AttachmentType).HasColumnName("attachment_type").HasMaxLength(100);
             entity.Property(e => e.CreatedAt).HasColumnName("created_at");
@@ -345,12 +367,12 @@ public class SchoolDbContext(DbContextOptions<SchoolDbContext> options) : DbCont
         {
             entity.ToTable("leave_requests");
             entity.HasKey(e => e.Id);
-            entity.Property(e => e.Reason).HasColumnName("reason").IsRequired();
+            entity.Property(e => e.Reason).HasColumnName("reason").IsRequired().HasConversion(EncryptedText);
             entity.Property(e => e.Category).HasColumnName("category").HasMaxLength(50);
             entity.Property(e => e.StartDate).HasColumnName("start_date").IsRequired();
             entity.Property(e => e.EndDate).HasColumnName("end_date").IsRequired();
             entity.Property(e => e.Status).HasColumnName("status").IsRequired().HasMaxLength(20).HasDefaultValue("PENDING");
-            entity.Property(e => e.ReviewNotes).HasColumnName("review_notes");
+            entity.Property(e => e.ReviewNotes).HasColumnName("review_notes").HasConversion(EncryptedText);
             entity.Property(e => e.CreatedAt).HasColumnName("created_at");
             entity.Property(e => e.UpdatedAt).HasColumnName("updated_at");
 
@@ -377,7 +399,7 @@ public class SchoolDbContext(DbContextOptions<SchoolDbContext> options) : DbCont
             entity.Property(e => e.EntityType).HasColumnName("entity_type").HasMaxLength(50).IsRequired();
             entity.Property(e => e.EntityId).HasColumnName("entity_id");
             entity.Property(e => e.Summary).HasColumnName("summary").HasMaxLength(500).IsRequired();
-            var metadata = entity.Property(e => e.Metadata).HasColumnName("metadata");
+            var metadata = entity.Property(e => e.Metadata).HasColumnName("metadata").HasConversion(EncryptedJson);
             // "json" is a MySQL column type; SQLite stores it as plain TEXT.
             if (!Database.IsSqlite())
                 metadata.HasColumnType("json");

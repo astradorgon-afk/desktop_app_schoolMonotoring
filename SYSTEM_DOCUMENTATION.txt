@@ -72,6 +72,21 @@ STEP 5 - SECURITY & AUDITING
     * All significant actions (logins, CRUD operations, exports) are recorded
       in the audit_logs table and viewable on the Audit Log page.
     * Accounts can be deactivated/locked by the admin (status/can_login flags).
+    * Sensitive fields are encrypted in the database with AES-256-GCM
+      (Data/DataEncryption.cs): student address, guardian name/contact and
+      contact no.; teacher email and contact no.; leave and excuse reasons,
+      review notes and attachments; audit-log details. Names and LRN stay
+      plain so search and sorting keep working.
+    * Values are decrypted only inside the app, so pages, reports and
+      CSV/Excel exports show plain text. A tampered value, or one written
+      with a different key, shows as "[unable to decrypt]".
+    * Key: Encryption:DataKey in appsettings.json (base64, 32 bytes), or the
+      EDUATTEND_DATA_KEY environment variable, which takes precedence. Every
+      install sharing a database needs the same key; data encrypted with a
+      lost key cannot be recovered.
+    * Rows saved before encryption was enabled stay readable and are
+      encrypted on their next save, or all at once via Settings > Data
+      encryption > "Encrypt existing records" (audit-logged).
 
 --------------------------------------------------------------------------------
 3. USER ROLES
