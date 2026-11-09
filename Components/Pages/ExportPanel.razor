@@ -1,5 +1,4 @@
-@page "/admin/export"
-@layout MainLayout
+@* Export tab of the Reports page (formerly the standalone /admin/export page). *@
 @using AttendanceUI.Data.Entities
 @using AttendanceUI.Models.Auth
 @using AttendanceUI.Services
@@ -7,13 +6,6 @@
 @inject ISf2ReportService Sf2Service
 @inject IAuthService AuthService
 @inject IAuditService AuditService
-@inject NavigationManager Navigation
-
-<PageHeader Title="Export Data" Subtitle="Export school records to CSV or Excel files">
-    <div class="header-actions">
-        <span class="header-date">@DateTime.Now.ToString("MMM dd, yyyy")</span>
-    </div>
-</PageHeader>
 
 @if (!_authorized)
 {

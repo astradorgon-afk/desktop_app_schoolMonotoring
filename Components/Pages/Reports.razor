@@ -1,16 +1,53 @@
 @page "/reports"
+@page "/admin/export"
 @layout MainLayout
+@using AttendanceUI.Data.Entities
 @using AttendanceUI.Services
 @inject IReportService ReportService
+@inject IAuthService AuthService
+@inject NavigationManager Navigation
 
-<PageHeader Title="Reports" Subtitle="Attendance analytics and section breakdowns">
+<PageHeader Title="@(_canExport ? "Reports & Export" : "Reports")"
+            Subtitle="@(_tab == ReportsTab.Export ? "Export school records to CSV or Excel files" : "Attendance analytics and section breakdowns")">
     <div class="header-actions">
-        <button class="btn btn-primary" @onclick="OpenPreview" disabled="@(_data is null)">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-            <span>Export CSV</span>
-        </button>
+        @if (_tab == ReportsTab.Overview)
+        {
+            <button class="btn btn-primary" @onclick="OpenPreview" disabled="@(_data is null)">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                <span>Export CSV</span>
+            </button>
+        }
+        else
+        {
+            <span class="header-date">@DateTime.Now.ToString("MMM dd, yyyy")</span>
+        }
     </div>
 </PageHeader>
+
+@if (_canExport)
+{
+    <div class="reports-tabs" role="tablist" aria-label="Reports sections">
+        <button type="button" role="tab" id="reports-tab-overview" aria-controls="reports-panel-overview"
+                aria-selected="@(_tab == ReportsTab.Overview)"
+                class="@(_tab == ReportsTab.Overview ? "tab-btn tab-btn--active" : "tab-btn")"
+                @onclick="() => SelectTab(ReportsTab.Overview)">Overview</button>
+        <button type="button" role="tab" id="reports-tab-export" aria-controls="reports-panel-export"
+                aria-selected="@(_tab == ReportsTab.Export)"
+                class="@(_tab == ReportsTab.Export ? "tab-btn tab-btn--active" : "tab-btn")"
+                @onclick="() => SelectTab(ReportsTab.Export)">Export Data</button>
+    </div>
+}
+
+@* The export panel is mounted on first visit and then kept (just hidden), so its
+   filters and last result survive switching back and forth between tabs. *@
+@if (_canExport && _exportMounted)
+{
+    <div id="reports-panel-export" role="tabpanel" aria-labelledby="reports-tab-export" hidden="@(_tab != ReportsTab.Export)">
+        <ExportPanel />
+    </div>
+}
+
+<div id="reports-panel-overview" role="@(_canExport ? "tabpanel" : null)" aria-labelledby="@(_canExport ? "reports-tab-overview" : null)" hidden="@(_tab != ReportsTab.Overview)">
 
 @* ── Date Range ── *@
 <div class="reports-toolbar">
@@ -199,6 +236,8 @@ else if (_data is not null)
     </div>
 }
 
+</div>
+
 @* ── Export preview modal ── *@
 @if (_showPreview && _data is not null)
 {
@@ -305,9 +344,47 @@ else if (_data is not null)
     private bool _saving;
     private string? _exportMessage;
 
+    // Overview is open to everyone who can reach this page; the Export tab
+    // (formerly /admin/export) is for super admins only.
+    private enum ReportsTab { Overview, Export }
+    private ReportsTab _tab = ReportsTab.Overview;
+    private bool _canExport;
+    private bool _exportMounted;
+
+    // "/reports?tab=export" and the legacy "/admin/export" both open the Export tab.
+    [SupplyParameterFromQuery(Name = "tab")]
+    public string? TabQuery { get; set; }
+
     protected override async Task OnInitializedAsync()
     {
+        var session = await AuthService.GetCurrentSessionAsync();
+        _canExport = session?.Role == UserRole.SUPERADMIN;
+        ApplyRequestedTab();
+
         await LoadAsync();
+    }
+
+    // Runs again when the same page instance is navigated to with a different URL
+    // (e.g. /reports -> /admin/export), so the requested tab is honoured.
+    protected override void OnParametersSet() => ApplyRequestedTab();
+
+    private void ApplyRequestedTab()
+    {
+        var path = Navigation.ToBaseRelativePath(Navigation.Uri).Split('?', '#')[0].TrimEnd('/');
+        var wantsExport = string.Equals(TabQuery, "export", StringComparison.OrdinalIgnoreCase)
+                          || string.Equals(path, "admin/export", StringComparison.OrdinalIgnoreCase);
+
+        SelectTab(wantsExport ? ReportsTab.Export : ReportsTab.Overview);
+    }
+
+    private void SelectTab(ReportsTab tab)
+    {
+        if (tab == ReportsTab.Export && !_canExport)
+            tab = ReportsTab.Overview;
+
+        _tab = tab;
+        if (tab == ReportsTab.Export)
+            _exportMounted = true;
     }
 
     private async Task LoadAsync()
