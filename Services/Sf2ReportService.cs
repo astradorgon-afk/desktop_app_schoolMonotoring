@@ -1,5 +1,4 @@
 using System.Globalization;
-using System.Text;
 using AttendanceUI.Data;
 using Microsoft.EntityFrameworkCore;
 
@@ -8,7 +7,7 @@ namespace AttendanceUI.Services;
 public interface ISf2ReportService
 {
     /// <summary>
-    /// Builds a DepEd School Form 2 (Daily Attendance Report of Learners) style CSV for one
+    /// Builds a DepEd School Form 2 (Daily Attendance Report of Learners) style Excel workbook for one
     /// section and month. Days with no class for the section are left out.
     /// </summary>
     Task<ExportFile> BuildAsync(long sectionId, int year, int month, CancellationToken ct = default);
@@ -62,17 +61,18 @@ public class Sf2ReportService : ISf2ReportService
             .GroupBy(r => (r.StudentId, Day: DateOnly.FromDateTime(r.SessionDate.ToLocalTime())))
             .ToDictionary(g => g.Key, g => DailyStatus(g.Select(r => r.Status)));
 
-        var sb = new StringBuilder();
-        WriteRow(sb, "School Form 2 (SF2) Daily Attendance Report of Learners");
-        WriteRow(sb, "School Year", schoolYear, "Month", monthStart.ToString("MMMM yyyy", CultureInfo.InvariantCulture));
-        WriteRow(sb, "Grade Level", grade, "Section", section.Name);
-        WriteRow(sb, "Legend", "blank = present; x = absent; L = late (tardy); E = excused");
-        WriteRow(sb);
+        // Title block above the table, then the table itself (header row + learners).
+        var titleRows = new List<string?[]>();
+        var rows = new List<string?[]>();
+        titleRows.Add(["School Form 2 (SF2) Daily Attendance Report of Learners"]);
+        titleRows.Add(["School Year", schoolYear, "Month", monthStart.ToString("MMMM yyyy", CultureInfo.InvariantCulture)]);
+        titleRows.Add(["Grade Level", grade, "Section", section.Name]);
+        titleRows.Add(["Legend", "blank = present; x = absent; L = late (tardy); E = excused"]);
+        titleRows.Add([]);
 
         var header = new List<string?> { "No.", "LRN", "Learner's Name (Last, First, Middle)" };
         header.AddRange(days.Select(d => d.ToString("d ddd", CultureInfo.InvariantCulture)));
         header.AddRange(["Total Absent", "Total Tardy", "Total Excused"]);
-        WriteRow(sb, [.. header]);
 
         var dailyAbsent = new int[days.Count];
         var dailyPresent = new int[days.Count];
@@ -82,7 +82,7 @@ public class Sf2ReportService : ISf2ReportService
             var group = learners.Where(l => isGroup(l.Sex)).OrderBy(l => l.LastName).ThenBy(l => l.FirstName).ToList();
             if (group.Count == 0) continue;
 
-            WriteRow(sb, label);
+            rows.Add([label]);
             var n = 0;
             foreach (var l in group)
             {
@@ -101,23 +101,25 @@ public class Sf2ReportService : ISf2ReportService
                     }
                 }
                 row.AddRange([absent.ToString(), tardy.ToString(), excused.ToString()]);
-                WriteRow(sb, [.. row]);
+                rows.Add([.. row]);
             }
         }
 
-        WriteRow(sb);
+        rows.Add([]);
         var presentRow = new List<string?> { "", "", "Total present per day" };
         presentRow.AddRange(dailyPresent.Select(c => c.ToString()));
-        WriteRow(sb, [.. presentRow]);
+        rows.Add([.. presentRow]);
         var absentRow = new List<string?> { "", "", "Total absent per day" };
         absentRow.AddRange(dailyAbsent.Select(c => c.ToString()));
-        WriteRow(sb, [.. absentRow]);
+        rows.Add([.. absentRow]);
 
         if (days.Count == 0)
-            WriteRow(sb, "", "", "No classes were recorded for this section in this month.");
+            rows.Add(["", "", "No classes were recorded for this section in this month."]);
 
-        var fileName = $"SF2-{Slug(section.Name)}-{year:0000}-{month:00}.csv";
-        var content = Encoding.UTF8.GetPreamble().Concat(Encoding.UTF8.GetBytes(sb.ToString())).ToArray();
+        var fileName = $"SF2-{Slug(section.Name)}-{year:0000}-{month:00}.xlsx";
+        // Every column but LRN and name holds counts (or x / L / E marks, which stay text).
+        var numeric = Enumerable.Range(0, header.Count).Where(i => i is not (1 or 2)).ToHashSet();
+        var content = XlsxWriter.Write([new XlsxSheet("SF2", [.. header.Select(h => h ?? "")], rows, numeric, titleRows)]);
         return new ExportFile(fileName, content);
     }
 
@@ -142,24 +144,5 @@ public class Sf2ReportService : ISf2ReportService
     {
         var chars = value.Select(c => char.IsLetterOrDigit(c) ? c : '-').ToArray();
         return new string(chars).Trim('-');
-    }
-
-    private static void WriteRow(StringBuilder sb, params string?[] values)
-    {
-        for (var i = 0; i < values.Length; i++)
-        {
-            if (i > 0) sb.Append(',');
-            sb.Append(Escape(values[i]));
-        }
-        sb.Append("\r\n");
-    }
-
-    private static string Escape(string? value)
-    {
-        if (string.IsNullOrEmpty(value)) return string.Empty;
-        // Keep spreadsheet apps from treating names as formulas.
-        if (value[0] is '=' or '+' or '-' or '@') value = "'" + value;
-        var needsQuoting = value.Contains(',') || value.Contains('"') || value.Contains('\n') || value.Contains('\r');
-        return needsQuoting ? $"\"{value.Replace("\"", "\"\"")}\"" : value;
     }
 }

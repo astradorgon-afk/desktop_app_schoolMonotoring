@@ -2103,6 +2103,160 @@ input::-webkit-contacts-auto-fill-button {
     border-top-color: rgba(255, 255, 255, 0.06);
 }
 
+/* ── Export filters: stacked on a card, laid out in a wrapping row in the preview ── */
+.export-filters {
+    display: flex;
+    flex-direction: column;
+}
+
+.export-filter--set {
+    border-color: var(--clr-accent);
+}
+
+.export-filter-search {
+    cursor: text;
+    box-sizing: border-box;
+}
+
+.export-preview-filters {
+    padding: 12px 24px 14px;
+    border-bottom: 1px solid var(--clr-border);
+}
+
+[data-theme="dark"] .export-preview-filters {
+    border-bottom-color: rgba(255, 255, 255, 0.06);
+}
+
+.export-preview-filters-head {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.export-preview-filters-title {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--clr-text);
+}
+
+.export-preview-updating {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--clr-text-muted);
+}
+
+.export-preview-clear {
+    margin-left: auto;
+}
+
+.export-preview-filters-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 0 12px;
+}
+
+.export-preview-filters-row .export-filters {
+    display: contents;
+}
+
+.export-preview-filters-row .export-card-filter {
+    flex: 1 1 170px;
+    min-width: 0;
+    max-width: 260px;
+}
+
+.export-preview-filters-row .export-card-filter--range {
+    flex: 0 1 auto;
+    max-width: none;
+}
+
+.export-preview-body--stale .export-preview-table-wrap {
+    opacity: 0.55;
+    transition: opacity 0.15s;
+}
+
+.export-preview-tab-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--clr-accent);
+    flex-shrink: 0;
+}
+
+/* ── Export password (encrypted ZIP) ── */
+.export-password {
+    padding: 14px 24px;
+    border-top: 1px solid var(--clr-border);
+}
+
+[data-theme="dark"] .export-password {
+    border-top-color: rgba(255, 255, 255, 0.06);
+}
+
+.export-password-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--clr-text);
+}
+
+.export-password-head svg {
+    flex-shrink: 0;
+    color: var(--clr-accent);
+}
+
+.export-password-fields {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 12px;
+}
+
+.export-password-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    flex: 1 1 180px;
+    min-width: 0;
+}
+
+.export-password-input {
+    width: 100%;
+    box-sizing: border-box;
+    cursor: text;
+}
+
+.export-password-show {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 40px;
+    font-size: 13px;
+    color: var(--clr-text-secondary);
+    cursor: pointer;
+    user-select: none;
+}
+
+.export-password-hint {
+    margin: 8px 0 0;
+    font-size: 12px;
+    color: var(--clr-text-muted);
+}
+
+.export-password-hint--error {
+    color: var(--clr-danger);
+    font-weight: 500;
+}
+
 .modal-content--wide {
     max-width: 900px;
     max-height: 85vh;

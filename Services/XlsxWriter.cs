@@ -5,12 +5,20 @@ using System.Xml;
 
 namespace AttendanceUI.Services;
 
-/// <summary>One worksheet to write: its tab name, header row, data rows, and which columns hold numbers.</summary>
+/// <summary>
+/// One worksheet to write: its tab name, header row, data rows, and which columns hold numbers.
+/// <paramref name="TitleRows"/> are optional lines written above the header (e.g. a report title).
+/// </summary>
 public sealed record XlsxSheet(
     string Name,
     IReadOnlyList<string> Headers,
     IReadOnlyList<string?[]> Rows,
-    IReadOnlySet<int>? NumericColumns = null);
+    IReadOnlySet<int>? NumericColumns = null,
+    IReadOnlyList<string?[]>? TitleRows = null)
+{
+    /// <summary>Row number (1-based) of the header row.</summary>
+    internal int HeaderRow => (TitleRows?.Count ?? 0) + 1;
+}
 
 /// <summary>
 /// Writes a minimal Office Open XML (.xlsx) workbook without a third-party library. Each sheet
@@ -193,8 +201,8 @@ public static class XlsxWriter
         w.WriteStartElement("sheetView", MainNs);
         w.WriteAttributeString("workbookViewId", "0");
         w.WriteStartElement("pane", MainNs);
-        w.WriteAttributeString("ySplit", "1");
-        w.WriteAttributeString("topLeftCell", "A2");
+        w.WriteAttributeString("ySplit", sheet.HeaderRow.ToString(CultureInfo.InvariantCulture));
+        w.WriteAttributeString("topLeftCell", "A" + (sheet.HeaderRow + 1).ToString(CultureInfo.InvariantCulture));
         w.WriteAttributeString("activePane", "bottomLeft");
         w.WriteAttributeString("state", "frozen");
         w.WriteEndElement();
@@ -215,9 +223,12 @@ public static class XlsxWriter
         w.WriteEndElement();
 
         w.WriteStartElement("sheetData", MainNs);
-        WriteRow(w, 1, [.. sheet.Headers], style: 1, numeric: null);
+        var titles = sheet.TitleRows ?? [];
+        for (var t = 0; t < titles.Count; t++)
+            WriteRow(w, t + 1, titles[t], style: 0, numeric: null);
+        WriteRow(w, sheet.HeaderRow, [.. sheet.Headers], style: 1, numeric: null);
         for (var r = 0; r < sheet.Rows.Count; r++)
-            WriteRow(w, r + 2, sheet.Rows[r], style: 0, numeric: sheet.NumericColumns);
+            WriteRow(w, sheet.HeaderRow + 1 + r, sheet.Rows[r], style: 0, numeric: sheet.NumericColumns);
         w.WriteEndElement();
 
         w.WriteStartElement("autoFilter", MainNs);
@@ -280,10 +291,10 @@ public static class XlsxWriter
     }
 
     private static string RelativeRange(XlsxSheet sheet) =>
-        $"A1:{ColumnName(Math.Max(1, sheet.Headers.Count) - 1)}{sheet.Rows.Count + 1}";
+        $"A{sheet.HeaderRow}:{ColumnName(Math.Max(1, sheet.Headers.Count) - 1)}{sheet.HeaderRow + sheet.Rows.Count}";
 
     private static string AbsoluteRange(XlsxSheet sheet) =>
-        $"$A$1:${ColumnName(Math.Max(1, sheet.Headers.Count) - 1)}${sheet.Rows.Count + 1}";
+        $"$A${sheet.HeaderRow}:${ColumnName(Math.Max(1, sheet.Headers.Count) - 1)}${sheet.HeaderRow + sheet.Rows.Count}";
 
     /// <summary>Zero-based column index to its letter name (0 → A, 26 → AA).</summary>
     internal static string ColumnName(int index)

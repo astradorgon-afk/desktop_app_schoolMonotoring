@@ -8,13 +8,13 @@
 @inject NavigationManager Navigation
 
 <PageHeader Title="@(_canExport ? "Reports & Export" : "Reports")"
-            Subtitle="@(_tab == ReportsTab.Export ? "Export school records to CSV or Excel files" : "Attendance analytics and section breakdowns")">
+            Subtitle="@(_tab == ReportsTab.Export ? "Export school records to password-protected Excel files" : "Attendance analytics and section breakdowns")">
     <div class="header-actions">
         @if (_tab == ReportsTab.Overview)
         {
             <button class="btn btn-primary" @onclick="OpenPreview" disabled="@(_data is null)">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-                <span>Export CSV</span>
+                <span>Export Excel</span>
             </button>
         }
         else
@@ -250,7 +250,7 @@ else if (_data is not null)
             </div>
             <div class="modal-body" style="padding: 12px 24px 0;">
                 <p class="export-preview-note">
-                    @_sectionRows.Count section@(_sectionRows.Count == 1 ? "" : "s") and @_dailyRows.Count day@(_dailyRows.Count == 1 ? "" : "s") of trend data — the CSV file includes both tables below.
+                    @_sectionRows.Count section@(_sectionRows.Count == 1 ? "" : "s") and @_dailyRows.Count day@(_dailyRows.Count == 1 ? "" : "s") of trend data — the Excel file has a sheet for each table below.
                 </p>
 
                 <h4 class="export-preview-subhead">Attendance by Section</h4>
@@ -311,6 +311,10 @@ else if (_data is not null)
                     </table>
                 </div>
             </div>
+            <ExportPasswordFields IdPrefix="report-export"
+                                  @bind-Password="_password" @bind-Password:after="ClearPasswordError"
+                                  @bind-Confirmation="_passwordConfirm" @bind-Confirmation:after="ClearPasswordError"
+                                  Error="@_passwordError" Disabled="@_saving" />
             <div class="export-preview-footer">
                 <button class="btn btn-ghost" @onclick="ClosePreview" disabled="@_saving">Cancel</button>
                 <button class="btn btn-primary" @onclick="ConfirmExportAsync" disabled="@(_saving || (_sectionRows.Count == 0 && _dailyRows.Count == 0))">
@@ -322,7 +326,7 @@ else if (_data is not null)
                     {
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                     }
-                    <span>Download CSV</span>
+                    <span>Encrypt &amp; save Excel</span>
                 </button>
             </div>
     </Modal>
@@ -335,7 +339,7 @@ else if (_data is not null)
     private DateTime? _toDate;
 
     // Export preview state. Rows are built once when the preview opens and shared by
-    // both the on-screen tables and the generated CSV, so the two can never drift apart.
+    // both the on-screen tables and the generated workbook, so the two can never drift apart.
     private static readonly string[] SectionHeaders = { "Section", "Enrolled", "Records", "Present", "Late", "Absent", "Rate" };
     private static readonly string[] DailyHeaders = { "Date", "Sessions", "Present", "Late", "Absent", "Present%" };
     private List<string[]> _sectionRows = new();
@@ -343,6 +347,20 @@ else if (_data is not null)
     private bool _showPreview;
     private bool _saving;
     private string? _exportMessage;
+
+    // The workbook is encrypted with this password (AES-256); it is never stored.
+    private string _password = string.Empty;
+    private string _passwordConfirm = string.Empty;
+    private string? _passwordError;
+
+    private void ClearPasswordError() => _passwordError = null;
+
+    private void ResetPassword()
+    {
+        _password = string.Empty;
+        _passwordConfirm = string.Empty;
+        _passwordError = null;
+    }
 
     // Overview is open to everyone who can reach this page; the Export tab
     // (formerly /admin/export) is for super admins only.
@@ -448,6 +466,7 @@ else if (_data is not null)
             .ToList();
 
         _exportMessage = null;
+        ResetPassword();
         _showPreview = true;
     }
 
@@ -455,50 +474,42 @@ else if (_data is not null)
     {
         if (_saving) return;
         _showPreview = false;
+        ResetPassword();
     }
 
     private async Task ConfirmExportAsync()
     {
         if (_saving) return;
+
+        _passwordError = ProtectedExport.Validate(_password, _passwordConfirm);
+        if (_passwordError is not null) return;
+
         _saving = true;
 
         try
         {
-            var lines = new List<string> { string.Join(",", SectionHeaders) };
-            lines.AddRange(_sectionRows.Select(FormatCsvRow));
-            lines.Add("");
-            lines.Add(string.Join(",", DailyHeaders));
-            lines.AddRange(_dailyRows.Select(FormatCsvRow));
+            // One workbook, a sheet per table. Counts are stored as numbers; rates keep their "%".
+            var workbook = new ExportFile($"attendance-report-{DateTime.Now:yyyyMMdd-HHmmss}.xlsx", XlsxWriter.Write(
+            [
+                new XlsxSheet("By Section", SectionHeaders, [.. _sectionRows], new HashSet<int> { 1, 2, 3, 4, 5 }),
+                new XlsxSheet("Daily Trend", DailyHeaders, [.. _dailyRows], new HashSet<int> { 1, 2, 3, 4 })
+            ]));
 
-            var csv = string.Join(Environment.NewLine, lines);
-            var bytes = System.Text.Encoding.UTF8.GetPreamble()
-                .Concat(System.Text.Encoding.UTF8.GetBytes(csv))
-                .ToArray();
-
-            var path = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.Desktop),
-                $"attendance-report-{DateTime.Now:yyyyMMdd-HHmmss}.csv");
-            await File.WriteAllBytesAsync(path, bytes);
+            var file = ProtectedExport.Protect(workbook, _password);
+            var path = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Desktop), file.FileName);
+            await File.WriteAllBytesAsync(path, file.Content);
 
             _showPreview = false;
-            _exportMessage = $"Exported to {path}";
+            ResetPassword();
+            _exportMessage = $"Exported to {path}. {ProtectedExport.OpenHint}";
+        }
+        catch (Exception ex)
+        {
+            _passwordError = $"Export failed: {ex.Message}";
         }
         finally
         {
             _saving = false;
         }
-    }
-
-    private static string FormatCsvRow(string[] cells) => string.Join(",", cells.Select(EscapeCsv));
-
-    private static string EscapeCsv(string? value)
-    {
-        if (string.IsNullOrEmpty(value))
-            return string.Empty;
-
-        if (value.Contains(',') || value.Contains('"') || value.Contains('\n') || value.Contains('\r'))
-            return $"\"{value.Replace("\"", "\"\"")}\"";
-
-        return value;
     }
 }

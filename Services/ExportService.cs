@@ -40,7 +40,7 @@ public class ExportService : IExportService
     private static readonly string[] KnownStatuses = ["PRESENT", "LATE", "ABSENT", "EXCUSED"];
 
     // Datasets included in "Export All", in the order they are produced.
-    private static readonly ExportDataset[] AllDatasets =
+    private static readonly ExportDataset[] Datasets =
     [
         ExportDataset.Students,
         ExportDataset.Teachers,
@@ -49,6 +49,8 @@ public class ExportService : IExportService
         ExportDataset.StudentAttendance,
         ExportDataset.AttendanceSummary
     ];
+
+    public IReadOnlyList<ExportDataset> AllDatasets => Datasets;
 
     public async Task<ExportFile> ExportAsync(ExportDataset dataset, ExportOptions? options = null,
         CancellationToken cancellationToken = default, ExportFormat format = ExportFormat.Csv)
@@ -59,23 +61,26 @@ public class ExportService : IExportService
             : ToFile(table);
     }
 
-    public async Task<IReadOnlyList<ExportFile>> ExportAllAsync(ExportOptions? options = null,
+    public async Task<IReadOnlyList<ExportFile>> ExportAllAsync(IReadOnlyDictionary<ExportDataset, ExportOptions>? options = null,
         CancellationToken cancellationToken = default, ExportFormat format = ExportFormat.Csv)
     {
-        var opts = options ?? ExportOptions.None;
-        var tables = new List<ExportTable>(AllDatasets.Length);
+        var tables = new List<ExportTable>(Datasets.Length);
 
-        foreach (var dataset in AllDatasets)
-            tables.Add(await BuildTableAsync(dataset, opts, cancellationToken));
+        foreach (var dataset in Datasets)
+            tables.Add(await BuildTableAsync(dataset, OptionsFor(options, dataset), cancellationToken));
 
         if (format == ExportFormat.Excel)
         {
-            var range = DescribeRange(opts);
+            // The date range is shared by the attendance datasets, so it names the workbook.
+            var range = DescribeRange(OptionsFor(options, ExportDataset.StudentAttendance));
             return [ToWorkbook(range is null ? "eduattend-export" : $"eduattend-export-{Slug(range)}", tables)];
         }
 
         return tables.Select(ToFile).ToList();
     }
+
+    private static ExportOptions OptionsFor(IReadOnlyDictionary<ExportDataset, ExportOptions>? options, ExportDataset dataset) =>
+        options is not null && options.TryGetValue(dataset, out var o) ? o : ExportOptions.None;
 
     public async Task<ExportPreview> PreviewAsync(ExportDataset dataset, ExportOptions? options = null,
         CancellationToken cancellationToken = default)
@@ -84,16 +89,48 @@ public class ExportService : IExportService
         return ToPreview(dataset, table);
     }
 
-    public async Task<IReadOnlyList<ExportPreview>> PreviewAllAsync(ExportOptions? options = null,
+    public async Task<IReadOnlyList<ExportPreview>> PreviewAllAsync(IReadOnlyDictionary<ExportDataset, ExportOptions>? options = null,
         CancellationToken cancellationToken = default)
     {
-        var opts = options ?? ExportOptions.None;
-        var previews = new List<ExportPreview>(AllDatasets.Length);
+        var previews = new List<ExportPreview>(Datasets.Length);
 
-        foreach (var dataset in AllDatasets)
-            previews.Add(ToPreview(dataset, await BuildTableAsync(dataset, opts, cancellationToken)));
+        foreach (var dataset in Datasets)
+            previews.Add(ToPreview(dataset, await BuildTableAsync(dataset, OptionsFor(options, dataset), cancellationToken)));
 
         return previews;
+    }
+
+    public async Task<ExportFilterChoices> GetFilterChoicesAsync(CancellationToken cancellationToken = default)
+    {
+        await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
+
+        var grades = await context.GradeLevels.AsNoTracking()
+            .Select(g => new NamedOption(g.Id, g.Name))
+            .ToListAsync(cancellationToken);
+        // Natural order, so "Grade 10" follows "Grade 9" rather than "Grade 1".
+        grades = [.. grades.OrderBy(g => NaturalKey(g.Name), StringComparer.OrdinalIgnoreCase)];
+
+        var years = await context.SchoolYears.AsNoTracking()
+            .OrderByDescending(y => y.StartDate)
+            .Select(y => new NamedOption(y.Id, y.Name))
+            .ToListAsync(cancellationToken);
+
+        // Read as stored and de-duplicated in memory, ignoring case and stray spaces.
+        static List<string> Distinct(IEnumerable<string?> values) => values
+            .Where(v => !string.IsNullOrWhiteSpace(v))
+            .Select(v => v!.Trim())
+            .GroupBy(v => v, StringComparer.OrdinalIgnoreCase)
+            .Select(g => g.First())
+            .OrderBy(v => v, StringComparer.CurrentCultureIgnoreCase)
+            .ToList();
+
+        var sexes = Distinct(await context.Students.AsNoTracking().Select(s => s.Sex).Distinct().ToListAsync(cancellationToken));
+        var studentStatuses = Distinct(await context.Students.AsNoTracking().Select(s => (string?)s.Status).Distinct().ToListAsync(cancellationToken));
+        var teacherStatuses = Distinct(await context.Teachers.AsNoTracking().Select(t => (string?)t.Status).Distinct().ToListAsync(cancellationToken));
+        var employment = Distinct(await context.Teachers.AsNoTracking().Select(t => t.EmploymentStatus).Distinct().ToListAsync(cancellationToken));
+        var subjects = Distinct(await context.AttendanceSessions.AsNoTracking().Select(s => s.SubjectName).Distinct().ToListAsync(cancellationToken));
+
+        return new ExportFilterChoices(grades, years, sexes, studentStatuses, teacherStatuses, employment, subjects);
     }
 
     public async Task<IReadOnlyList<TeacherOption>> GetTeacherOptionsAsync(CancellationToken cancellationToken = default)
@@ -170,16 +207,16 @@ public class ExportService : IExportService
     private Task<ExportTable> BuildTableAsync(ExportDataset dataset, ExportOptions options, CancellationToken ct) =>
         dataset switch
         {
-            ExportDataset.Students => BuildStudentsAsync(ct),
-            ExportDataset.Teachers => BuildTeachersAsync(ct),
-            ExportDataset.Sections => BuildSectionsAsync(ct),
+            ExportDataset.Students => BuildStudentsAsync(options, ct),
+            ExportDataset.Teachers => BuildTeachersAsync(options, ct),
+            ExportDataset.Sections => BuildSectionsAsync(options, ct),
             ExportDataset.TeacherSessions => BuildTeacherSessionsAsync(options, ct),
             ExportDataset.StudentAttendance => BuildStudentAttendanceAsync(options, ct),
             ExportDataset.AttendanceSummary => BuildAttendanceSummaryAsync(options, ct),
             _ => throw new ArgumentOutOfRangeException(nameof(dataset), dataset, "Unknown export dataset.")
         };
 
-    private async Task<ExportTable> BuildStudentsAsync(CancellationToken ct)
+    private async Task<ExportTable> BuildStudentsAsync(ExportOptions options, CancellationToken ct)
     {
         await using var context = await _contextFactory.CreateDbContextAsync(ct);
 
@@ -191,6 +228,18 @@ public class ExportService : IExportService
 
         // Map each student to their current section / grade level (if enrolled).
         var placementByStudent = await LoadPlacementsAsync(context, ct);
+
+        // Filtered in memory: the list is already loaded, and contact details are encrypted
+        // so they could not be compared in SQL anyway.
+        students = students.Where(s =>
+        {
+            placementByStudent.TryGetValue(s.Id, out var p);
+            return (options.GradeLevelId is not { } grade || p?.GradeLevelId == grade)
+                && (options.SectionId is not { } section || p?.SectionId == section)
+                && SameText(options.Sex, s.Sex)
+                && SameText(options.RecordStatus, s.Status)
+                && MatchesSearch(options.Search, s.LastName, s.FirstName, s.MiddleName, s.Lrn, s.StudentNumber);
+        }).ToList();
 
         string[] headers =
         [
@@ -224,7 +273,12 @@ public class ExportService : IExportService
             ]);
         }
 
-        return new ExportTable("students", "Students", headers, rows, new HashSet<int> { 7 });
+        var (kind, title) = Label("students", "Students",
+            await GradeNameAsync(context, options.GradeLevelId, ct),
+            await SectionNameAsync(context, options.SectionId, ct),
+            Describe(options.Sex), Describe(options.RecordStatus), DescribeSearch(options));
+
+        return new ExportTable(kind, title, headers, rows, new HashSet<int> { 7 });
     }
 
     /// <summary>
@@ -258,18 +312,24 @@ public class ExportService : IExportService
             select new
             {
                 e.StudentId,
+                e.SectionId,
+                e.GradeLevelId,
                 SectionName = sec != null ? sec.Name : null,
                 GradeName = gl != null ? gl.Name : null
             }).ToListAsync(ct);
 
         return placements
             .GroupBy(p => p.StudentId)
-            .ToDictionary(g => g.Key, g => new Placement(g.First().GradeName, g.First().SectionName));
+            .ToDictionary(g => g.Key, g =>
+            {
+                var p = g.First();
+                return new Placement(p.GradeName, p.SectionName, p.GradeLevelId, p.SectionId);
+            });
     }
 
-    private sealed record Placement(string? GradeName, string? SectionName);
+    private sealed record Placement(string? GradeName, string? SectionName, long? GradeLevelId, long? SectionId);
 
-    private async Task<ExportTable> BuildTeachersAsync(CancellationToken ct)
+    private async Task<ExportTable> BuildTeachersAsync(ExportOptions options, CancellationToken ct)
     {
         await using var context = await _contextFactory.CreateDbContextAsync(ct);
 
@@ -278,6 +338,13 @@ public class ExportService : IExportService
             .OrderBy(t => t.LastName)
             .ThenBy(t => t.FirstName)
             .ToListAsync(ct);
+
+        // In memory: e-mail is encrypted, and the list is already loaded.
+        teachers = teachers.Where(t =>
+                SameText(options.RecordStatus, t.Status)
+                && SameText(options.EmploymentStatus, t.EmploymentStatus)
+                && MatchesSearch(options.Search, t.LastName, t.FirstName, t.MiddleName, t.EmployeeNo, t.Email, t.Specialization))
+            .ToList();
 
         string[] headers =
         [
@@ -304,15 +371,25 @@ public class ExportService : IExportService
             ]);
         }
 
-        return new ExportTable("teachers", "Teachers", headers, rows);
+        var (kind, title) = Label("teachers", "Teachers",
+            Describe(options.RecordStatus), Describe(options.EmploymentStatus), DescribeSearch(options));
+
+        return new ExportTable(kind, title, headers, rows);
     }
 
-    private async Task<ExportTable> BuildSectionsAsync(CancellationToken ct)
+    private async Task<ExportTable> BuildSectionsAsync(ExportOptions options, CancellationToken ct)
     {
         await using var context = await _contextFactory.CreateDbContextAsync(ct);
 
-        var sections = await context.Sections
-            .AsNoTracking()
+        var sectionQuery = context.Sections.AsNoTracking();
+        if (options.GradeLevelId is { } grade)
+            sectionQuery = sectionQuery.Where(s => s.GradeLevelId == grade);
+        if (options.SchoolYearId is { } year)
+            sectionQuery = sectionQuery.Where(s => s.SchoolYearId == year);
+        if (options.Archived is { } archived)
+            sectionQuery = sectionQuery.Where(s => s.IsArchived == archived);
+
+        var sections = await sectionQuery
             .OrderBy(s => s.Name)
             .ToListAsync(ct);
 
@@ -359,7 +436,12 @@ public class ExportService : IExportService
             ]);
         }
 
-        return new ExportTable("sections", "Sections", headers, rows, new HashSet<int> { 4, 5 });
+        var (kind, title) = Label("sections", "Sections",
+            options.GradeLevelId is { } g ? gradeNames.GetValueOrDefault(g) : null,
+            options.SchoolYearId is { } y ? yearNames.GetValueOrDefault(y) : null,
+            options.Archived switch { true => "Archived", false => "Active", null => null });
+
+        return new ExportTable(kind, title, headers, rows, new HashSet<int> { 4, 5 });
     }
 
     private async Task<ExportTable> BuildTeacherSessionsAsync(ExportOptions options, CancellationToken ct)
@@ -380,6 +462,7 @@ public class ExportService : IExportService
             select new
             {
                 TeacherId = t.Id,
+                co.SectionId,
                 t.EmployeeNo,
                 TeacherLast = t.LastName,
                 TeacherFirst = t.FirstName,
@@ -399,6 +482,10 @@ public class ExportService : IExportService
 
         if (options.TeacherId is { } teacherId)
             query = query.Where(x => x.TeacherId == teacherId);
+        if (options.SectionId is { } sessionsSection)
+            query = query.Where(x => x.SectionId == sessionsSection);
+        if (SubjectOf(options) is { } sessionsSubject)
+            query = query.Where(x => x.SubjectName == sessionsSubject);
         if (StartOf(options) is { } sessionsFrom)
             query = query.Where(x => x.SessionDate >= sessionsFrom);
         if (EndOf(options) is { } sessionsUntil)
@@ -461,7 +548,8 @@ public class ExportService : IExportService
         }
 
         var (kind, title) = Label("teacher-sessions", "Teacher Sessions",
-            scopedTeacher, DescribeRange(options), DescribeStatus(options));
+            scopedTeacher, await SectionNameAsync(context, options.SectionId, ct), SubjectOf(options),
+            DescribeRange(options), DescribeStatus(options));
 
         return new ExportTable(kind, title, headers, rows);
     }
@@ -506,6 +594,8 @@ public class ExportService : IExportService
             query = query.Where(x => x.SectionId == sectionId);
         if (options.StudentId is { } studentId)
             query = query.Where(x => x.StudentId == studentId);
+        if (SubjectOf(options) is { } attendanceSubject)
+            query = query.Where(x => x.SubjectName == attendanceSubject);
         if (StartOf(options) is { } attendanceFrom)
             query = query.Where(x => x.SessionDate >= attendanceFrom);
         if (EndOf(options) is { } attendanceUntil)
@@ -560,7 +650,7 @@ public class ExportService : IExportService
             : null, ct);
 
         var (kind, title) = Label("student-attendance", "Student Attendance",
-            scope, DescribeRange(options), DescribeStatus(options));
+            scope, SubjectOf(options), DescribeRange(options), DescribeStatus(options));
 
         return new ExportTable(kind, title, headers, rows);
     }
@@ -604,6 +694,12 @@ public class ExportService : IExportService
         var records = await query.ToListAsync(ct);
         var placements = await LoadPlacementsAsync(context, ct);
 
+        // Grade comes from the student's current enrolment; name search is done in memory.
+        if (options.GradeLevelId is { } summaryGrade)
+            records = records.Where(x => placements.TryGetValue(x.StudentId, out var p) && p.GradeLevelId == summaryGrade).ToList();
+        if (!string.IsNullOrWhiteSpace(options.Search))
+            records = records.Where(x => MatchesSearch(options.Search, x.StudentLast, x.StudentFirst, x.StudentMiddle, x.Lrn, x.StudentNumber)).ToList();
+
         string[] headers =
         [
             "Student LRN", "Student No", "Student", "Grade Level", "Section", "Sessions",
@@ -634,6 +730,7 @@ public class ExportService : IExportService
                 {
                     first.StudentLast,
                     first.StudentFirst,
+                    Rate = rate,
                     Row = new string?[]
                     {
                         first.Lrn,
@@ -652,22 +749,18 @@ public class ExportService : IExportService
                     }
                 };
             })
+            // A student with only excused sessions has no rate, so never falls below a threshold.
+            .Where(x => options.RateBelow is not { } below || (x.Rate is { } r && r < below))
             .OrderBy(x => x.StudentLast, StringComparer.CurrentCultureIgnoreCase)
             .ThenBy(x => x.StudentFirst, StringComparer.CurrentCultureIgnoreCase)
             .Select(x => x.Row)
             .ToList();
 
-        string? sectionName = null;
-        if (options.SectionId is { } scopedSection)
-        {
-            sectionName = await context.Sections
-                .AsNoTracking()
-                .Where(x => x.Id == scopedSection)
-                .Select(x => x.Name)
-                .FirstOrDefaultAsync(ct);
-        }
-
-        var (kind, title) = Label("attendance-summary", "Attendance Summary", sectionName, DescribeRange(options));
+        var (kind, title) = Label("attendance-summary", "Attendance Summary",
+            await GradeNameAsync(context, options.GradeLevelId, ct),
+            await SectionNameAsync(context, options.SectionId, ct),
+            options.RateBelow is { } threshold ? $"Below {threshold.ToString("0.#", CultureInfo.InvariantCulture)}%" : null,
+            DescribeSearch(options), DescribeRange(options));
 
         return new ExportTable(kind, title, headers, rows, new HashSet<int> { 5, 6, 7, 8, 9, 10 });
     }
@@ -701,6 +794,51 @@ public class ExportService : IExportService
             ({ } from, { } to) when from == to => $"{from:yyyy-MM-dd}",
             ({ } from, { } to) => $"{from:yyyy-MM-dd} to {to:yyyy-MM-dd}"
         };
+
+    /// <summary>The subject filter, trimmed, or null when unset.</summary>
+    private static string? SubjectOf(ExportOptions options) =>
+        string.IsNullOrWhiteSpace(options.Subject) ? null : options.Subject.Trim();
+
+    /// <summary>True when no filter is set, or the value equals it (ignoring case and surrounding spaces).</summary>
+    private static bool SameText(string? filter, string? value) =>
+        string.IsNullOrWhiteSpace(filter)
+        || string.Equals(filter.Trim(), value?.Trim(), StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// True when every word of the search appears in at least one of the fields, so
+    /// "juan cruz" finds "Dela Cruz, Juan". An empty search matches everything.
+    /// </summary>
+    private static bool MatchesSearch(string? search, params string?[] fields)
+    {
+        if (string.IsNullOrWhiteSpace(search))
+            return true;
+
+        return search.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)
+            .All(term => fields.Any(f => f?.Contains(term, StringComparison.CurrentCultureIgnoreCase) == true));
+    }
+
+    /// <summary>A stored value for a title, e.g. "FEMALE" → "Female".</summary>
+    private static string? Describe(string? value) =>
+        string.IsNullOrWhiteSpace(value)
+            ? null
+            : CultureInfo.InvariantCulture.TextInfo.ToTitleCase(value.Trim().ToLowerInvariant().Replace('_', ' '));
+
+    private static string? DescribeSearch(ExportOptions options) =>
+        string.IsNullOrWhiteSpace(options.Search) ? null : $"matching \"{options.Search.Trim()}\"";
+
+    private static async Task<string?> GradeNameAsync(SchoolDbContext context, long? id, CancellationToken ct) =>
+        id is { } gradeId
+            ? await context.GradeLevels.AsNoTracking().Where(g => g.Id == gradeId).Select(g => g.Name).FirstOrDefaultAsync(ct)
+            : null;
+
+    private static async Task<string?> SectionNameAsync(SchoolDbContext context, long? id, CancellationToken ct) =>
+        id is { } sectionId
+            ? await context.Sections.AsNoTracking().Where(s => s.Id == sectionId).Select(s => s.Name).FirstOrDefaultAsync(ct)
+            : null;
+
+    /// <summary>Sort key that pads digit runs, so "Grade 9" sorts before "Grade 10".</summary>
+    private static string NaturalKey(string value) =>
+        System.Text.RegularExpressions.Regex.Replace(value, @"\d+", m => m.Value.PadLeft(8, '0'));
 
     private static string? DescribeStatus(ExportOptions options) =>
         StatusOf(options) is { } status
