@@ -2035,62 +2035,6 @@ input::-webkit-contacts-auto-fill-button {
     background: rgba(255, 255, 255, 0.02);
 }
 
-/* Dataset tab strip, shown when the preview covers more than one dataset. */
-.export-preview-tabs {
-    display: flex;
-    gap: 4px;
-    flex-wrap: wrap;
-    padding: 12px 24px 0;
-    border-bottom: 1px solid var(--clr-border);
-}
-
-[data-theme="dark"] .export-preview-tabs {
-    border-bottom-color: rgba(255, 255, 255, 0.06);
-}
-
-.export-preview-tab {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 8px 14px;
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--clr-text-secondary);
-    background: none;
-    border: none;
-    border-bottom: 2px solid transparent;
-    margin-bottom: -1px;
-    cursor: pointer;
-    transition: color 0.15s, border-color 0.15s;
-}
-
-.export-preview-tab:hover {
-    color: var(--clr-text);
-}
-
-.export-preview-tab--active {
-    color: var(--clr-accent);
-    border-bottom-color: var(--clr-accent);
-}
-
-.export-preview-tab-count {
-    font-size: 11px;
-    font-weight: 700;
-    padding: 1px 7px;
-    border-radius: 999px;
-    background: var(--clr-surface-alt);
-    color: var(--clr-text-muted);
-}
-
-.export-preview-tab--active .export-preview-tab-count {
-    background: var(--clr-accent);
-    color: #fff;
-}
-
-[data-theme="dark"] .export-preview-tab-count {
-    background: rgba(255, 255, 255, 0.08);
-}
-
 .export-preview-footer {
     display: flex;
     justify-content: flex-end;
@@ -2118,40 +2062,12 @@ input::-webkit-contacts-auto-fill-button {
     box-sizing: border-box;
 }
 
-.export-preview-filters {
-    padding: 12px 24px 14px;
-    border-bottom: 1px solid var(--clr-border);
-}
-
-[data-theme="dark"] .export-preview-filters {
-    border-bottom-color: rgba(255, 255, 255, 0.06);
-}
-
-.export-preview-filters-head {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-}
-
-.export-preview-filters-title {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 13px;
-    font-weight: 700;
-    color: var(--clr-text);
-}
-
 .export-preview-updating {
     display: inline-flex;
     align-items: center;
     gap: 6px;
     font-size: 12px;
-    color: var(--clr-text-muted);
-}
-
-.export-preview-clear {
-    margin-left: auto;
+    color: var(--clr-text-secondary);
 }
 
 .export-preview-filters-row {
@@ -2168,11 +2084,17 @@ input::-webkit-contacts-auto-fill-button {
 .export-preview-filters-row .export-card-filter {
     flex: 1 1 170px;
     min-width: 0;
-    max-width: 260px;
+    max-width: 240px;
 }
 
+.export-preview-filters-row .export-card-filter--search {
+    flex-basis: 220px;
+    max-width: 320px;
+}
+
+/* The date range gets a line of its own above the dropdowns. */
 .export-preview-filters-row .export-card-filter--range {
-    flex: 0 1 auto;
+    flex: 1 1 100%;
     max-width: none;
 }
 
@@ -2181,15 +2103,7 @@ input::-webkit-contacts-auto-fill-button {
     transition: opacity 0.15s;
 }
 
-.export-preview-tab-dot {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: var(--clr-accent);
-    flex-shrink: 0;
-}
-
-/* ── Export password (encrypted ZIP) ── */
+/* ── Export password (encrypted workbook) ── */
 .export-password {
     padding: 14px 24px;
     border-top: 1px solid var(--clr-border);
@@ -2246,15 +2160,42 @@ input::-webkit-contacts-auto-fill-button {
     user-select: none;
 }
 
+.export-password-checks {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 18px;
+    margin: 10px 0 0;
+    padding: 0;
+    list-style: none;
+}
+
+.export-password-check {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--clr-text-secondary);
+}
+
+.export-password-check--met {
+    color: #15803d;
+    font-weight: 600;
+}
+
+[data-theme="dark"] .export-password-check--met {
+    color: #4ade80;
+}
+
 .export-password-hint {
     margin: 8px 0 0;
     font-size: 12px;
-    color: var(--clr-text-muted);
+    line-height: 1.5;
+    color: var(--clr-text-secondary);
 }
 
 .export-password-hint--error {
-    color: var(--clr-danger);
-    font-weight: 500;
+    color: var(--clr-danger-text-soft);
+    font-weight: 600;
 }
 
 .modal-content--wide {
@@ -5603,39 +5544,39 @@ tr.row-selected:hover {
     color: rgba(255, 255, 255, 0.5);
 }
 
-/* ── Export Data page ── */
+/* ── Export Data page ──
+   A list of what can be exported on the left, the selected export on the right. */
 
 .export-page {
     padding: 0 32px 32px;
 }
 
-.export-intro {
-    font-size: 14px;
-    color: var(--clr-text-secondary);
-    margin: 0 0 20px;
-    max-width: 640px;
-    line-height: 1.6;
+.export-result {
+    margin: 0 0 16px;
 }
 
-.export-grid {
+.export-result-text {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.export-layout {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-    gap: 16px;
+    grid-template-columns: 296px minmax(0, 1fr);
+    gap: 20px;
+    align-items: start;
 }
 
-.export-card {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 14px;
-    padding: 22px;
+.export-nav,
+.export-work {
     background: var(--clr-surface);
     border: 1px solid var(--clr-border);
     border-radius: 12px;
     box-shadow: var(--shadow-card);
 }
 
-[data-theme="dark"] .export-card {
+[data-theme="dark"] .export-nav,
+[data-theme="dark"] .export-work {
     background: rgba(255, 255, 255, 0.04);
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
@@ -5643,9 +5584,401 @@ tr.row-selected:hover {
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
 }
 
-.export-card--all {
-    border-style: dashed;
-    border-color: var(--clr-border-strong);
+.export-nav {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 10px;
+    position: sticky;
+    top: 0;
+}
+
+.export-nav-label {
+    padding: 6px 10px 4px;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--clr-text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.export-nav-label--gap {
+    margin-top: 8px;
+    padding-top: 12px;
+    border-top: 1px solid var(--clr-border);
+}
+
+.export-nav-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    padding: 8px 10px;
+    font-family: inherit;
+    text-align: left;
+    color: var(--clr-text);
+    background: none;
+    border: 1px solid transparent;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+}
+
+.export-nav-item:hover {
+    background: var(--clr-surface-alt);
+}
+
+[data-theme="dark"] .export-nav-item:hover {
+    background: rgba(255, 255, 255, 0.06);
+}
+
+.export-nav-item:focus-visible,
+.export-work-refresh:focus-visible,
+.export-banner-close:focus-visible {
+    outline: 2px solid var(--clr-focus-ring);
+    outline-offset: 2px;
+}
+
+.export-nav-item--active,
+.export-nav-item--active:hover,
+[data-theme="dark"] .export-nav-item--active,
+[data-theme="dark"] .export-nav-item--active:hover {
+    background: var(--clr-accent-bg);
+    border-color: rgba(99, 102, 241, 0.35);
+}
+
+.export-nav-text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    flex: 1;
+    min-width: 0;
+}
+
+.export-nav-title {
+    font-size: 13.5px;
+    font-weight: 600;
+    line-height: 1.25;
+}
+
+.export-nav-item--active .export-nav-title {
+    color: var(--clr-sidebar-text-active);
+}
+
+.export-nav-meta {
+    font-size: 12px;
+    color: var(--clr-text-secondary);
+    line-height: 1.3;
+    font-variant-numeric: tabular-nums;
+}
+
+/* "n filters" marker on a record set that has been narrowed. */
+.export-nav-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
+    padding: 2px 8px;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1.5;
+    color: var(--clr-sidebar-text-active);
+    background: var(--clr-accent-bg);
+    border: 1px solid rgba(99, 102, 241, 0.3);
+    border-radius: 999px;
+    white-space: nowrap;
+}
+
+.export-nav-item--active .export-nav-badge {
+    background: var(--clr-surface);
+}
+
+[data-theme="dark"] .export-nav-item--active .export-nav-badge {
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.export-work {
+    min-width: 0;
+}
+
+.export-work-head {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 18px 22px;
+    border-bottom: 1px solid var(--clr-border);
+}
+
+.export-work-heading {
+    flex: 1;
+    min-width: 0;
+}
+
+.export-work-title {
+    font-size: 17px;
+    font-weight: 700;
+    color: var(--clr-text);
+    margin: 0 0 3px;
+}
+
+.export-work-desc {
+    font-size: 13px;
+    color: var(--clr-text-secondary);
+    margin: 0;
+    line-height: 1.5;
+    max-width: 68ch;
+}
+
+.export-work-action {
+    flex-shrink: 0;
+    font-variant-numeric: tabular-nums;
+}
+
+.export-work-filters {
+    padding: 14px 22px 16px;
+    border-bottom: 1px solid var(--clr-border);
+    background: var(--clr-bg);
+}
+
+[data-theme="dark"] .export-work-filters {
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.export-work-filters-head {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px 10px;
+}
+
+.export-work-filters-title {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--clr-text);
+}
+
+/* The title doubles as the show/hide control for the fields below it. */
+.export-work-filters-toggle {
+    margin-left: -8px;
+    padding: 6px 8px;
+    font-family: inherit;
+    background: none;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+.export-work-filters-toggle:hover {
+    background: var(--clr-surface-alt);
+}
+
+[data-theme="dark"] .export-work-filters-toggle:hover {
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.export-work-filters-toggle:focus-visible {
+    outline: 2px solid var(--clr-focus-ring);
+    outline-offset: 2px;
+}
+
+.export-work-filters-chevron {
+    transition: transform 0.15s;
+}
+
+.export-work-filters--collapsed .export-work-filters-chevron {
+    transform: rotate(-90deg);
+}
+
+.export-work-filters--collapsed {
+    padding-top: 10px;
+    padding-bottom: 10px;
+}
+
+/* `hidden` alone loses to the row's display:flex. */
+.export-preview-filters-row[hidden] {
+    display: none;
+}
+
+/* With the fields folded away the table can use the space they took. */
+.export-work-filters--collapsed + .export-work-body .export-work-table {
+    max-height: max(280px, calc(100vh - 380px));
+}
+
+.export-work-filters-note {
+    font-size: 12px;
+    color: var(--clr-text-secondary);
+}
+
+.export-work-clear {
+    margin-left: auto;
+    padding: 7px 12px;
+    font-size: 12px;
+}
+
+.export-work-body {
+    padding: 14px 22px 22px;
+}
+
+.export-work-preview-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    min-height: 28px;
+    margin-bottom: 10px;
+}
+
+.export-work-refresh {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 8px;
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--clr-text-secondary);
+    background: none;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.export-work-refresh:hover {
+    color: var(--clr-text);
+    background: var(--clr-surface-alt);
+}
+
+[data-theme="dark"] .export-work-refresh:hover {
+    background: rgba(255, 255, 255, 0.08);
+}
+
+/* The preview takes the height the window has left rather than a fixed slice of it. */
+.export-work-table {
+    max-height: max(280px, calc(100vh - 500px));
+}
+
+.export-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 48px 16px;
+    text-align: center;
+    border: 1px dashed var(--clr-border-strong);
+    border-radius: 10px;
+}
+
+.export-empty-title {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--clr-text);
+}
+
+.export-empty-text {
+    margin: 0 0 4px;
+    font-size: 13px;
+    color: var(--clr-text-secondary);
+    max-width: 48ch;
+}
+
+/* SF2: two choices and nothing else. */
+.export-sf2-fields {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 280px));
+    gap: 0 12px;
+}
+
+.export-sf2-fields .export-card-filter {
+    margin-top: 0;
+}
+
+.export-sf2-note {
+    margin-top: 14px;
+}
+
+/* "Everything": the sheets the workbook will hold. */
+.export-sheets {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    border: 1px solid var(--clr-border);
+    border-radius: 10px;
+}
+
+.export-sheet {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1.4fr) minmax(0, 1fr) minmax(84px, auto) auto;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 14px;
+    font-size: 13px;
+    color: var(--clr-text-secondary);
+}
+
+.export-sheet + .export-sheet {
+    border-top: 1px solid var(--clr-border);
+}
+
+.export-sheet-name {
+    font-weight: 600;
+    color: var(--clr-text);
+}
+
+.export-sheet-rows {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    color: var(--clr-text);
+}
+
+.export-sheet-edit {
+    padding: 7px 12px;
+    font-size: 12px;
+}
+
+/* Last step dialog: what is being saved, then the password. */
+.export-prompt-modal {
+    max-width: 520px;
+    max-height: 92vh;
+    overflow-y: auto;
+}
+
+.export-prompt-summary {
+    margin: 16px 24px;
+    padding: 4px 14px;
+    background: var(--clr-surface-alt);
+    border-radius: 10px;
+}
+
+[data-theme="dark"] .export-prompt-summary {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.export-prompt-summary-row {
+    display: grid;
+    grid-template-columns: 128px minmax(0, 1fr);
+    gap: 12px;
+    padding: 8px 0;
+    font-size: 13px;
+}
+
+.export-prompt-summary-row + .export-prompt-summary-row {
+    border-top: 1px solid var(--clr-border);
+}
+
+.export-prompt-summary dt {
+    color: var(--clr-text-secondary);
+}
+
+.export-prompt-summary dd {
+    margin: 0;
+    font-weight: 600;
+    color: var(--clr-text);
+    font-variant-numeric: tabular-nums;
 }
 
 .export-card-icon {
@@ -5658,35 +5991,79 @@ tr.row-selected:hover {
     flex-shrink: 0;
 }
 
-.export-card-icon--green { background: rgba(34, 197, 94, 0.15); color: #22c55e; }
-.export-card-icon--cyan { background: rgba(6, 182, 212, 0.15); color: #06b6d4; }
-.export-card-icon--orange { background: rgba(249, 115, 22, 0.15); color: #f97316; }
-.export-card-icon--purple { background: rgba(139, 92, 246, 0.15); color: #8b5cf6; }
-
-.export-card-body {
-    flex: 1;
-    /* The card is align-items:flex-start, so stretch explicitly to keep the filter
-       selects the same width as the button below them. */
-    align-self: stretch;
+.export-card-icon--sm {
+    width: 34px;
+    height: 34px;
+    border-radius: 9px;
 }
 
-.export-card-title {
-    font-size: 16px;
-    font-weight: 700;
-    color: var(--clr-text);
-    margin: 0 0 4px;
+.export-card-icon--sm svg {
+    width: 18px;
+    height: 18px;
 }
 
-.export-card-desc {
-    font-size: 13px;
-    color: var(--clr-text-muted);
-    margin: 0;
-    line-height: 1.5;
-}
+.export-card-icon--green { background: rgba(34, 197, 94, 0.15); color: #16a34a; }
+.export-card-icon--cyan { background: rgba(6, 182, 212, 0.15); color: #0891b2; }
+.export-card-icon--orange { background: rgba(249, 115, 22, 0.15); color: #ea580c; }
+.export-card-icon--purple { background: rgba(139, 92, 246, 0.15); color: #7c3aed; }
 
-.export-card-btn {
-    width: 100%;
-    justify-content: center;
+[data-theme="dark"] .export-card-icon--green { color: #4ade80; }
+[data-theme="dark"] .export-card-icon--cyan { color: #22d3ee; }
+[data-theme="dark"] .export-card-icon--orange { color: #fb923c; }
+[data-theme="dark"] .export-card-icon--purple { color: #a78bfa; }
+
+@media (max-width: 960px) {
+    .export-layout {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    /* The list becomes a strip that scrolls sideways above the workspace. */
+    .export-nav {
+        position: static;
+        flex-direction: row;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .export-nav-label {
+        display: none;
+    }
+
+    .export-nav-item {
+        width: auto;
+        flex: 0 0 auto;
+    }
+
+    .export-nav-title,
+    .export-nav-meta {
+        white-space: nowrap;
+    }
+
+    .export-work-head {
+        flex-wrap: wrap;
+    }
+
+    .export-work-action {
+        width: 100%;
+    }
+
+    .export-sheet {
+        grid-template-columns: auto minmax(0, 1fr) auto;
+    }
+
+    .export-sheet-filters {
+        display: none;
+    }
+
+    .export-sheet-edit {
+        grid-column: 2 / -1;
+        justify-self: start;
+    }
+
+    .export-sf2-fields {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 12px;
+    }
 }
 
 /* Cancel action on a teacher's own pending leave request. Needs to read clearly in
@@ -5723,7 +6100,7 @@ tr.row-selected:hover {
     color: #fff;
 }
 
-/* Per-card scope filter (currently only the teacher-sessions card). */
+/* One labelled export filter (also used for the password fields' labels). */
 .export-card-filter {
     display: flex;
     flex-direction: column;
@@ -5734,7 +6111,7 @@ tr.row-selected:hover {
 .export-card-filter-label {
     font-size: 11px;
     font-weight: 700;
-    color: var(--clr-text-muted);
+    color: var(--clr-text-secondary);
     text-transform: uppercase;
     letter-spacing: 0.5px;
 }
@@ -5745,26 +6122,11 @@ tr.row-selected:hover {
 
 .export-card-filter-hint {
     font-size: 11px;
-    color: var(--clr-text-muted);
+    color: var(--clr-text-secondary);
 }
 
 .export-card-filter-hint--error {
-    color: var(--clr-danger, #ef4444);
-}
-
-/* Page-wide export choices: file format and the attendance date range. */
-.export-toolbar {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 16px 32px;
-    margin: 0 0 20px;
-}
-
-.export-toolbar-group {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    min-width: 0;
+    color: var(--clr-danger-text-soft);
 }
 
 .export-segmented {
@@ -5777,9 +6139,17 @@ tr.row-selected:hover {
     border-radius: 10px;
 }
 
-.export-segmented .tab-btn:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
+[data-theme="dark"] .export-segmented {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.export-segmented .tab-btn {
+    padding: 7px 12px;
+}
+
+.export-segmented .tab-btn:focus-visible {
+    outline: 2px solid var(--clr-focus-ring);
+    outline-offset: 2px;
 }
 
 .export-range {
@@ -5821,6 +6191,26 @@ tr.row-selected:hover {
 
 .export-banner-btn:hover {
     background: rgba(34, 197, 94, 0.15);
+}
+
+.export-banner-actions {
+    align-items: center;
+    flex-shrink: 0;
+}
+
+.export-banner-close {
+    display: inline-flex;
+    padding: 4px;
+    color: inherit;
+    background: none;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    opacity: 0.75;
+}
+
+.export-banner-close:hover {
+    opacity: 1;
 }
 
 /* ── Field label ──
@@ -6373,6 +6763,15 @@ tr.row-selected:hover {
     gap: 10px;
     align-items: center;
     flex-wrap: wrap;
+}
+
+.enc-try-input.enc-decrypt-input .form-input {
+    max-width: 640px;
+    font-size: 12px;
+}
+
+.enc-seal-counts {
+    margin-bottom: 16px;
 }
 
 .enc-try-input .form-input {

@@ -68,6 +68,13 @@ public static class DataEncryption
         _key ?? throw new InvalidOperationException("Data encryption has not been configured.");
 
     /// <summary>
+    /// A separate 32-byte key for another job (e.g. sealing records), derived from the data
+    /// key with HKDF-SHA256 so the encryption key itself is never reused for anything else.
+    /// </summary>
+    internal static byte[] DeriveKey(string purpose) =>
+        HKDF.DeriveKey(HashAlgorithmName.SHA256, Key, 32, info: Encoding.UTF8.GetBytes(purpose));
+
+    /// <summary>
     /// A short, non-reversible identifier of the active key (first 8 bytes of its SHA-256),
     /// so two installs can confirm they share a key without ever showing the key itself.
     /// </summary>

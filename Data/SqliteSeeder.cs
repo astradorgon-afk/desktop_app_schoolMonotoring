@@ -1,5 +1,6 @@
 using AttendanceUI.Data.Entities;
 using AttendanceUI.Services;
+using Microsoft.EntityFrameworkCore;
 
 namespace AttendanceUI.Data;
 
@@ -9,6 +10,8 @@ namespace AttendanceUI.Data;
 /// and one class offering + schedule per teacher so that every teacher and every
 /// room is occupied. Two deliberate schedule clashes are planted in each grade
 /// level so the conflict detector and resolve UI have something to work on.
+/// <see cref="SqliteActivitySeeder"/> then adds six weeks of attendance, leave requests,
+/// excuse letters and audit entries so dashboards and reports have data.
 /// Intended for the portable SQLite profile. No-ops if the database already
 /// contains users.
 /// </summary>
@@ -19,34 +22,47 @@ public static class SqliteSeeder
     private const int RoomCount = 200;
     private const int SectionCount = 20;   // 5 per grade level
 
-    // Demo credentials for the portable profile are deliberately trivial: every account's
-    // password is identical to its username (admin/admin, teacher1/teacher1, student1/student1,
-    // … up to teacher200 / student200). This database ships as a local demo — never point the
-    // portable profile at real records.
+    // Demo credentials for the portable profile are deliberately trivial:
+    //   admin   / admin
+    //   teacher / teacher   (also teacher2 … teacher200, all with the password "teacher")
+    //   student / student   (also student2 … student200, all with the password "student")
+    // This database ships as a local demo — never point the portable profile at real records.
     private const string AdminUsername = "admin";
+    private const string TeacherPassword = "teacher";
+    private const string StudentPassword = "student";
 
-    // PBKDF2 work factor for the 401 demo accounts. The production default (100,000)
-    // would mean ~40 million SHA256 iterations on first run, which stalls the app for
-    // minutes on a phone and trips Android's ANR watchdog. These are throwaway
-    // credentials whose passwords are already public (password == username), so the
-    // work factor buys nothing here. Accounts created through the app are unaffected
-    // and still use the full default.
+    // PBKDF2 work factor for the demo accounts. These are throwaway credentials whose
+    // passwords are already public, so the production default (100,000) buys nothing
+    // here and only slows first run on a phone. Accounts created through the app are
+    // unaffected and still use the full default.
     private const int DemoIterationCount = 1_000;
+
+    /// <summary>The first account of a role is plain "teacher" / "student"; the rest are numbered from 2.</summary>
+    private static string DemoUsername(string role, int index) => index == 0 ? role : $"{role}{index + 1}";
 
     private static readonly string[] FirstNames =
     [
-        "Juan", "Maria", "Jose", "Anna", "Pedro", "Sofia", "Miguel", "Isabella",
-        "Carlos", "Angel", "Marco", "Andrea", "Gabriel", "Bea", "Nathan", "Louise",
-        "Paolo", "Kyla", "Rafael", "Nicole", "Diego", "Camille", "Enzo", "Patricia",
-        "Luis", "Danica", "Mark", "Jasmine", "Ryan", "Aira",
+        "Adrian", "Althea", "Benjamin", "Bianca", "Christian", "Clarisse", "Dominic", "Daphne",
+        "Elijah", "Erika", "Francis", "Frances", "Gian", "Gwen", "Harold", "Hannah",
+        "Ivan", "Ingrid", "Jerome", "Janine", "Kenneth", "Katrina", "Lorenzo", "Lorraine",
+        "Matteo", "Mikaela", "Noel", "Nadine", "Owen", "Pauline", "Patrick", "Rhea",
+        "Sebastian", "Samantha", "Tristan", "Trisha", "Vincent", "Vanessa", "Xander", "Ysabel",
     ];
 
     private static readonly string[] LastNames =
     [
-        "Santos", "Reyes", "Cruz", "Bautista", "Ocampo", "Garcia", "Mendoza", "Torres",
-        "Flores", "Ramos", "Aquino", "Villanueva", "Castillo", "Del Rosario", "Gonzales",
-        "Rivera", "Domingo", "Navarro", "Salazar", "Aguilar", "Fernandez", "Pascual",
-        "Manalo", "Diaz", "Lim", "Tan", "Chua", "Yap", "Marasigan", "Soriano",
+        "Abad", "Agustin", "Alonzo", "Arellano", "Balagtas", "Belmonte", "Buenaventura", "Cabrera",
+        "Calderon", "Carpio", "Concepcion", "Corpuz", "Dantes", "De Guzman", "De Leon", "Dizon",
+        "Enriquez", "Escobar", "Espiritu", "Estrada", "Evangelista", "Francisco", "Galang", "Gatchalian",
+        "Guevarra", "Hernandez", "Ignacio", "Jimenez", "Lacson", "Legaspi", "Macaraeg", "Magbanua",
+        "Natividad", "Nepomuceno", "Padilla", "Panganiban", "Quiambao", "Robles", "Sarmiento", "Tolentino",
+        "Umali", "Valenzuela", "Velasco", "Vergara", "Zamora",
+    ];
+
+    private static readonly string[] Streets =
+    [
+        "Acacia St.", "Bayanihan Rd.", "Camia St.", "Gumamela St.", "Ilang-Ilang St.",
+        "Kalachuchi Ave.", "Molave Rd.", "Mahogany Ave.", "Kamagong St.", "Santan St.",
     ];
 
     private static readonly (string Code, string Title)[] Subjects =
@@ -80,12 +96,25 @@ public static class SqliteSeeder
 
     public static void Seed(SchoolDbContext context)
     {
-        // Only seed an empty database.
-        if (context.Users.Any())
-            return;
+        // The school itself is only seeded into an empty database.
+        if (!context.Users.Any())
+            SeedSchool(context);
 
+        // Earlier demo files enrolled students as "ENROLLED", which most screens (class rosters,
+        // QR scanning, the student portal) do not count as enrolled. The app itself never
+        // writes that value, so only seeded rows are touched.
+        context.Enrollments.Where(e => e.Status == "ENROLLED")
+            .ExecuteUpdate(u => u.SetProperty(e => e.Status, "ACTIVE"));
+
+        // Activity is separate so a demo file created before it existed is topped up too.
+        if (!context.AttendanceSessions.Any())
+            SqliteActivitySeeder.Seed(context);
+    }
+
+    private static void SeedSchool(SchoolDbContext context)
+    {
         var now = DateTime.UtcNow;
-        var rng = new Random(20260722);
+        var rng = new Random(20261112);
 
         // ── School year & grade levels (grade Ids must be 1..4 = G7..G10) ──
         var schoolYear = new SchoolYear
@@ -139,16 +168,9 @@ public static class SqliteSeeder
         context.Rooms.AddRange(rooms);
 
         // ── Users (1 admin + 200 teacher logins + 200 student logins) ──
-        // Each account now needs its own hash (password == username), so the 401 PBKDF2
-        // derivations are done in parallel — at 100k iterations they'd otherwise add tens
-        // of seconds to first run.
-        var teacherUsernames = Enumerable.Range(1, TeacherCount).Select(i => $"teacher{i}").ToArray();
-        var studentUsernames = Enumerable.Range(1, StudentCount).Select(i => $"student{i}").ToArray();
-
-        var teacherHashes = new string[TeacherCount];
-        var studentHashes = new string[StudentCount];
-        Parallel.For(0, TeacherCount, i => teacherHashes[i] = PasswordHelper.Hash(teacherUsernames[i], DemoIterationCount));
-        Parallel.For(0, StudentCount, i => studentHashes[i] = PasswordHelper.Hash(studentUsernames[i], DemoIterationCount));
+        // Every account of a role shares that role's password, so one hash per role is enough.
+        var teacherHash = PasswordHelper.Hash(TeacherPassword, DemoIterationCount);
+        var studentHash = PasswordHelper.Hash(StudentPassword, DemoIterationCount);
 
         var admin = new User
         {
@@ -172,8 +194,8 @@ public static class SqliteSeeder
             teacherUsers.Add(new User
             {
                 Name = $"{first} {last}",
-                Username = teacherUsernames[i],
-                PasswordHash = teacherHashes[i],
+                Username = DemoUsername("teacher", i),
+                PasswordHash = teacherHash,
                 Role = UserRole.TEACHER,
                 Status = UserStatus.ACTIVE,
                 CanLogin = true,
@@ -192,8 +214,8 @@ public static class SqliteSeeder
             studentUsers.Add(new User
             {
                 Name = $"{first} {last}",
-                Username = studentUsernames[i],
-                PasswordHash = studentHashes[i],
+                Username = DemoUsername("student", i),
+                PasswordHash = studentHash,
                 Role = UserRole.STUDENT,
                 Status = UserStatus.ACTIVE,
                 CanLogin = true,
@@ -245,7 +267,7 @@ public static class SqliteSeeder
                 Birthdate = birthdate,
                 Age = AgeFrom(birthdate),
                 Sex = rng.Next(0, 2) == 0 ? "Male" : "Female",
-                Address = $"{rng.Next(1, 999)} Mabini St., Barangay {rng.Next(1, 20)}",
+                Address = $"{rng.Next(1, 240)} {Streets[rng.Next(Streets.Length)]}, Barangay {rng.Next(1, 20)}",
                 ContactNo = RandomPhone(rng),
                 GuardianName = $"{RandomName(rng).First} {last}",
                 GuardianContact = RandomPhone(rng),
@@ -291,7 +313,7 @@ public static class SqliteSeeder
                 GradeLevelId = section.GradeLevelId,
                 SectionId = section.Id,
                 CurriculumId = 1,
-                Status = "ENROLLED",
+                Status = "ACTIVE",
                 EnrolledAt = now,
                 CreatedAt = now,
                 UpdatedAt = now,

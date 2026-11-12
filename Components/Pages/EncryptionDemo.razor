@@ -4,10 +4,11 @@
 @using AttendanceUI.Data.Entities
 @inject IEncryptionDemoService DemoService
 @inject IDataEncryptionService EncryptionService
+@inject IRecordSealService SealService
 @inject IAuthService AuthService
 @implements IDisposable
 
-<PageHeader Title="Encryption Demo" Subtitle="See what the database stores versus what the app shows" />
+<PageHeader Title="Encryption Demo" Subtitle="Encryption and hashing: what the database stores versus what the app shows" />
 
 @if (!_authorized)
 {
@@ -218,8 +219,24 @@ else
                 <div class="enc-step">
                     <span class="enc-step-num">3</span>
                     <div class="enc-step-body">
-                        <span class="enc-step-title">Decrypted with the app's key</span>
-                        <span class="enc-plain enc-plain--ok">@DataEncryption.DecryptText(_cipher)</span>
+                        <span class="enc-step-title">Decrypt it with the app's key</span>
+                        <span class="text-muted enc-step-note">
+                            The value from step 1 is filled in. You can also paste any <code>enc:v1:</code> value from the table above.
+                        </span>
+                        <div class="enc-try-input enc-decrypt-input">
+                            <div class="enc-actions">
+                                <input class="form-input enc-mono" aria-label="Encrypted value to decrypt" @bind="_decryptInput" @bind:event="oninput" placeholder="enc:v1:…" />
+                                <button class="btn btn-primary" @onclick="DecryptSample" disabled="@string.IsNullOrWhiteSpace(_decryptInput)">Decrypt</button>
+                            </div>
+                        </div>
+                        @if (_decryptNote is not null)
+                        {
+                            <span class="enc-plain enc-plain--bad">@_decryptNote</span>
+                        }
+                        else if (_decrypted is not null)
+                        {
+                            <span>Decrypts to: <span class="enc-plain enc-plain--ok">@_decrypted</span></span>
+                        }
                     </div>
                 </div>
 
@@ -245,6 +262,298 @@ else
                 </div>
             </div>
         }
+    </div>
+
+    @* ── 4. Password hashing ── *@
+    <div class="page-card enc-card">
+        <h2 class="card-heading">Password hashing (PBKDF2-SHA256)</h2>
+        <p class="text-muted enc-help">
+            Passwords are not encrypted, they are hashed. Encryption can be undone with the key; a hash cannot be undone by anyone,
+            including the app. At sign-in the typed password is hashed the same way and the two hashes are compared.
+            @if (_hashes is not null)
+            {
+                <span>@_hashes.Hashed.ToString("N0") of @_hashes.Accounts.ToString("N0") account password@(_hashes.Accounts == 1 ? " is" : "s are") stored this way.</span>
+            }
+        </p>
+
+        @if (_hashes is { Samples.Count: > 0 })
+        {
+            <div class="table-scroll">
+                <table class="students-table enc-table">
+                    <thead>
+                        <tr>
+                            <th>Account</th>
+                            <th>Algorithm</th>
+                            <th>Iterations</th>
+                            <th>Salt</th>
+                            <th>Hash</th>
+                            <th>Password shown in app</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var h in _hashes.Samples)
+                        {
+                            <tr>
+                                <td class="enc-record">@h.Username <span class="text-muted enc-step-note">@h.Role</span></td>
+                                @if (h.IsHashed)
+                                {
+                                    <td><span class="att-badge att-badge--sm att-badge--present">@h.Algorithm</span></td>
+                                    <td>@h.Iterations.ToString("N0")</td>
+                                    <td><code class="enc-raw">@h.SaltPreview</code></td>
+                                    <td><code class="enc-raw enc-raw--cipher">@h.HashPreview</code></td>
+                                }
+                                else
+                                {
+                                    <td colspan="4"><span class="att-badge att-badge--sm att-badge--late">Not a PBKDF2 hash</span></td>
+                                }
+                                <td class="text-muted">Never. It cannot be recovered</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            <p class="text-muted enc-footnote">
+                Showing the newest @_hashes.Samples.Count account@(_hashes.Samples.Count == 1 ? "" : "s"). Salts and hashes are cut short here on purpose.
+            </p>
+        }
+    </div>
+
+    @* ── 5. Try hashing ── *@
+    <div class="page-card enc-card">
+        <h2 class="card-heading">Try hashing yourself</h2>
+        <p class="text-muted enc-help">
+            Runs in memory with the same code that hashes real passwords. Nothing is saved.
+        </p>
+
+        <div class="enc-try-input">
+            <label class="form-label" for="hash-input">Password to hash</label>
+            <div class="enc-actions">
+                <input id="hash-input" class="form-input" @bind="_hashInput" @bind:event="oninput" placeholder="e.g. MyPassword123" maxlength="200" />
+                <button class="btn btn-primary" @onclick="HashSample" disabled="@string.IsNullOrEmpty(_hashInput)">Hash</button>
+            </div>
+        </div>
+
+        @if (_hash is not null)
+        {
+            <div class="enc-steps">
+                <div class="enc-step">
+                    <span class="enc-step-num">1</span>
+                    <div class="enc-step-body">
+                        <span class="enc-step-title">Hashed value (this is what gets saved)</span>
+                        <code class="enc-raw enc-raw--cipher enc-raw--full">@_hash</code>
+                        <span class="text-muted enc-step-note">
+                            Format: <code>PBKDF2</code> $ iterations $ base64( 16-byte random salt ) $ base64( 32-byte hash ).
+                            The 100,000 iterations make every guess slow for an attacker.
+                        </span>
+                    </div>
+                </div>
+
+                <div class="enc-step">
+                    <span class="enc-step-num">2</span>
+                    <div class="enc-step-body">
+                        <span class="enc-step-title">Same password, hashed again</span>
+                        <code class="enc-raw enc-raw--cipher enc-raw--full">@_hash2</code>
+                        <span class="text-muted enc-step-note">
+                            Different because each hash gets its own random salt, so two users with the same password
+                            do not have the same hash in the database.
+                        </span>
+                    </div>
+                </div>
+
+                <div class="enc-step">
+                    <span class="enc-step-num">3</span>
+                    <div class="enc-step-body">
+                        <span class="enc-step-title">Sign-in check</span>
+                        <span class="text-muted enc-step-note">
+                            There is no "decrypt" step. Type a password and the app hashes it with the salt from step 1 and compares.
+                        </span>
+                        <div class="enc-try-input">
+                            <div class="enc-actions">
+                                <input class="form-input" aria-label="Password to check" @bind="_verifyInput" @bind:event="oninput" placeholder="Type a password to check" maxlength="200" />
+                                <button class="btn btn-ghost" @onclick="VerifySample" disabled="@string.IsNullOrEmpty(_verifyInput)">Check</button>
+                            </div>
+                        </div>
+                        @if (_verified is not null)
+                        {
+                            <span class="enc-plain @(_verified == true ? "enc-plain--ok" : "enc-plain--bad")">
+                                @(_verified == true ? "Match: sign-in would succeed." : "No match: sign-in would be refused.")
+                            </span>
+                        }
+                    </div>
+                </div>
+
+                <div class="enc-step">
+                    <span class="enc-step-num">4</span>
+                    <div class="enc-step-body">
+                        <span class="enc-step-title">One character changes everything (plain SHA-256)</span>
+                        <span class="text-muted enc-step-note">SHA-256 of "@Shorten(_shaText!)"</span>
+                        <code class="enc-raw enc-raw--full">@_sha</code>
+                        <span class="text-muted enc-step-note">SHA-256 of "@Shorten(_shaChangedText!)"</span>
+                        <code class="enc-raw enc-raw--cipher enc-raw--full">@_shaChanged</code>
+                        <span class="text-muted enc-step-note">
+                            @_shaBitsChanged of 256 bits differ after changing one character, so a hash gives no hint of how close a guess was.
+                            SHA-256 is the building block inside PBKDF2; the app also uses it for the key fingerprint above and to stamp each attendance record.
+                        </span>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+
+    @* ── 6. Record seals (HMAC) ── *@
+    <div class="page-card enc-card">
+        <h2 class="card-heading">Attendance record seals (HMAC-SHA256)</h2>
+        <p class="text-muted enc-help">
+            Every attendance record the app saves is stamped with a keyed hash of its session, student, status and who marked it.
+            If someone changes a record directly in the database, the stamp no longer matches and the record is flagged here.
+            Without the app's key, a matching stamp cannot be forged.
+        </p>
+
+        @if (_seals is not null)
+        {
+            <div class="enc-actions enc-seal-counts">
+                <span class="att-badge att-badge--present">@_seals.Intact.ToString("N0") intact</span>
+                <span class="att-badge @(_seals.Altered > 0 ? "att-badge--absent" : "att-badge--present")">@_seals.Altered.ToString("N0") altered outside the app</span>
+                <span class="att-badge @(_seals.Unsealed > 0 ? "att-badge--late" : "att-badge--present")">@_seals.Unsealed.ToString("N0") not sealed yet</span>
+            </div>
+
+            @if (_seals.Unsealed > 0)
+            {
+                <p class="text-muted enc-help">
+                    @_seals.Unsealed.ToString("N0") record@(_seals.Unsealed == 1 ? " was" : "s were") saved before sealing was added, so there is nothing to check
+                    @(_seals.Unsealed == 1 ? "it" : "them") against. New and edited records are sealed automatically.
+                </p>
+                @if (!_sealConfirming)
+                {
+                    <div class="enc-seal-counts"><button class="btn btn-primary" @onclick="() => _sealConfirming = true" disabled="@_sealing">Seal existing records…</button></div>
+                }
+                else
+                {
+                    <div class="enc-confirm enc-seal-counts" role="alert">
+                        <p>
+                            This stamps @_seals.Unsealed.ToString("N0") record@(_seals.Unsealed == 1 ? "" : "s") as they are right now.
+                            Only do this if you trust the current attendance data. Records already flagged as altered are not touched.
+                        </p>
+                        <div class="enc-actions">
+                            <button class="btn btn-primary" @onclick="SealExistingAsync" disabled="@_sealing">
+                                @if (_sealing) { <span class="spinner-sm"></span> }
+                                Yes, seal now
+                            </button>
+                            <button class="btn btn-ghost" @onclick="() => _sealConfirming = false" disabled="@_sealing">Cancel</button>
+                        </div>
+                    </div>
+                }
+            }
+
+            @if (_seals.Samples.Count == 0)
+            {
+                <p class="text-muted">No attendance records yet.</p>
+            }
+            else
+            {
+                <div class="table-scroll">
+                    <table class="students-table enc-table">
+                        <thead>
+                            <tr>
+                                <th>Record</th>
+                                <th>Status</th>
+                                <th>Seal stored in database</th>
+                                <th>Check</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var s in _seals.Samples)
+                            {
+                                <tr>
+                                    <td class="enc-record">@s.Student <span class="text-muted enc-step-note">#@s.Id</span></td>
+                                    <td>@s.Status</td>
+                                    <td><code class="enc-raw @(s.State == SealState.Unsealed ? "" : "enc-raw--cipher")" title="@s.StoredSeal">@Shorten(s.StoredSeal)</code></td>
+                                    <td>
+                                        @switch (s.State)
+                                        {
+                                            case SealState.Intact:
+                                                <span class="att-badge att-badge--sm att-badge--present">Intact</span>
+                                                break;
+                                            case SealState.Altered:
+                                                <span class="att-badge att-badge--sm att-badge--absent">Altered outside the app</span>
+                                                break;
+                                            default:
+                                                <span class="att-badge att-badge--sm att-badge--late">Not sealed</span>
+                                                break;
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+                <p class="text-muted enc-footnote">
+                    All @((_seals.Intact + _seals.Altered + _seals.Unsealed).ToString("N0")) records were checked. Showing @_seals.Samples.Count, altered ones first, then the newest.
+                </p>
+            }
+        }
+    </div>
+
+    @* ── 7. Try the seal ── *@
+    <div class="page-card enc-card">
+        <h2 class="card-heading">Try the seal yourself</h2>
+        <p class="text-muted enc-help">
+            A made-up record, sealed in memory with the app's real key. Nothing is written to the database.
+        </p>
+
+        <div class="enc-steps">
+            <div class="enc-step">
+                <span class="enc-step-num">1</span>
+                <div class="enc-step-body">
+                    <span class="enc-step-title">The app saves a record: session @DemoSession, student @DemoStudent, marked ABSENT by user @DemoMarker</span>
+                    <span class="text-muted enc-step-note">Text that gets signed: <code>@RecordSeal.Message(DemoSession, DemoStudent, "ABSENT", DemoMarker)</code></span>
+                    <code class="enc-raw enc-raw--cipher enc-raw--full">@_demoSeal</code>
+                    <span class="text-muted enc-step-note">
+                        Format: <code>hmac:v1:</code> + HMAC-SHA256( secret key, signed text ). The key is derived from the app's data key and never stored in the database.
+                    </span>
+                </div>
+            </div>
+
+            <div class="enc-step">
+                <span class="enc-step-num">2</span>
+                <div class="enc-step-body">
+                    <span class="enc-step-title">Someone edits the status directly in the database</span>
+                    <div class="enc-try-input">
+                        <div class="enc-actions">
+                            <select class="form-input" aria-label="Status now in the database" @bind="_demoStatus">
+                                @foreach (var status in DemoStatuses)
+                                {
+                                    <option value="@status">@status</option>
+                                }
+                            </select>
+                        </div>
+                    </div>
+                    <span class="text-muted enc-step-note">Seal the app expects for "@_demoStatus":</span>
+                    <code class="enc-raw enc-raw--full">@RecordSeal.Compute(DemoSession, DemoStudent, _demoStatus, DemoMarker)</code>
+                    @if (RecordSeal.Check(DemoSession, DemoStudent, _demoStatus, DemoMarker, _demoSeal) == SealState.Intact)
+                    {
+                        <span class="enc-plain enc-plain--ok">Matches the stored seal: the record is intact.</span>
+                    }
+                    else
+                    {
+                        <span class="enc-plain enc-plain--bad">Does not match the stored seal: the record is flagged as altered.</span>
+                    }
+                </div>
+            </div>
+
+            <div class="enc-step">
+                <span class="enc-step-num">3</span>
+                <div class="enc-step-body">
+                    <span class="enc-step-title">Why a plain hash is not enough</span>
+                    <span class="text-muted enc-step-note">Plain SHA-256 of the same text, which anyone can calculate:</span>
+                    <code class="enc-raw enc-raw--full">@PlainSha(RecordSeal.Message(DemoSession, DemoStudent, _demoStatus, DemoMarker))</code>
+                    <span class="text-muted enc-step-note">
+                        With a plain hash, whoever edits the status can simply recalculate the hash and store that too.
+                        HMAC mixes in a secret key, so only the app can produce a seal that passes the check.
+                    </span>
+                </div>
+            </div>
+        </div>
     </div>
 }
 
@@ -273,6 +582,18 @@ else
     private string? _tampered;
     private string? _tamperNote;
 
+    private PasswordHashOverview? _hashes;
+    private string _hashInput = "";
+    private string? _hash;
+    private string? _hash2;
+    private string _verifyInput = "";
+    private bool? _verified;
+    private string? _shaText;
+    private string? _sha;
+    private string? _shaChangedText;
+    private string? _shaChanged;
+    private int _shaBitsChanged;
+
     protected override async Task OnInitializedAsync()
     {
         _session = await AuthService.GetCurrentSessionAsync();
@@ -299,6 +620,102 @@ else
     {
         await LoadStatusAsync();
         await LoadRowsAsync();
+        await LoadHashesAsync();
+        await LoadSealsAsync();
+    }
+
+    private async Task LoadHashesAsync()
+    {
+        try
+        {
+            _hashes = await DemoService.GetPasswordHashesAsync(HashSampleSize, _cts.Token);
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception ex)
+        {
+            _error = $"Failed to read the password hashes: {ex.Message}";
+        }
+    }
+
+    private const int HashSampleSize = 5;
+
+    private const int SealSampleSize = 8;
+    private const long DemoSession = 101;
+    private const long DemoStudent = 2024;
+    private const long DemoMarker = 7;
+    private static readonly string[] DemoStatuses = ["ABSENT", "PRESENT", "LATE", "EXCUSED"];
+
+    private RecordSealOverview? _seals;
+    private bool _sealConfirming;
+    private bool _sealing;
+    private string? _demoSeal;
+    private string _demoStatus = "ABSENT";
+
+    private async Task LoadSealsAsync()
+    {
+        try
+        {
+            _demoSeal ??= RecordSeal.Compute(DemoSession, DemoStudent, "ABSENT", DemoMarker);
+            _seals = await SealService.CheckAsync(SealSampleSize, _cts.Token);
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception ex)
+        {
+            _error = $"Failed to check the record seals: {ex.Message}";
+        }
+    }
+
+    private async Task SealExistingAsync()
+    {
+        if (_session is null || _sealing) return;
+        _sealing = true;
+        _error = null;
+        _result = null;
+        try
+        {
+            var updated = await SealService.SealExistingAsync(
+                _session.UserId, _session.DisplayName, _session.Role.ToString(), _cts.Token);
+            _result = $"Sealed {updated:N0} existing attendance record{(updated == 1 ? "" : "s")}.";
+            _sealConfirming = false;
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception ex)
+        {
+            _error = $"Failed to seal existing records: {ex.Message}";
+        }
+        finally
+        {
+            _sealing = false;
+        }
+
+        await LoadSealsAsync();
+    }
+
+    private static string PlainSha(string text) =>
+        Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(text)));
+
+    private void HashSample()
+    {
+        if (string.IsNullOrEmpty(_hashInput)) return;
+        _hash = PasswordHelper.Hash(_hashInput);
+        _hash2 = PasswordHelper.Hash(_hashInput);
+        _verifyInput = "";
+        _verified = null;
+
+        // Same text with its last character nudged to the next one.
+        _shaText = _hashInput;
+        _shaChangedText = _hashInput[..^1] + (char)(_hashInput[^1] == 'z' ? 'y' : _hashInput[^1] + 1);
+        var a = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(_shaText));
+        var b = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(_shaChangedText));
+        _sha = Convert.ToHexStringLower(a);
+        _shaChanged = Convert.ToHexStringLower(b);
+        _shaBitsChanged = a.Zip(b, (x, y) => System.Numerics.BitOperations.PopCount((uint)(x ^ y))).Sum();
+    }
+
+    private void VerifySample()
+    {
+        if (_hash is null || string.IsNullOrEmpty(_verifyInput)) return;
+        _verified = PasswordHelper.Verify(_verifyInput, _hash);
     }
 
     private async Task LoadStatusAsync()
@@ -375,6 +792,32 @@ else
         _cipher2 = DataEncryption.EncryptText(_input);
         _tampered = null;
         _tamperNote = null;
+        _decryptInput = _cipher;
+        _decrypted = null;
+        _decryptNote = null;
+    }
+
+    private string _decryptInput = "";
+    private string? _decrypted;
+    private string? _decryptNote;
+
+    private void DecryptSample()
+    {
+        var value = _decryptInput.Trim();
+        _decrypted = null;
+        _decryptNote = null;
+
+        if (!DataEncryption.IsEncrypted(value))
+        {
+            _decryptNote = "That is not an encrypted value: it does not start with enc:v1:.";
+            return;
+        }
+
+        var plain = DataEncryption.DecryptText(value);
+        if (plain == DataEncryption.Unreadable)
+            _decryptNote = "Could not decrypt: the value was changed or was encrypted with a different key.";
+        else
+            _decrypted = plain;
     }
 
     // Flips the lowest bit of the first ciphertext byte (just after the 12-byte nonce),

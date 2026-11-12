@@ -49,6 +49,34 @@ public class SchoolDbContext(DbContextOptions<SchoolDbContext> options) : DbCont
         _ => null
     };
 
+    public override int SaveChanges(bool acceptAllChangesOnSuccess)
+    {
+        SealAttendanceRecords();
+        return base.SaveChanges(acceptAllChangesOnSuccess);
+    }
+
+    public override Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
+    {
+        SealAttendanceRecords();
+        return base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+    }
+
+    // Every attendance record the app writes gets a fresh HMAC seal (see RecordSeal), whichever
+    // service wrote it. Changes made straight in the database skip this and so break the seal.
+    private void SealAttendanceRecords()
+    {
+        foreach (var entry in ChangeTracker.Entries<AttendanceRecord>())
+        {
+            if (entry.State is not (EntityState.Added or EntityState.Modified))
+                continue;
+            // The session id is not known yet when the session is inserted in the same save.
+            if (entry.Property(r => r.AttendanceSessionId).IsTemporary)
+                continue;
+
+            entry.Entity.Hash = RecordSeal.Compute(entry.Entity);
+        }
+    }
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<User>(entity =>

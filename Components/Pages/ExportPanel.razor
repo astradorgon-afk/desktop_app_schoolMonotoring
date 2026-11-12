@@ -1,7 +1,10 @@
-@* Export tab of the Reports page (formerly the standalone /admin/export page). *@
+@* Export tab of the Reports page (formerly the standalone /admin/export page).
+   One workspace: pick a record set on the left, narrow it with the filters on the right while
+   the preview underneath updates, then export. The password is asked for in a short last step. *@
 @using AttendanceUI.Data.Entities
 @using AttendanceUI.Models.Auth
 @using AttendanceUI.Services
+@implements IDisposable
 @inject IExportService ExportService
 @inject ISf2ReportService Sf2Service
 @inject IAuthService AuthService
@@ -17,294 +20,424 @@
 else
 {
     <div class="export-page">
-        <p class="export-intro">
-            Choose a record set to export, and narrow it down with the filters on its card or in the preview.
-            Files are saved to your <strong>Desktop</strong> as password-protected Excel workbooks (.xlsx) with
-            formatted, filterable columns; Excel asks for the password when one is opened.
-        </p>
-
-        <div class="export-toolbar">
-            <div class="export-toolbar-group">
-                <span class="export-card-filter-label">Attendance dates</span>
-                @DateRange("page", _busy)
-                @if (RangeInvalid)
-                {
-                    <span class="export-card-filter-hint export-card-filter-hint--error">The start date is after the end date.</span>
-                }
-                else
-                {
-                    <span class="export-card-filter-hint">Applies to Teacher Sessions, Student Attendance, Attendance Summary and Export All.</span>
-                }
-            </div>
-        </div>
-
-        @if (_message is not null)
+        @if (_savedPath is not null)
         {
-            <div class="success-banner" style="margin: 0 0 20px;">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-                <span>@_message</span>
-                @if (_savedPaths.Count > 0)
-                {
-                    <div class="export-banner-actions">
-                        @if (_savedPaths.Count == 1)
-                        {
-                            <button type="button" class="export-banner-btn" @onclick="OpenSavedFileAsync">Open</button>
-                        }
-                        @if (OperatingSystem.IsWindows())
-                        {
-                            <button type="button" class="export-banner-btn" @onclick="ShowSavedInFolder">Show in folder</button>
-                        }
-                    </div>
-                }
+            <div class="success-banner export-result" role="status">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                <span class="export-result-text" title="@_savedPath">
+                    Saved <strong>@Path.GetFileName(_savedPath)</strong> to your Desktop. @ProtectedExport.OpenHint
+                </span>
+                <div class="export-banner-actions">
+                    <button type="button" class="export-banner-btn" @onclick="OpenSavedFileAsync">Open</button>
+                    @if (OperatingSystem.IsWindows())
+                    {
+                        <button type="button" class="export-banner-btn" @onclick="ShowSavedInFolder">Show in folder</button>
+                    }
+                    <button type="button" class="export-banner-close" @onclick="() => _savedPath = null" title="Dismiss" aria-label="Dismiss">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                    </button>
+                </div>
             </div>
         }
         @if (_error is not null)
         {
-            <div class="error-banner" style="margin: 0 0 20px;">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
-                <span>@_error</span>
+            <div class="error-banner export-result" role="alert">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+                <span class="export-result-text">@_error</span>
+                <div class="export-banner-actions">
+                    <button type="button" class="export-banner-close" @onclick="() => _error = null" title="Dismiss" aria-label="Dismiss">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                    </button>
+                </div>
             </div>
         }
 
-        <div class="export-grid">
-            @foreach (var card in Cards)
-            {
-                <div class="export-card">
-                    <div class="export-card-icon export-card-icon--@card.Color">
-                        @card.Icon
+        <div class="export-layout">
+            @* ── What to export ── *@
+            <nav class="export-nav" aria-label="What to export">
+                <span class="export-nav-label">Record sets</span>
+                @foreach (var card in Cards)
+                {
+                    var ds = card.Dataset;
+                    var selected = _pane == Pane.Dataset && _dataset == ds;
+                    var count = FilterCount(ds);
+                    <button type="button" class="export-nav-item @(selected ? "export-nav-item--active" : "")"
+                            aria-current="@(selected ? "true" : null)" @onclick="() => SelectDatasetAsync(ds)">
+                        <span class="export-card-icon export-card-icon--sm export-card-icon--@card.Color">@card.Icon</span>
+                        <span class="export-nav-text">
+                            <span class="export-nav-title">@card.Title</span>
+                            <span class="export-nav-meta">@NavMeta(ds)</span>
+                        </span>
+                        @if (count > 0)
+                        {
+                            <span class="export-nav-badge" title="@FilterCountText(count) applied">
+                                @FunnelIcon(11)
+                                @count
+                            </span>
+                        }
+                    </button>
+                }
+
+                <span class="export-nav-label export-nav-label--gap">Special exports</span>
+                <button type="button" class="export-nav-item @(_pane == Pane.Sf2 ? "export-nav-item--active" : "")"
+                        aria-current="@(_pane == Pane.Sf2 ? "true" : null)" @onclick="SelectSf2">
+                    <span class="export-card-icon export-card-icon--sm export-card-icon--purple">@CalendarIcon</span>
+                    <span class="export-nav-text">
+                        <span class="export-nav-title">SF2 Monthly Attendance</span>
+                        <span class="export-nav-meta">DepEd form, one section and month</span>
+                    </span>
+                </button>
+                <button type="button" class="export-nav-item @(_pane == Pane.All ? "export-nav-item--active" : "")"
+                        aria-current="@(_pane == Pane.All ? "true" : null)" @onclick="SelectAllAsync">
+                    <span class="export-card-icon export-card-icon--sm export-card-icon--purple">@WorkbookIcon</span>
+                    <span class="export-nav-text">
+                        <span class="export-nav-title">Everything</span>
+                        <span class="export-nav-meta">One workbook, @Cards.Length sheets</span>
+                    </span>
+                </button>
+            </nav>
+
+            @* ── The selected export ── *@
+            <section class="export-work" aria-live="polite">
+                @if (_pane == Pane.Dataset)
+                {
+                    var card = Cards.First(c => c.Dataset == _dataset);
+                    var preview = _previewCache.GetValueOrDefault(_dataset);
+                    var refreshing = _refreshing.Contains(_dataset);
+                    var filterCount = FilterCount(_dataset);
+                    var dated = IsDated(_dataset);
+                    var previewError = _previewErrors.GetValueOrDefault(_dataset);
+
+                    <header class="export-work-head">
+                        <span class="export-card-icon export-card-icon--@card.Color">@card.Icon</span>
+                        <div class="export-work-heading">
+                            <h3 class="export-work-title">@card.Title</h3>
+                            <p class="export-work-desc">@card.Description</p>
+                        </div>
+                        <button type="button" class="btn btn-primary export-work-action" @onclick="OpenPromptAsync"
+                                disabled="@(preview is null || preview.TotalRows == 0 || (dated && RangeInvalid))">
+                            @DownloadIcon
+                            <span>@(preview is { TotalRows: > 0 } ? $"Export {RowsText(preview.TotalRows)}" : "Export")</span>
+                        </button>
+                    </header>
+
+                    <div class="export-work-filters @(_filtersOpen ? "" : "export-work-filters--collapsed")">
+                        <div class="export-work-filters-head">
+                            <button type="button" class="export-work-filters-title export-work-filters-toggle"
+                                    aria-expanded="@(_filtersOpen ? "true" : "false")" aria-controls="export-filter-fields"
+                                    title="@(_filtersOpen ? "Hide the filters" : "Show the filters")"
+                                    @onclick="() => _filtersOpen = !_filtersOpen">
+                                <svg class="export-work-filters-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+                                @FunnelIcon(14)
+                                Filters
+                            </button>
+                            <span class="export-work-filters-note">
+                                @(filterCount == 0 ? "None set, so every record is included." : $"{FilterCountText(filterCount)} applied.")
+                            </span>
+                            <button type="button" class="btn btn-ghost export-work-clear"
+                                    @onclick="() => ClearFiltersAsync(_dataset)" disabled="@(filterCount == 0)">
+                                Clear filters
+                            </button>
+                        </div>
+                        <div class="export-preview-filters-row" id="export-filter-fields" hidden="@(!_filtersOpen)">
+                            @if (dated)
+                            {
+                                <div class="export-card-filter export-card-filter--range">
+                                    <span class="export-card-filter-label">Attendance dates</span>
+                                    @DateRange()
+                                    @if (RangeInvalid)
+                                    {
+                                        <span class="export-card-filter-hint export-card-filter-hint--error" role="alert">The start date is after the end date.</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="export-card-filter-hint">Shared by Teacher Sessions, Student Attendance and Attendance Summary.</span>
+                                    }
+                                </div>
+                            }
+                            @Filters(_dataset)
+                        </div>
                     </div>
-                    <div class="export-card-body">
-                        <h3 class="export-card-title">@card.Title</h3>
-                        <p class="export-card-desc">@card.Description</p>
-                        @Filters(card.Dataset, "card", _busy)
-                    </div>
-                    <button class="btn btn-primary export-card-btn" @onclick="() => OpenPreviewAsync(card.Dataset)"
-                            disabled="@(_busy || (IsDated(card.Dataset) && RangeInvalid))">
-                        @if (_busyDataset == card.Dataset) { <span class="spinner-sm"></span> }
+
+                    <div class="export-work-body">
+                        @if (preview is null)
+                        {
+                            @if (previewError is not null)
+                            {
+                                <div class="export-empty">
+                                    <p class="export-empty-title">The preview could not be loaded</p>
+                                    <p class="export-empty-text">@previewError</p>
+                                    <button type="button" class="btn btn-ghost" @onclick="() => RefreshPreviewAsync(_dataset)">Try again</button>
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="export-empty">
+                                    <span class="spinner-sm"></span>
+                                    <p class="export-empty-text">Loading the preview…</p>
+                                </div>
+                            }
+                        }
                         else
                         {
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                        }
-                        <span>Preview &amp; Export</span>
-                    </button>
-                </div>
-            }
-
-            @* SF2 monthly report *@
-            <div class="export-card">
-                <div class="export-card-icon export-card-icon--purple">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-                </div>
-                <div class="export-card-body">
-                    <h3 class="export-card-title">SF2 Monthly Attendance</h3>
-                    <p class="export-card-desc">DepEd School Form 2 layout for one section and month: learners by sex, a column per class day, and absent/tardy totals.</p>
-
-                    <div class="export-card-filter">
-                        <label class="export-card-filter-label" for="sf2-section">Section</label>
-                        <select id="sf2-section" class="filter-select export-card-filter-select" @bind="_sf2SectionId" disabled="@_busy">
-                            <option value="0">Choose a section…</option>
-                            @foreach (var s in _sectionOptions)
-                            {
-                                <option value="@s.Id">@SectionLabel(s)</option>
-                            }
-                        </select>
-                    </div>
-                    <div class="export-card-filter">
-                        <label class="export-card-filter-label" for="sf2-month">Month</label>
-                        <input id="sf2-month" type="month" class="filter-select export-card-filter-select" @bind="_sf2Month" @bind:format="yyyy-MM" disabled="@_busy" />
-                    </div>
-                </div>
-                <button class="btn btn-primary export-card-btn" @onclick="OpenSf2Prompt" disabled="@(_busy || _sf2SectionId == 0)">
-                    @if (_sf2Busy) { <span class="spinner-sm"></span> }
-                    else
-                    {
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                    }
-                    <span>Export SF2</span>
-                </button>
-            </div>
-
-            @* All *@
-            <div class="export-card export-card--all">
-                <div class="export-card-icon export-card-icon--purple">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16v16H4z" opacity="0"/><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><polyline points="9 15 12 18 15 15"/></svg>
-                </div>
-                <div class="export-card-body">
-                    <h3 class="export-card-title">Export All</h3>
-                    <p class="export-card-desc">Every dataset (students, teachers, sections, teacher sessions, student attendance and the attendance summary) at once, in one Excel workbook with a sheet each. Each dataset uses its own card's filters, which you can review and change on its tab in the preview.</p>
-                    @if (TotalActiveFilters > 0)
-                    {
-                        <span class="export-card-filter-hint">@TotalActiveFilters filter@(TotalActiveFilters == 1 ? "" : "s") set on the cards above will apply.</span>
-                    }
-                </div>
-                <button class="btn btn-primary export-card-btn" @onclick="OpenPreviewAllAsync" disabled="@(_busy || RangeInvalid)">
-                    @if (_busyAll) { <span class="spinner-sm"></span> }
-                    else
-                    {
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                    }
-                    <span>Preview &amp; Export All</span>
-                </button>
-            </div>
-        </div>
-    </div>
-
-    @* ── Preview modal (one dataset, or every dataset behind tabs) ── *@
-    @if (_previews.Count > 0)
-    {
-        var active = _previews[Math.Clamp(_previewTab, 0, _previews.Count - 1)];
-        var totalRows = _previews.Sum(p => p.TotalRows);
-        var refreshing = _refreshing.Count > 0;
-        var activeRefreshing = _refreshing.Contains(active.Dataset);
-        var activeFilters = ActiveFilterCount(active.Dataset);
-
-        <Modal Title="@(_previewIsAll ? "Preview — Export All" : $"Preview — {active.Title}")" ContentClass="export-preview-modal" OnClose="ClosePreview">
-                <div class="modal-header">
-                    <h3>@(_previewIsAll ? "Preview — Export All" : $"Preview — {active.Title}")</h3>
-                    <button class="modal-close" @onclick="ClosePreview" title="Close">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                    </button>
-                </div>
-
-                @if (_previews.Count > 1)
-                {
-                    <div class="export-preview-tabs">
-                        @for (var i = 0; i < _previews.Count; i++)
-                        {
-                            var idx = i;
-                            var p = _previews[i];
-                            var tabFilters = ActiveFilterCount(p.Dataset);
-                            <button type="button"
-                                    class="export-preview-tab @(idx == _previewTab ? "export-preview-tab--active" : "")"
-                                    @onclick="() => _previewTab = idx"
-                                    title="@(tabFilters > 0 ? $"{tabFilters} filter{(tabFilters == 1 ? "" : "s")} applied" : null)">
-                                <span>@p.Title.Split(" — ")[0]</span>
-                                @if (tabFilters > 0)
+                            <div class="export-work-preview-head">
+                                <p class="export-preview-note">
+                                    @if (previewError is not null)
+                                    {
+                                        <span class="export-card-filter-hint--error">@previewError</span>
+                                    }
+                                    else if (preview.TotalRows == 0)
+                                    {
+                                        <text>Preview</text>
+                                    }
+                                    else if (preview.TotalRows > preview.Rows.Count)
+                                    {
+                                        <text>Preview of the first @preview.Rows.Count rows. The file will have all <strong>@preview.TotalRows.ToString("N0")</strong>, in @preview.Headers.Count columns.</text>
+                                    }
+                                    else
+                                    {
+                                        <text>Preview of all <strong>@RowsText(preview.TotalRows)</strong>, in @preview.Headers.Count columns.</text>
+                                    }
+                                </p>
+                                @if (refreshing)
                                 {
-                                    <span class="export-preview-tab-dot" aria-label="filtered"></span>
+                                    <span class="export-preview-updating"><span class="spinner-sm"></span> Updating…</span>
                                 }
-                                <span class="export-preview-tab-count">@p.TotalRows</span>
-                            </button>
+                                else
+                                {
+                                    <button type="button" class="export-work-refresh" @onclick="() => RefreshPreviewAsync(_dataset)" title="Reload from the database">
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+                                        Refresh
+                                    </button>
+                                }
+                            </div>
+
+                            @if (preview.TotalRows == 0)
+                            {
+                                <div class="export-empty @(refreshing ? "export-preview-body--stale" : "")">
+                                    <p class="export-empty-title">No records match</p>
+                                    <p class="export-empty-text">
+                                        @(filterCount > 0 ? "Nothing fits the current filters, so there is nothing to export." : "This record set has no data yet.")
+                                    </p>
+                                    @if (filterCount > 0)
+                                    {
+                                        <button type="button" class="btn btn-ghost" @onclick="() => ClearFiltersAsync(_dataset)">Clear filters</button>
+                                    }
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="@(refreshing ? "export-preview-body--stale" : "")">
+                                    <div class="export-preview-table-wrap export-work-table">
+                                        <table class="export-preview-table">
+                                            <thead>
+                                                <tr>
+                                                    @foreach (var header in preview.Headers)
+                                                    {
+                                                        <th>@header</th>
+                                                    }
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                @foreach (var row in preview.Rows)
+                                                {
+                                                    <tr>
+                                                        @foreach (var cell in row)
+                                                        {
+                                                            <td>@cell</td>
+                                                        }
+                                                    </tr>
+                                                }
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            }
                         }
                     </div>
                 }
-
-                @* Filters for the dataset on screen; any change re-runs the preview. *@
-                <div class="export-preview-filters">
-                    <div class="export-preview-filters-head">
-                        <span class="export-preview-filters-title">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
-                            Filters@(_previewIsAll ? $" — {active.Title.Split(" — ")[0]}" : "")
-                        </span>
-                        @if (activeRefreshing)
-                        {
-                            <span class="export-preview-updating"><span class="spinner-sm"></span> Updating…</span>
-                        }
-                        <button type="button" class="btn btn-ghost btn-sm export-preview-clear"
-                                @onclick="() => ClearFiltersAsync(active.Dataset)" disabled="@(_saving || activeFilters == 0)">
-                            Clear filters@(activeFilters > 0 ? $" ({activeFilters})" : "")
+                else if (_pane == Pane.Sf2)
+                {
+                    <header class="export-work-head">
+                        <span class="export-card-icon export-card-icon--purple">@CalendarIcon</span>
+                        <div class="export-work-heading">
+                            <h3 class="export-work-title">SF2 Monthly Attendance</h3>
+                            <p class="export-work-desc">DepEd School Form 2 layout for one section and month: learners by sex, a column per class day, and absent/tardy totals.</p>
+                        </div>
+                        <button type="button" class="btn btn-primary export-work-action" @onclick="OpenPromptAsync" disabled="@(_sf2SectionId == 0)">
+                            @DownloadIcon
+                            <span>Export SF2</span>
                         </button>
+                    </header>
+
+                    <div class="export-work-body">
+                        <div class="export-sf2-fields">
+                            <div class="export-card-filter">
+                                <label class="export-card-filter-label" for="sf2-section">Section</label>
+                                <select id="sf2-section" class="filter-select export-card-filter-select @(_sf2SectionId != 0 ? "export-filter--set" : "")" @bind="_sf2SectionId">
+                                    <option value="0">Choose a section…</option>
+                                    @foreach (var s in _sectionOptions)
+                                    {
+                                        <option value="@s.Id">@SectionLabel(s)</option>
+                                    }
+                                </select>
+                            </div>
+                            <div class="export-card-filter">
+                                <label class="export-card-filter-label" for="sf2-month">Month</label>
+                                <input id="sf2-month" type="month" class="filter-select export-card-filter-select" @bind="_sf2Month" @bind:format="yyyy-MM" />
+                            </div>
+                        </div>
+                        <p class="export-preview-note export-sf2-note">
+                            @if (_sf2SectionId == 0)
+                            {
+                                <text>Choose a section to enable the export.</text>
+                            }
+                            else
+                            {
+                                <text>Ready: <strong>@Sf2SectionName</strong>, @_sf2Month.ToString("MMMM yyyy"). This form is built straight into the file, so it has no preview.</text>
+                            }
+                        </p>
                     </div>
-                    <div class="export-preview-filters-row">
-                        @if (IsDated(active.Dataset))
-                        {
+                }
+                else
+                {
+                    var loaded = AllPreviews;
+                    var allLoaded = loaded.Count == Cards.Length;
+                    var totalRows = loaded.Sum(p => p.TotalRows);
+
+                    <header class="export-work-head">
+                        <span class="export-card-icon export-card-icon--purple">@WorkbookIcon</span>
+                        <div class="export-work-heading">
+                            <h3 class="export-work-title">Everything</h3>
+                            <p class="export-work-desc">One Excel workbook with a sheet for each record set. Every sheet uses the filters set on its own record set.</p>
+                        </div>
+                        <button type="button" class="btn btn-primary export-work-action" @onclick="OpenPromptAsync"
+                                disabled="@(!allLoaded || totalRows == 0 || RangeInvalid)">
+                            @DownloadIcon
+                            <span>@(allLoaded && totalRows > 0 ? $"Export {Cards.Length} sheets" : "Export")</span>
+                        </button>
+                    </header>
+
+                    <div class="export-work-filters">
+                        <div class="export-preview-filters-row">
                             <div class="export-card-filter export-card-filter--range">
                                 <span class="export-card-filter-label">Attendance dates</span>
-                                @DateRange("modal", _saving)
-                            </div>
-                        }
-                        @Filters(active.Dataset, "modal", _saving)
-                    </div>
-                    @if (IsDated(active.Dataset) && RangeInvalid)
-                    {
-                        <span class="export-card-filter-hint export-card-filter-hint--error">The start date is after the end date.</span>
-                    }
-                    else if (_previewError is not null)
-                    {
-                        <span class="export-card-filter-hint export-card-filter-hint--error">@_previewError</span>
-                    }
-                </div>
-
-                <div class="modal-body @(activeRefreshing ? "export-preview-body--stale" : "")" style="padding: 12px 24px 0;">
-                    <p class="export-preview-note">
-                        @if (active.TotalRows == 0)
-                        {
-                            <text>No records match these filters.</text>
-                        }
-                        else if (active.TotalRows > active.Rows.Count)
-                        {
-                            <text>Showing the first @active.Rows.Count of @active.TotalRows rows — the exported file will include all @active.TotalRows.</text>
-                        }
-                        else
-                        {
-                            <text>@active.TotalRows row@(active.TotalRows == 1 ? "" : "s").</text>
-                        }
-                    </p>
-                    <div class="export-preview-table-wrap">
-                        <table class="export-preview-table">
-                            <thead>
-                                <tr>
-                                    @foreach (var header in active.Headers)
-                                    {
-                                        <th>@header</th>
-                                    }
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @foreach (var row in active.Rows)
+                                @DateRange()
+                                @if (RangeInvalid)
                                 {
-                                    <tr>
-                                        @foreach (var cell in row)
-                                        {
-                                            <td>@cell</td>
-                                        }
-                                    </tr>
+                                    <span class="export-card-filter-hint export-card-filter-hint--error" role="alert">The start date is after the end date.</span>
                                 }
-                            </tbody>
-                        </table>
+                                else
+                                {
+                                    <span class="export-card-filter-hint">Applies to the Teacher Sessions, Student Attendance and Attendance Summary sheets.</span>
+                                }
+                            </div>
+                        </div>
                     </div>
-                </div>
-                <ExportPasswordFields IdPrefix="export-preview"
-                                      @bind-Password="_password" @bind-Password:after="ClearPasswordError"
-                                      @bind-Confirmation="_passwordConfirm" @bind-Confirmation:after="ClearPasswordError"
-                                      Error="@_passwordError" Disabled="@_saving" />
-                <div class="export-preview-footer">
-                    <button class="btn btn-ghost" @onclick="ClosePreview" disabled="@_saving">Cancel</button>
-                    <button class="btn btn-primary" @onclick="ConfirmExportAsync"
-                            disabled="@(_saving || refreshing || totalRows == 0 || (_previews.Any(p => IsDated(p.Dataset)) && RangeInvalid))">
-                        @if (_saving)
-                        {
-                            <span class="spinner-sm"></span>
-                        }
-                        else
-                        {
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                        }
-                        <span>@DownloadLabel</span>
-                    </button>
-                </div>
-        </Modal>
-    }
 
-    @* ── SF2 password prompt (SF2 has no preview modal) ── *@
-    @if (_sf2Prompt)
+                    <div class="export-work-body">
+                        <div class="export-work-preview-head">
+                            <p class="export-preview-note">
+                                @if (allLoaded)
+                                {
+                                    <text><strong>@RowsText(totalRows)</strong> across @Cards.Length sheets.</text>
+                                }
+                                else
+                                {
+                                    <text>Counting rows…</text>
+                                }
+                            </p>
+                            @if (_refreshing.Count > 0)
+                            {
+                                <span class="export-preview-updating"><span class="spinner-sm"></span> Updating…</span>
+                            }
+                        </div>
+                        <ul class="export-sheets">
+                            @foreach (var card in Cards)
+                            {
+                                var ds = card.Dataset;
+                                var p = _previewCache.GetValueOrDefault(ds);
+                                var count = FilterCount(ds);
+                                <li class="export-sheet">
+                                    <span class="export-card-icon export-card-icon--sm export-card-icon--@card.Color">@card.Icon</span>
+                                    <span class="export-sheet-name">@card.Title</span>
+                                    <span class="export-sheet-filters">
+                                        @if (count > 0)
+                                        {
+                                            <span class="export-nav-badge">@FunnelIcon(11) @FilterCountText(count)</span>
+                                        }
+                                        else
+                                        {
+                                            <text>All records</text>
+                                        }
+                                    </span>
+                                    <span class="export-sheet-rows">
+                                        @if (p is not null)
+                                        {
+                                            @RowsText(p.TotalRows)
+                                        }
+                                        else if (_previewErrors.ContainsKey(ds))
+                                        {
+                                            <span class="export-card-filter-hint--error">Couldn't load</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="spinner-sm"></span>
+                                        }
+                                    </span>
+                                    <button type="button" class="btn btn-ghost export-sheet-edit" @onclick="() => SelectDatasetAsync(ds)">
+                                        View &amp; filter
+                                    </button>
+                                </li>
+                            }
+                        </ul>
+                    </div>
+                }
+            </section>
+        </div>
+    </div>
+
+    @* ── Last step: what will be saved, and the password that protects it ── *@
+    @if (_prompt)
     {
-        <Modal Title="Export SF2" ContentStyle="max-width:520px;" OnClose="CloseSf2Prompt">
+        <Modal Title="@PromptTitle" ContentClass="export-prompt-modal" OnClose="ClosePrompt">
             <div class="modal-header">
-                <h3>Export SF2</h3>
-                <button class="modal-close" @onclick="CloseSf2Prompt" title="Close" disabled="@_sf2Busy">
+                <h3>@PromptTitle</h3>
+                <button class="modal-close" @onclick="ClosePrompt" title="Close" disabled="@_saving">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                 </button>
             </div>
-            <ExportPasswordFields IdPrefix="export-sf2"
+
+            <dl class="export-prompt-summary">
+                @foreach (var (label, value) in PromptSummary())
+                {
+                    <div class="export-prompt-summary-row">
+                        <dt>@label</dt>
+                        <dd>@value</dd>
+                    </div>
+                }
+                <div class="export-prompt-summary-row">
+                    <dt>Saved to</dt>
+                    <dd>Your Desktop, as an encrypted Excel workbook (.xlsx)</dd>
+                </div>
+            </dl>
+
+            <ExportPasswordFields IdPrefix="export-prompt"
                                   @bind-Password="_password" @bind-Password:after="ClearPasswordError"
                                   @bind-Confirmation="_passwordConfirm" @bind-Confirmation:after="ClearPasswordError"
-                                  Error="@_passwordError" Disabled="@_sf2Busy" />
+                                  Error="@_passwordError" Disabled="@_saving" OnSubmit="ConfirmExportAsync" />
             <div class="export-preview-footer">
-                <button class="btn btn-ghost" @onclick="CloseSf2Prompt" disabled="@_sf2Busy">Cancel</button>
-                <button class="btn btn-primary" @onclick="ExportSf2Async" disabled="@_sf2Busy">
-                    @if (_sf2Busy) { <span class="spinner-sm"></span> }
-                    <span>Encrypt &amp; save</span>
+                <button class="btn btn-ghost" @onclick="ClosePrompt" disabled="@_saving">Cancel</button>
+                <button class="btn btn-primary" @onclick="ConfirmExportAsync" disabled="@(_saving || PromptRefreshing)">
+                    @if (_saving || PromptRefreshing)
+                    {
+                        <span class="spinner-sm"></span>
+                    }
+                    else
+                    {
+                        @DownloadIcon
+                    }
+                    <span>@(_saving ? "Saving…" : "Encrypt & save")</span>
                 </button>
             </div>
         </Modal>
@@ -313,15 +446,17 @@ else
 
 @code {
     private bool _authorized = true;
+    private bool _disposed;
     private UserSession? _session;
-    private bool _busy;
-    private bool _busyAll;
-    private ExportDataset? _busyDataset;
-    private string? _message;
     private string? _error;
 
     // Where the last export was written, for the "Open" / "Show in folder" actions.
-    private List<string> _savedPaths = [];
+    private string? _savedPath;
+
+    // What the right-hand side is showing: one record set, the SF2 form, or the all-in-one workbook.
+    private enum Pane { Dataset, Sf2, All }
+    private Pane _pane = Pane.Dataset;
+    private ExportDataset _dataset = ExportDataset.Students;
 
     // The session-date range applied to every attendance dataset (null ends are unbounded).
     // Exports are always Excel: a CSV file cannot carry a password.
@@ -329,13 +464,17 @@ else
     private DateOnly? _from;
     private DateOnly? _to;
 
+    // Whether the filter fields are showing; collapsing them gives the preview the room.
+    // Kept while switching record sets. The "n filters applied" note stays visible either way.
+    private bool _filtersOpen = true;
+
     private bool RangeInvalid => _from is { } from && _to is { } to && from > to;
+    private bool RangeSet => _from is not null || _to is not null;
 
     // ── Filters ──
 
     /// <summary>
-    /// One dataset's filter choices. Every value is the raw option value, "" meaning "all",
-    /// so a card and the preview modal can render and edit the same state.
+    /// One dataset's filter choices. Every value is the raw option value, "" meaning "all".
     /// </summary>
     private sealed class DatasetFilter
     {
@@ -366,22 +505,24 @@ else
     private ExportFilterChoices _choices = ExportFilterChoices.Empty;
     private List<TeacherOption> _teacherOptions = [];
     private List<SectionOption> _sectionOptions = [];
-    // Students for the Student Attendance filter, narrowed by that card's section.
+    // Students for the Student Attendance filter, narrowed by that dataset's section.
     private List<StudentOption> _studentOptions = [];
     private bool _loadingStudents;
 
     private static bool IsDated(ExportDataset dataset) =>
         dataset is ExportDataset.TeacherSessions or ExportDataset.StudentAttendance or ExportDataset.AttendanceSummary;
 
-    private int ActiveFilterCount(ExportDataset dataset) =>
-        _filters[dataset].Values.Count(v => v.Length > 0);
+    /// <summary>Everything narrowing a dataset: its own filters, plus the shared date range where it applies.</summary>
+    private int FilterCount(ExportDataset dataset) =>
+        _filters[dataset].Values.Count(v => v.Length > 0) + (IsDated(dataset) && RangeSet ? 1 : 0);
 
-    private int TotalActiveFilters => _filters.Values.Sum(f => f.Values.Count(v => v.Length > 0));
+    private static string FilterCountText(int count) => count == 1 ? "1 filter" : $"{count} filters";
+    private static string RowsText(int rows) => rows == 1 ? "1 row" : $"{rows:N0} rows";
 
     private static long? Id(string value) => long.TryParse(value, out var id) && id != 0 ? id : null;
     private static string? Text(string value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
-    /// <summary>The service options for a dataset: its own filters plus the page date range.</summary>
+    /// <summary>The service options for a dataset: its own filters plus the shared date range.</summary>
     private ExportOptions OptionsFor(ExportDataset dataset)
     {
         var f = _filters[dataset];
@@ -411,22 +552,34 @@ else
     private Dictionary<ExportDataset, ExportOptions> AllOptions() =>
         ExportService.AllDatasets.ToDictionary(d => d, OptionsFor);
 
-    // ── Preview modal state ──
+    // ── Previews ──
 
-    // One entry for a single dataset, or every dataset for "Export All" (shown as tabs).
-    private List<ExportPreview> _previews = [];
-    private int _previewTab;
-    private bool _previewIsAll;
-    private bool _saving;
-    private string? _previewError;
+    // The latest preview of each dataset under its current filters. It feeds the row counts in
+    // the list, the table on the right and the export summary; the file itself is always
+    // generated from the database again.
+    private readonly Dictionary<ExportDataset, ExportPreview> _previewCache = [];
+    private readonly Dictionary<ExportDataset, string> _previewErrors = [];
 
-    // Datasets whose preview is being rebuilt after a filter change, and a counter per
-    // dataset so a slow, outdated rebuild never overwrites a newer one.
+    // Datasets whose preview is being rebuilt, and a counter per dataset so a slow, outdated
+    // rebuild never overwrites a newer one.
     private readonly HashSet<ExportDataset> _refreshing = [];
     private readonly Dictionary<ExportDataset, int> _refreshVersion = [];
 
-    // Every export is saved as an AES-256 ZIP protected by this password. It is asked for
-    // each time and cleared once the export is done or cancelled; it is never stored.
+    /// <summary>The loaded previews, in the order the workbook lists its sheets.</summary>
+    private List<ExportPreview> AllPreviews =>
+        [.. ExportService.AllDatasets.Where(_previewCache.ContainsKey).Select(d => _previewCache[d])];
+
+    private string NavMeta(ExportDataset dataset) =>
+        _previewCache.TryGetValue(dataset, out var preview) ? RowsText(preview.TotalRows)
+        : _previewErrors.ContainsKey(dataset) ? "Couldn't load"
+        : "Loading…";
+
+    // ── Password step ──
+
+    // Every export is encrypted with this password. It is asked for each time and cleared once
+    // the export is done or cancelled; it is never stored.
+    private bool _prompt;
+    private bool _saving;
     private string _password = string.Empty;
     private string _passwordConfirm = string.Empty;
     private string? _passwordError;
@@ -445,6 +598,59 @@ else
     {
         _passwordError = ProtectedExport.Validate(_password, _passwordConfirm);
         return _passwordError is null;
+    }
+
+    private string PromptTitle => _pane switch
+    {
+        Pane.Sf2 => "Export SF2",
+        Pane.All => "Export everything",
+        _ => $"Export {Cards.First(c => c.Dataset == _dataset).Title}"
+    };
+
+    // The counts in the summary are re-read when the dialog opens; saving waits for them.
+    private bool PromptRefreshing => _pane switch
+    {
+        Pane.Dataset => _refreshing.Contains(_dataset),
+        Pane.All => _refreshing.Count > 0,
+        _ => false
+    };
+
+    private string RangeText => (_from, _to) switch
+    {
+        (null, null) => "All dates",
+        ({ } from, null) => $"From {from:MMM d, yyyy}",
+        (null, { } to) => $"Up to {to:MMM d, yyyy}",
+        ({ } from, { } to) => $"{from:MMM d, yyyy} to {to:MMM d, yyyy}"
+    };
+
+    private string Sf2SectionName =>
+        _sectionOptions.FirstOrDefault(s => s.Id == _sf2SectionId) is { } section ? SectionLabel(section) : "";
+
+    private IEnumerable<(string Label, string Value)> PromptSummary()
+    {
+        switch (_pane)
+        {
+            case Pane.Sf2:
+                yield return ("Section", Sf2SectionName);
+                yield return ("Month", _sf2Month.ToString("MMMM yyyy"));
+                break;
+
+            case Pane.All:
+                var all = AllPreviews;
+                var filtered = Cards.Count(c => _filters[c.Dataset].Values.Any(v => v.Length > 0));
+                yield return ("Contents", $"{all.Count} sheets, {RowsText(all.Sum(p => p.TotalRows))}");
+                yield return ("Filters", filtered == 0 ? "None" : $"Set on {filtered} of {Cards.Length} sheets");
+                yield return ("Attendance dates", RangeText);
+                break;
+
+            default:
+                var own = _filters[_dataset].Values.Count(v => v.Length > 0);
+                yield return ("Contents", _previewCache.TryGetValue(_dataset, out var preview) ? RowsText(preview.TotalRows) : "…");
+                yield return ("Filters", own == 0 ? "None" : $"{FilterCountText(own)} applied");
+                if (IsDated(_dataset))
+                    yield return ("Attendance dates", RangeText);
+                break;
+        }
     }
 
     protected override async Task OnInitializedAsync()
@@ -466,13 +672,44 @@ else
         {
             _error = $"Could not load the export filters: {ex.Message}";
         }
+
+        // Not awaited: the page shows at once and the row counts fill in as each set is read.
+        _ = RefreshAllAsync();
     }
 
-    private string DownloadLabel => _previewIsAll
-        ? $"Encrypt & save workbook ({_previews.Count} sheets)"
-        : "Encrypt & save Excel";
+    public void Dispose() => _disposed = true;
+
+    // ── Choosing what to export ──
+
+    private async Task SelectDatasetAsync(ExportDataset dataset)
+    {
+        _pane = Pane.Dataset;
+        _dataset = dataset;
+
+        // Normally loaded already; this covers a set whose first load failed or has not finished.
+        if (!_previewCache.ContainsKey(dataset) && !_refreshing.Contains(dataset))
+            await RefreshPreviewAsync(dataset);
+    }
+
+    private void SelectSf2() => _pane = Pane.Sf2;
+
+    private async Task SelectAllAsync()
+    {
+        _pane = Pane.All;
+
+        foreach (var dataset in ExportService.AllDatasets)
+        {
+            if (!_previewCache.ContainsKey(dataset) && !_refreshing.Contains(dataset))
+                await RefreshPreviewAsync(dataset);
+        }
+    }
 
     // ── Date range ──
+
+    private static DateOnly Today => DateOnly.FromDateTime(DateTime.Today);
+
+    private bool IsThisMonth => _from == new DateOnly(Today.Year, Today.Month, 1) && _to == Today;
+    private bool IsLast30Days => _from == Today.AddDays(-29) && _to == Today;
 
     private async Task SetRangeAsync(DateOnly? from, DateOnly? to)
     {
@@ -481,25 +718,17 @@ else
         await DateRangeChangedAsync();
     }
 
-    private Task SetRangeThisMonth()
-    {
-        var today = DateOnly.FromDateTime(DateTime.Today);
-        return SetRangeAsync(new DateOnly(today.Year, today.Month, 1), today);
-    }
+    private Task SetRangeThisMonth() => SetRangeAsync(new DateOnly(Today.Year, Today.Month, 1), Today);
 
-    private Task SetRangeLast30Days()
-    {
-        var today = DateOnly.FromDateTime(DateTime.Today);
-        return SetRangeAsync(today.AddDays(-29), today);
-    }
+    private Task SetRangeLast30Days() => SetRangeAsync(Today.AddDays(-29), Today);
 
     private Task ClearRange() => SetRangeAsync(null, null);
 
-    // The range is shared, so every dated dataset in the open preview is rebuilt.
+    // The range is shared, so every dated dataset is rebuilt.
     private async Task DateRangeChangedAsync()
     {
         if (RangeInvalid) return;
-        await Task.WhenAll(_previews.Where(p => IsDated(p.Dataset)).Select(p => RefreshPreviewAsync(p.Dataset)).ToList());
+        await Task.WhenAll(ExportService.AllDatasets.Where(IsDated).Select(RefreshPreviewAsync).ToList());
     }
 
     // ── Filter changes ──
@@ -525,7 +754,6 @@ else
     private async Task SearchChangedAsync(ExportDataset dataset, string value)
     {
         _filters[dataset].Search = value;
-        if (!_previews.Any(p => p.Dataset == dataset)) return;
 
         var version = NextVersion(dataset);
         await Task.Delay(350);
@@ -533,12 +761,17 @@ else
             await RefreshPreviewAsync(dataset);
     }
 
+    /// <summary>Back to every record: the dataset's own filters and, where it applies, the shared date range.</summary>
     private async Task ClearFiltersAsync(ExportDataset dataset)
     {
         _filters[dataset] = new DatasetFilter();
         if (dataset == ExportDataset.StudentAttendance)
             await LoadStudentOptionsAsync(null);
-        await RefreshPreviewAsync(dataset);
+
+        if (IsDated(dataset) && RangeSet)
+            await ClearRange();
+        else
+            await RefreshPreviewAsync(dataset);
     }
 
     private async Task LoadStudentOptionsAsync(long? sectionId)
@@ -566,155 +799,118 @@ else
         return version;
     }
 
-    /// <summary>Rebuilds a dataset's preview from its current filters, if it is in the open modal.</summary>
+    /// <summary>Rebuilds a dataset's preview from its current filters.</summary>
     private async Task RefreshPreviewAsync(ExportDataset dataset)
     {
-        if (!_previews.Any(p => p.Dataset == dataset)) return;
         if (IsDated(dataset) && RangeInvalid) return;
 
         var version = NextVersion(dataset);
         _refreshing.Add(dataset);
-        _previewError = null;
+        _previewErrors.Remove(dataset);
         StateHasChanged();
 
         try
         {
             var preview = await ExportService.PreviewAsync(dataset, OptionsFor(dataset));
-            if (_refreshVersion[dataset] != version) return;
-
-            var index = _previews.FindIndex(p => p.Dataset == dataset);
-            if (index >= 0)
-                _previews[index] = preview;
+            if (_refreshVersion[dataset] == version)
+                _previewCache[dataset] = preview;
         }
         catch (Exception ex)
         {
             if (_refreshVersion[dataset] == version)
-                _previewError = $"Could not update the preview: {ex.Message}";
+                _previewErrors[dataset] = $"Could not update the preview: {ex.Message}";
         }
         finally
         {
             if (_refreshVersion[dataset] == version)
                 _refreshing.Remove(dataset);
+
+            // Also reached from the unawaited first load, which nothing else re-renders.
+            if (!_disposed)
+                StateHasChanged();
         }
     }
 
-    // ── Opening, closing and saving the preview ──
-
-    private async Task OpenPreviewAsync(ExportDataset dataset)
+    // One at a time, so a first visit does not open a database connection per dataset.
+    private async Task RefreshAllAsync()
     {
-        if (_busy) return;
-        if (IsDated(dataset) && RangeInvalid) return;
-
-        _busy = true;
-        _busyDataset = dataset;
-        _message = null;
-        _error = null;
-        _previewError = null;
-        _savedPaths = [];
-
-        try
-        {
-            _previews = [await ExportService.PreviewAsync(dataset, OptionsFor(dataset))];
-            _previewTab = 0;
-            _previewIsAll = false;
-        }
-        catch (Exception ex)
-        {
-            _error = $"Preview failed: {ex.Message}";
-        }
-        finally
-        {
-            _busy = false;
-            _busyDataset = null;
-        }
+        foreach (var dataset in ExportService.AllDatasets)
+            await RefreshPreviewAsync(dataset);
     }
 
-    private async Task OpenPreviewAllAsync()
+    // ── Saving ──
+
+    private async Task OpenPromptAsync()
     {
-        if (_busy || RangeInvalid) return;
+        if (_prompt) return;
 
-        _busy = true;
-        _busyAll = true;
-        _message = null;
+        ResetPassword();
         _error = null;
-        _previewError = null;
-        _savedPaths = [];
+        _prompt = true;
 
-        try
-        {
-            _previews = [.. await ExportService.PreviewAllAsync(AllOptions())];
-            _previewTab = 0;
-            _previewIsAll = true;
-        }
-        catch (Exception ex)
-        {
-            _error = $"Preview failed: {ex.Message}";
-        }
-        finally
-        {
-            _busy = false;
-            _busyAll = false;
-        }
+        // Re-read what is about to be exported while the password is typed, so the summary
+        // and the audit entry carry current counts.
+        if (_pane == Pane.Dataset)
+            await RefreshPreviewAsync(_dataset);
+        else if (_pane == Pane.All)
+            await RefreshAllAsync();
     }
 
-    private void ClosePreview()
+    private void ClosePrompt()
     {
         if (_saving) return;
-        _previews = [];
-        _previewTab = 0;
-        _previewIsAll = false;
-        _previewError = null;
-        _refreshing.Clear();
+        _prompt = false;
         ResetPassword();
     }
 
     private async Task ConfirmExportAsync()
     {
-        if (_saving || _previews.Count == 0 || _refreshing.Count > 0) return;
+        if (_saving || !_prompt || PromptRefreshing) return;
         if (!PasswordAccepted()) return;
 
         _saving = true;
-        _error = null;
 
         try
         {
-            var totalRows = _previews.Sum(p => p.TotalRows);
+            ExportFile file;
+            Func<string, string> audit;
 
             // The file is built from the same filters the preview was last built from.
-            if (_previewIsAll)
+            switch (_pane)
             {
-                // One workbook with a sheet per dataset.
-                var files = await ExportService.ExportAllAsync(AllOptions(), format: Format);
-                var workbook = ProtectedExport.Protect(files.Single(), _password);
-                var path = await SaveToDesktopAsync(workbook);
+                case Pane.Sf2:
+                    if (_sf2SectionId == 0) return;
+                    file = await Sf2Service.BuildAsync(_sf2SectionId, _sf2Month.Year, _sf2Month.Month);
+                    audit = name => $"Exported SF2 for {_sf2Month:MMMM yyyy} as a password-protected workbook: {name}.";
+                    break;
 
-                _savedPaths = [path];
-                _message = $"Exported {_previews.Count} sheets to {path}. {ProtectedExport.OpenHint}";
+                case Pane.All:
+                    // One workbook with a sheet per dataset.
+                    var previews = AllPreviews;
+                    file = (await ExportService.ExportAllAsync(AllOptions(), format: Format)).Single();
+                    audit = name =>
+                        $"Exported all datasets ({previews.Sum(p => p.TotalRows)} rows) as a password-protected workbook ({name}): " +
+                        string.Join("; ", previews.Select(p => $"{p.Title} ({p.TotalRows})")) + ".";
+                    break;
 
-                await AuditExportAsync(
-                    $"Exported all datasets ({totalRows} rows) as a password-protected workbook ({workbook.FileName}): " +
-                    string.Join("; ", _previews.Select(p => $"{p.Title} ({p.TotalRows})")) + ".");
-            }
-            else
-            {
-                var preview = _previews[0];
-                var file = await ExportService.ExportAsync(preview.Dataset, OptionsFor(preview.Dataset), format: Format);
-                var workbook = ProtectedExport.Protect(file, _password);
-                var path = await SaveToDesktopAsync(workbook);
-                _savedPaths = [path];
-                _message = $"Exported to {path}. {ProtectedExport.OpenHint}";
-
-                await AuditExportAsync($"Exported {preview.Title} ({totalRows} rows) as a password-protected workbook: {workbook.FileName}.");
+                default:
+                    var preview = _previewCache[_dataset];
+                    file = await ExportService.ExportAsync(_dataset, OptionsFor(_dataset), format: Format);
+                    audit = name => $"Exported {preview.Title} ({preview.TotalRows} rows) as a password-protected workbook: {name}.";
+                    break;
             }
 
-            _previews = [];
-            _previewTab = 0;
-            _previewIsAll = false;
+            var workbook = ProtectedExport.Protect(file, _password);
+            _savedPath = await SaveToDesktopAsync(workbook);
+            await AuditExportAsync(audit(workbook.FileName));
+
+            _prompt = false;
             ResetPassword();
         }
         catch (Exception ex)
         {
-            _error = $"Export failed: {ex.Message}";
+            // Shown in the dialog, which stays open so the export can be retried.
+            _passwordError = $"Export failed: {ex.Message}";
         }
         finally
         {
@@ -726,54 +922,6 @@ else
 
     private long _sf2SectionId;
     private DateTime _sf2Month = new(DateTime.Today.Year, DateTime.Today.Month, 1);
-    private bool _sf2Busy;
-    private bool _sf2Prompt;
-
-    private void OpenSf2Prompt()
-    {
-        if (_sf2SectionId == 0 || _busy) return;
-        ResetPassword();
-        _sf2Prompt = true;
-    }
-
-    private void CloseSf2Prompt()
-    {
-        if (_sf2Busy) return;
-        _sf2Prompt = false;
-        ResetPassword();
-    }
-
-    private async Task ExportSf2Async()
-    {
-        if (_sf2SectionId == 0 || _busy) return;
-        if (!PasswordAccepted()) return;
-
-        _busy = _sf2Busy = true;
-        _error = null;
-        _message = null;
-        _savedPaths = [];
-        try
-        {
-            var file = await Sf2Service.BuildAsync(_sf2SectionId, _sf2Month.Year, _sf2Month.Month);
-            var workbook = ProtectedExport.Protect(file, _password);
-            var path = await SaveToDesktopAsync(workbook);
-            _savedPaths = [path];
-            _message = $"Exported to {path}. {ProtectedExport.OpenHint}";
-
-            await AuditExportAsync($"Exported SF2 for {_sf2Month:MMMM yyyy} as a password-protected workbook: {workbook.FileName}.");
-        }
-        catch (Exception ex)
-        {
-            _error = $"SF2 export failed: {ex.Message}";
-        }
-        finally
-        {
-            // Close the prompt either way so the result (or error) on the page is visible.
-            _busy = _sf2Busy = false;
-            _sf2Prompt = false;
-            ResetPassword();
-        }
-    }
 
     // Exports carry students' personal data, so each one is recorded in the audit log.
     // A failed audit write must not report a finished export as failed.
@@ -793,9 +941,8 @@ else
 
     private async Task OpenSavedFileAsync()
     {
-        if (_savedPaths.Count != 1) return;
+        if (_savedPath is not { } path) return;
 
-        var path = _savedPaths[0];
         try
         {
             await Launcher.Default.OpenAsync(new OpenFileRequest(Path.GetFileName(path), new ReadOnlyFile(path)));
@@ -808,11 +955,11 @@ else
 
     private void ShowSavedInFolder()
     {
-        if (_savedPaths.Count == 0 || !OperatingSystem.IsWindows()) return;
+        if (_savedPath is not { } path || !OperatingSystem.IsWindows()) return;
 
         try
         {
-            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("explorer.exe", $"/select,\"{_savedPaths[0]}\"")
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("explorer.exe", $"/select,\"{path}\"")
             {
                 UseShellExecute = true
             });
@@ -850,12 +997,24 @@ else
             "Each teacher's session history with the students marked present, late or absent in every session.", "cyan",
             @<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>),
         new(ExportDataset.StudentAttendance, "Student Attendance",
-            "Every attendance record per student — date, subject, teacher, and whether they were present, late or absent.", "green",
+            "Every attendance record per student: date, subject, teacher, and whether they were present, late or absent.", "green",
             @<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>),
         new(ExportDataset.AttendanceSummary, "Attendance Summary",
             "One row per student with present, late, absent and excused totals and an attendance rate (excused absences don't count against it).", "orange",
             @<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>)
     ];
+
+    private static readonly RenderFragment CalendarIcon =
+        @<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>;
+
+    private static readonly RenderFragment WorkbookIcon =
+        @<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><polyline points="9 15 12 18 15 15"/></svg>;
+
+    private static readonly RenderFragment DownloadIcon =
+        @<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>;
+
+    private static RenderFragment FunnelIcon(int size) =>
+        @<svg width="@size" height="@size" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>;
 
     private static string SectionLabel(SectionOption s) =>
         string.IsNullOrWhiteSpace(s.GradeLevel) ? s.Name : $"{s.GradeLevel} — {s.Name}";
@@ -883,61 +1042,61 @@ else
         (s.Id.ToString(), string.IsNullOrWhiteSpace(s.Lrn) ? s.Name : $"{s.Name} · {s.Lrn}"));
     private static IEnumerable<(string, string)> PrettyItems(IEnumerable<string> values) => values.Select(v => (v, Pretty(v)));
 
-    /// <summary>The filters for one dataset. Rendered on its card and in the preview modal; both edit the same state.</summary>
-    private RenderFragment Filters(ExportDataset ds, string idp, bool disabled) => ds switch
+    /// <summary>The filters for one dataset.</summary>
+    private RenderFragment Filters(ExportDataset ds) => ds switch
     {
         ExportDataset.Students =>
             @<div class="export-filters">
-                @Choice(ds, idp, "grade", "Grade level", "All grade levels", GradeItems, f => f.GradeLevelId, (f, v) => f.GradeLevelId = v, disabled)
-                @Choice(ds, idp, "section", "Section", "All sections", SectionItems, f => f.SectionId, (f, v) => f.SectionId = v, disabled)
-                @Choice(ds, idp, "sex", "Sex", "Any", PrettyItems(_choices.Sexes), f => f.Sex, (f, v) => f.Sex = v, disabled)
-                @Choice(ds, idp, "status", "Status", "All statuses", PrettyItems(_choices.StudentStatuses), f => f.RecordStatus, (f, v) => f.RecordStatus = v, disabled)
-                @Search(ds, idp, "Name, LRN or student no.", disabled)
+                @Choice(ds, "grade", "Grade level", "All grade levels", GradeItems, f => f.GradeLevelId, (f, v) => f.GradeLevelId = v)
+                @Choice(ds, "section", "Section", "All sections", SectionItems, f => f.SectionId, (f, v) => f.SectionId = v)
+                @Choice(ds, "sex", "Sex", "Any", PrettyItems(_choices.Sexes), f => f.Sex, (f, v) => f.Sex = v)
+                @Choice(ds, "status", "Status", "All statuses", PrettyItems(_choices.StudentStatuses), f => f.RecordStatus, (f, v) => f.RecordStatus = v)
+                @Search(ds, "Name, LRN or student no.")
             </div>,
         ExportDataset.Teachers =>
             @<div class="export-filters">
-                @Choice(ds, idp, "status", "Status", "All statuses", PrettyItems(_choices.TeacherStatuses), f => f.RecordStatus, (f, v) => f.RecordStatus = v, disabled)
-                @Choice(ds, idp, "employment", "Employment", "All types", PrettyItems(_choices.EmploymentStatuses), f => f.EmploymentStatus, (f, v) => f.EmploymentStatus = v, disabled)
-                @Search(ds, idp, "Name, employee no. or e-mail", disabled)
+                @Choice(ds, "status", "Status", "All statuses", PrettyItems(_choices.TeacherStatuses), f => f.RecordStatus, (f, v) => f.RecordStatus = v)
+                @Choice(ds, "employment", "Employment", "All types", PrettyItems(_choices.EmploymentStatuses), f => f.EmploymentStatus, (f, v) => f.EmploymentStatus = v)
+                @Search(ds, "Name, employee no. or e-mail")
             </div>,
         ExportDataset.Sections =>
             @<div class="export-filters">
-                @Choice(ds, idp, "grade", "Grade level", "All grade levels", GradeItems, f => f.GradeLevelId, (f, v) => f.GradeLevelId = v, disabled)
-                @Choice(ds, idp, "year", "School year", "All school years", YearItems, f => f.SchoolYearId, (f, v) => f.SchoolYearId = v, disabled)
-                @Choice(ds, idp, "archived", "Archived", "Active and archived", ArchivedChoices, f => f.Archived, (f, v) => f.Archived = v, disabled)
+                @Choice(ds, "grade", "Grade level", "All grade levels", GradeItems, f => f.GradeLevelId, (f, v) => f.GradeLevelId = v)
+                @Choice(ds, "year", "School year", "All school years", YearItems, f => f.SchoolYearId, (f, v) => f.SchoolYearId = v)
+                @Choice(ds, "archived", "Archived", "Active and archived", ArchivedChoices, f => f.Archived, (f, v) => f.Archived = v)
             </div>,
         ExportDataset.TeacherSessions =>
             @<div class="export-filters">
-                @Choice(ds, idp, "teacher", "Teacher", "All teachers", TeacherItems, f => f.TeacherId, (f, v) => f.TeacherId = v, disabled,
-                    _teacherOptions.Count == 0 ? "No teachers are assigned to a class yet." : null)
-                @Choice(ds, idp, "section", "Section", "All sections", SectionItems, f => f.SectionId, (f, v) => f.SectionId = v, disabled)
-                @Choice(ds, idp, "subject", "Subject", "All subjects", SubjectItems, f => f.Subject, (f, v) => f.Subject = v, disabled)
-                @Choice(ds, idp, "attendance", "Attendance", "All statuses", AttendanceStatuses, f => f.Status, (f, v) => f.Status = v, disabled)
+                @Choice(ds, "teacher", "Teacher", "All teachers", TeacherItems, f => f.TeacherId, (f, v) => f.TeacherId = v,
+                    hint: _teacherOptions.Count == 0 ? "No teachers are assigned to a class yet." : null)
+                @Choice(ds, "section", "Section", "All sections", SectionItems, f => f.SectionId, (f, v) => f.SectionId = v)
+                @Choice(ds, "subject", "Subject", "All subjects", SubjectItems, f => f.Subject, (f, v) => f.Subject = v)
+                @Choice(ds, "attendance", "Attendance", "All statuses", AttendanceStatuses, f => f.Status, (f, v) => f.Status = v)
             </div>,
         ExportDataset.StudentAttendance =>
             @<div class="export-filters">
-                @Choice(ds, idp, "section", "Section", "All sections", SectionItems, f => f.SectionId, (f, v) => f.SectionId = v, disabled)
-                @Choice(ds, idp, "student", "Student", _filters[ds].SectionId == "" ? "All students" : "All students in this section",
-                    StudentItems, f => f.StudentId, (f, v) => f.StudentId = v, disabled || _loadingStudents,
-                    _loadingStudents ? "Loading students…" : _studentOptions.Count == 0 ? "No students with attendance records here yet." : null)
-                @Choice(ds, idp, "subject", "Subject", "All subjects", SubjectItems, f => f.Subject, (f, v) => f.Subject = v, disabled)
-                @Choice(ds, idp, "attendance", "Attendance", "All statuses", AttendanceStatuses, f => f.Status, (f, v) => f.Status = v, disabled)
+                @Choice(ds, "section", "Section", "All sections", SectionItems, f => f.SectionId, (f, v) => f.SectionId = v)
+                @Choice(ds, "student", "Student", _filters[ds].SectionId == "" ? "All students" : "All students in this section",
+                    StudentItems, f => f.StudentId, (f, v) => f.StudentId = v, disabled: _loadingStudents,
+                    hint: _loadingStudents ? "Loading students…" : _studentOptions.Count == 0 ? "No students with attendance records here yet." : null)
+                @Choice(ds, "subject", "Subject", "All subjects", SubjectItems, f => f.Subject, (f, v) => f.Subject = v)
+                @Choice(ds, "attendance", "Attendance", "All statuses", AttendanceStatuses, f => f.Status, (f, v) => f.Status = v)
             </div>,
         ExportDataset.AttendanceSummary =>
             @<div class="export-filters">
-                @Choice(ds, idp, "grade", "Grade level", "All grade levels", GradeItems, f => f.GradeLevelId, (f, v) => f.GradeLevelId = v, disabled)
-                @Choice(ds, idp, "section", "Section", "All sections", SectionItems, f => f.SectionId, (f, v) => f.SectionId = v, disabled)
-                @Choice(ds, idp, "rate", "Attendance rate", "Any rate", RateChoices, f => f.RateBelow, (f, v) => f.RateBelow = v, disabled)
-                @Search(ds, idp, "Name, LRN or student no.", disabled)
+                @Choice(ds, "grade", "Grade level", "All grade levels", GradeItems, f => f.GradeLevelId, (f, v) => f.GradeLevelId = v)
+                @Choice(ds, "section", "Section", "All sections", SectionItems, f => f.SectionId, (f, v) => f.SectionId = v)
+                @Choice(ds, "rate", "Attendance rate", "Any rate", RateChoices, f => f.RateBelow, (f, v) => f.RateBelow = v)
+                @Search(ds, "Name, LRN or student no.")
             </div>,
         _ => @<text></text>
     };
 
-    private RenderFragment Choice(ExportDataset ds, string idp, string key, string label, string allText,
+    private RenderFragment Choice(ExportDataset ds, string key, string label, string allText,
         IEnumerable<(string Value, string Text)> items, Func<DatasetFilter, string> get, Action<DatasetFilter, string> set,
-        bool disabled, string? hint = null)
+        bool disabled = false, string? hint = null)
     {
-        var id = $"{idp}-{ds}-{key}";
+        var id = $"export-{ds}-{key}";
         var current = get(_filters[ds]);
         return @<div class="export-card-filter">
             <label class="export-card-filter-label" for="@id">@label</label>
@@ -957,29 +1116,29 @@ else
         </div>;
     }
 
-    private RenderFragment Search(ExportDataset ds, string idp, string placeholder, bool disabled)
+    private RenderFragment Search(ExportDataset ds, string placeholder)
     {
-        var id = $"{idp}-{ds}-search";
+        var id = $"export-{ds}-search";
         var current = _filters[ds].Search;
-        return @<div class="export-card-filter">
+        return @<div class="export-card-filter export-card-filter--search">
             <label class="export-card-filter-label" for="@id">Search</label>
             <input id="@id" type="search" class="filter-select export-card-filter-select export-filter-search @(current.Trim().Length > 0 ? "export-filter--set" : "")"
-                   placeholder="@placeholder" value="@current" disabled="@disabled" autocomplete="off"
+                   placeholder="@placeholder" value="@current" autocomplete="off"
                    @oninput="e => SearchChangedAsync(ds, e.Value?.ToString() ?? string.Empty)" />
         </div>;
     }
 
-    private RenderFragment DateRange(string idp, bool disabled) =>
+    private RenderFragment DateRange() =>
         @<div class="export-range">
-            <input type="date" class="filter-select export-range-input" aria-label="From date" disabled="@disabled"
-                   @bind="_from" @bind:after="DateRangeChangedAsync" id="@($"{idp}-from")" />
+            <input type="date" class="filter-select export-range-input @(_from is not null ? "export-filter--set" : "")" aria-label="From date"
+                   @bind="_from" @bind:after="DateRangeChangedAsync" id="export-range-from" />
             <span class="export-range-sep">to</span>
-            <input type="date" class="filter-select export-range-input" aria-label="To date" disabled="@disabled"
-                   @bind="_to" @bind:after="DateRangeChangedAsync" id="@($"{idp}-to")" />
+            <input type="date" class="filter-select export-range-input @(_to is not null ? "export-filter--set" : "")" aria-label="To date"
+                   @bind="_to" @bind:after="DateRangeChangedAsync" id="export-range-to" />
             <div class="export-segmented">
-                <button type="button" class="tab-btn" @onclick="SetRangeThisMonth" disabled="@disabled">This month</button>
-                <button type="button" class="tab-btn" @onclick="SetRangeLast30Days" disabled="@disabled">Last 30 days</button>
-                <button type="button" class="tab-btn" @onclick="ClearRange" disabled="@(disabled || (_from is null && _to is null))">All dates</button>
+                <button type="button" class="tab-btn @(IsThisMonth ? "tab-btn--active" : "")" aria-pressed="@(IsThisMonth ? "true" : "false")" @onclick="SetRangeThisMonth">This month</button>
+                <button type="button" class="tab-btn @(IsLast30Days ? "tab-btn--active" : "")" aria-pressed="@(IsLast30Days ? "true" : "false")" @onclick="SetRangeLast30Days">Last 30 days</button>
+                <button type="button" class="tab-btn @(!RangeSet ? "tab-btn--active" : "")" aria-pressed="@(!RangeSet ? "true" : "false")" @onclick="ClearRange">All dates</button>
             </div>
         </div>;
 }

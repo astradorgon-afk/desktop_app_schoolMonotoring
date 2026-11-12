@@ -23,6 +23,13 @@ DELETE FROM rooms;
 DELETE FROM grade_levels;
 DELETE FROM school_years;
 
+-- Requests filed by or about the people being replaced. These tables are created by the app
+-- on first use, so each delete is skipped when its table is not there yet.
+SET @t := IF((SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'leave_requests') > 0, 'DELETE FROM leave_requests', 'DO 0');
+PREPARE seed_stmt FROM @t; EXECUTE seed_stmt; DEALLOCATE PREPARE seed_stmt;
+SET @t := IF((SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'student_excuse_requests') > 0, 'DELETE FROM student_excuse_requests', 'DO 0');
+PREPARE seed_stmt FROM @t; EXECUTE seed_stmt; DEALLOCATE PREPARE seed_stmt;
+
 SET FOREIGN_KEY_CHECKS = 1;
 
 -- ============================================================
@@ -117,152 +124,154 @@ INSERT INTO subjects (Id, code, title, description, grade_level_id, is_active, c
 -- Database: School_sms
 -- ============================================================
 
--- Password hashes (PBKDF2):
--- admin password: PBKDF2$100000$bc/n4nBiwRHC5uMxiATBug==$IxOiO5DEm842CSzZNrtGIRFsilqCLOPkVLNv7OIx8L0=
--- password123: PBKDF2$100000$VWOPWwuLdFIolpljZDyuhA==$+ipd3UreYjxJkQHSiv6UCYlXCfYFYN7OQFi6uXDtymA=
+-- Demo logins (PBKDF2 hashes below):
+--   admin              / (unchanged)
+--   teacher            / teacher     (also teacher2 ... teacher30, same password)
+--   student            / student     (also student02 ... student99, same password)
+-- These are demo credentials. Change them before using this database for real records.
 
 SET @adminPw := 'PBKDF2$100000$bc/n4nBiwRHC5uMxiATBug==$IxOiO5DEm842CSzZNrtGIRFsilqCLOPkVLNv7OIx8L0=';
-SET @teacherPw := 'PBKDF2$100000$VWOPWwuLdFIolpljZDyuhA==$+ipd3UreYjxJkQHSiv6UCYlXCfYFYN7OQFi6uXDtymA=';
-SET @studentPw := 'PBKDF2$100000$VWOPWwuLdFIolpljZDyuhA==$+ipd3UreYjxJkQHSiv6UCYlXCfYFYN7OQFi6uXDtymA=';
+SET @teacherPw := 'PBKDF2$100000$QksYLkiKY6mH7TCiTHkk7A==$rr71dscGcml4zw91Wujh7s5kTD4iHVxcw2sjR7zRFYc=';
+SET @studentPw := 'PBKDF2$100000$I+wc0GCjwYYlL7O36PPuqw==$IhbkfGpeHbnV84P1e0kKAPTaOYy+BZ6O1nJ56YvfJ5c=';
 
 -- Admin
 INSERT INTO users (Id, name, username, password_hash, role, status, can_login, created_at, updated_at) VALUES
 (1, 'System Admin', 'admin', @adminPw, 'SUPERADMIN', 'ACTIVE', 1, NOW(), NOW());
 
--- 30 Teachers
+-- 30 Teachers (teacher, teacher2 ... teacher30)
 INSERT INTO users (Id, name, username, password_hash, role, status, can_login, created_at, updated_at) VALUES
-(2,  'Maria Santos',      'teacher1',  @teacherPw, 'TEACHER', 'ACTIVE', 1, NOW(), NOW()),
-(3,  'Juan dela Cruz',    'teacher2',  @teacherPw, 'TEACHER', 'ACTIVE', 1, NOW(), NOW()),
-(4,  'Ana Gonzales',      'teacher3',  @teacherPw, 'TEACHER', 'ACTIVE', 1, NOW(), NOW()),
-(5,  'Pedro Reyes',       'teacher4',  @teacherPw, 'TEACHER', 'ACTIVE', 1, NOW(), NOW()),
-(6,  'Liza Mercado',      'teacher5',  @teacherPw, 'TEACHER', 'ACTIVE', 1, NOW(), NOW()),
-(7,  'Carlos Villanueva', 'teacher6',  @teacherPw, 'TEACHER', 'ACTIVE', 1, NOW(), NOW()),
-(8,  'Diana Lopez',       'teacher7',  @teacherPw, 'TEACHER', 'ACTIVE', 1, NOW(), NOW()),
-(9,  'Eduardo Ramos',     'teacher8',  @teacherPw, 'TEACHER', 'ACTIVE', 1, NOW(), NOW()),
-(10, 'Fe Bautista',       'teacher9',  @teacherPw, 'TEACHER', 'ACTIVE', 1, NOW(), NOW()),
-(11, 'Gregorio Tan',      'teacher10', @teacherPw, 'TEACHER', 'ACTIVE', 1, NOW(), NOW()),
-(12, 'Helen Cruz',        'teacher11', @teacherPw, 'TEACHER', 'ACTIVE', 1, NOW(), NOW()),
-(13, 'Isidro Garcia',     'teacher12', @teacherPw, 'TEACHER', 'ACTIVE', 1, NOW(), NOW()),
-(14, 'Julia Fernandez',   'teacher13', @teacherPw, 'TEACHER', 'ACTIVE', 1, NOW(), NOW()),
-(15, 'Kevin Mendoza',     'teacher14', @teacherPw, 'TEACHER', 'ACTIVE', 1, NOW(), NOW()),
-(16, 'Linda Aquino',      'teacher15', @teacherPw, 'TEACHER', 'ACTIVE', 1, NOW(), NOW()),
-(17, 'Manuel Roxas',      'teacher16', @teacherPw, 'TEACHER', 'ACTIVE', 1, NOW(), NOW()),
-(18, 'Nena Alvarez',      'teacher17', @teacherPw, 'TEACHER', 'ACTIVE', 1, NOW(), NOW()),
-(19, 'Oscar Torres',      'teacher18', @teacherPw, 'TEACHER', 'ACTIVE', 1, NOW(), NOW()),
-(20, 'Patricia Lim',      'teacher19', @teacherPw, 'TEACHER', 'ACTIVE', 1, NOW(), NOW()),
-(21, 'Quirino Santos',    'teacher20', @teacherPw, 'TEACHER', 'ACTIVE', 1, NOW(), NOW()),
-(22, 'Rosa Villegas',     'teacher21', @teacherPw, 'TEACHER', 'ACTIVE', 1, NOW(), NOW()),
-(23, 'Samuel Diaz',       'teacher22', @teacherPw, 'TEACHER', 'ACTIVE', 1, NOW(), NOW()),
-(24, 'Teresa Flores',     'teacher23', @teacherPw, 'TEACHER', 'ACTIVE', 1, NOW(), NOW()),
-(25, 'Ulysses Rivera',    'teacher24', @teacherPw, 'TEACHER', 'ACTIVE', 1, NOW(), NOW()),
-(26, 'Vivian Castillo',   'teacher25', @teacherPw, 'TEACHER', 'ACTIVE', 1, NOW(), NOW()),
-(27, 'Wilfredo Gomez',    'teacher26', @teacherPw, 'TEACHER', 'ACTIVE', 1, NOW(), NOW()),
-(28, 'Xenia Navarro',     'teacher27', @teacherPw, 'TEACHER', 'ACTIVE', 1, NOW(), NOW()),
-(29, 'Yolanda Reyes',     'teacher28', @teacherPw, 'TEACHER', 'ACTIVE', 1, NOW(), NOW()),
-(30, 'Zachary Torres',    'teacher29', @teacherPw, 'TEACHER', 'ACTIVE', 1, NOW(), NOW()),
-(31, 'Aileen Mendoza',    'teacher30', @teacherPw, 'TEACHER', 'ACTIVE', 1, NOW(), NOW());
+(2, 'Gerald Dantes', 'teacher', @teacherPw, 'TEACHER', 'ACTIVE', 1, NOW(), NOW()),
+(3, 'Marvin Buenaventura', 'teacher2', @teacherPw, 'TEACHER', 'ACTIVE', 1, NOW(), NOW()),
+(4, 'Bryan Francisco', 'teacher3', @teacherPw, 'TEACHER', 'ACTIVE', 1, NOW(), NOW()),
+(5, 'Joanna Dantes', 'teacher4', @teacherPw, 'TEACHER', 'ACTIVE', 1, NOW(), NOW()),
+(6, 'Charmaine Ignacio', 'teacher5', @teacherPw, 'TEACHER', 'ACTIVE', 1, NOW(), NOW()),
+(7, 'Frances Malonzo', 'teacher6', @teacherPw, 'TEACHER', 'ACTIVE', 1, NOW(), NOW()),
+(8, 'Rico Buenaventura', 'teacher7', @teacherPw, 'TEACHER', 'ACTIVE', 1, NOW(), NOW()),
+(9, 'Gian Quiambao', 'teacher8', @teacherPw, 'TEACHER', 'ACTIVE', 1, NOW(), NOW()),
+(10, 'Alfonso Gatchalian', 'teacher9', @teacherPw, 'TEACHER', 'ACTIVE', 1, NOW(), NOW()),
+(11, 'Dominic Hernandez', 'teacher10', @teacherPw, 'TEACHER', 'ACTIVE', 1, NOW(), NOW()),
+(12, 'Katrina Ignacio', 'teacher11', @teacherPw, 'TEACHER', 'ACTIVE', 1, NOW(), NOW()),
+(13, 'Rico Samonte', 'teacher12', @teacherPw, 'TEACHER', 'ACTIVE', 1, NOW(), NOW()),
+(14, 'Vincent Panganiban', 'teacher13', @teacherPw, 'TEACHER', 'ACTIVE', 1, NOW(), NOW()),
+(15, 'Odessa Escobar', 'teacher14', @teacherPw, 'TEACHER', 'ACTIVE', 1, NOW(), NOW()),
+(16, 'Oliver Catapang', 'teacher15', @teacherPw, 'TEACHER', 'ACTIVE', 1, NOW(), NOW()),
+(17, 'Joaquin Mangubat', 'teacher16', @teacherPw, 'TEACHER', 'ACTIVE', 1, NOW(), NOW()),
+(18, 'Eunice Legaspi', 'teacher17', @teacherPw, 'TEACHER', 'ACTIVE', 1, NOW(), NOW()),
+(19, 'Bryan Tolentino', 'teacher18', @teacherPw, 'TEACHER', 'ACTIVE', 1, NOW(), NOW()),
+(20, 'Renz Robles', 'teacher19', @teacherPw, 'TEACHER', 'ACTIVE', 1, NOW(), NOW()),
+(21, 'Alfonso Cabrera', 'teacher20', @teacherPw, 'TEACHER', 'ACTIVE', 1, NOW(), NOW()),
+(22, 'Patrick Villareal', 'teacher21', @teacherPw, 'TEACHER', 'ACTIVE', 1, NOW(), NOW()),
+(23, 'Aubrey Concepcion', 'teacher22', @teacherPw, 'TEACHER', 'ACTIVE', 1, NOW(), NOW()),
+(24, 'Victor Belmonte', 'teacher23', @teacherPw, 'TEACHER', 'ACTIVE', 1, NOW(), NOW()),
+(25, 'Benjamin De Leon', 'teacher24', @teacherPw, 'TEACHER', 'ACTIVE', 1, NOW(), NOW()),
+(26, 'Denise Francisco', 'teacher25', @teacherPw, 'TEACHER', 'ACTIVE', 1, NOW(), NOW()),
+(27, 'Clarisse Macaraeg', 'teacher26', @teacherPw, 'TEACHER', 'ACTIVE', 1, NOW(), NOW()),
+(28, 'Hans Robles', 'teacher27', @teacherPw, 'TEACHER', 'ACTIVE', 1, NOW(), NOW()),
+(29, 'Ivan Natividad', 'teacher28', @teacherPw, 'TEACHER', 'ACTIVE', 1, NOW(), NOW()),
+(30, 'Bernadette Jimenez', 'teacher29', @teacherPw, 'TEACHER', 'ACTIVE', 1, NOW(), NOW()),
+(31, 'Vanessa Mangubat', 'teacher30', @teacherPw, 'TEACHER', 'ACTIVE', 1, NOW(), NOW());
 
--- 99 Students (users 32-130)
+-- 99 Students (student, student02 ... student99; users 32-130)
 INSERT INTO users (Id, name, username, password_hash, role, status, can_login, created_at, updated_at) VALUES
-(32,  'Abigail Castro',    'student01', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
-(33,  'Benedict Santos',   'student02', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
-(34,  'Cassandra Lim',     'student03', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
-(35,  'Dante Villanueva',  'student04', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
-(36,  'Elena Gomez',       'student05', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
-(37,  'Francisco Reyes',   'student06', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
-(38,  'Gabriella Lopez',   'student07', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
-(39,  'Hector Mendoza',    'student08', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
-(40,  'Isabella Flores',   'student09', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
-(41,  'Jacob Rivera',      'student10', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
-(42,  'Katherine Tan',     'student11', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
-(43,  'Leonardo Cruz',     'student12', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
-(44,  'Megan Garcia',      'student13', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
-(45,  'Nathan Diaz',       'student14', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
-(46,  'Olivia Bautista',   'student15', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
-(47,  'Patrick Ramos',     'student16', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
-(48,  'Queenie Aquino',    'student17', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
-(49,  'Ramon Fernandez',   'student18', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
-(50,  'Sofia Mercado',     'student19', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
-(51,  'Tomas Alvarez',     'student20', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
-(52,  'Uma Gonzales',      'student21', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
-(53,  'Victor Tan',        'student22', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
-(54,  'Wendy Santos',      'student23', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
-(55,  'Xavier Villena',    'student24', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
-(56,  'Yvonne Ramirez',    'student25', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
-(57,  'Zandro Cruz',       'student26', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
-(58,  'Angela Dela Cruz',  'student27', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
-(59,  'Bernardo Lopez',    'student28', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
-(60,  'Catherine Ramos',   'student29', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
-(61,  'Dominic Torres',    'student30', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
-(62,  'Erica Villanueva',  'student31', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
-(63,  'Ferdinand Cruz',    'student32', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
-(64,  'Giselle Reyes',     'student33', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
-(65,  'Henry Navarro',     'student34', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
-(66,  'Iris Mendoza',      'student35', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
-(67,  'Jeremy Go',         'student36', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
-(68,  'Kristine Uy',       'student37', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
-(69,  'Luis Antonio',      'student38', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
-(70,  'Monica Reyes',      'student39', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
-(71,  'Noel Salvador',     'student40', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
-(72,  'Odessa Fernandez',  'student41', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
-(73,  'Paulo Gamboa',      'student42', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
-(74,  'Quinciano Lopez',   'student43', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
-(75,  'Rafaela Sison',     'student44', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
-(76,  'Stephanie Chua',    'student45', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
-(77,  'Timothy Reyes',     'student46', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
-(78,  'Ursula Tan',        'student47', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
-(79,  'Veronica Ponce',    'student48', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
-(80,  'William Sy',        'student49', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
-(81,  'Xena Morales',      'student50', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
-(82,  'Yuri Yamamoto',     'student51', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
-(83,  'Zion Garcia',       'student52', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
-(84,  'Alma Dela Torre',   'student53', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
-(85,  'Brian Uy',          'student54', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
-(86,  'Cindy Tan',         'student55', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
-(87,  'Darwin Estrada',    'student56', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
-(88,  'Eden Salvador',     'student57', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
-(89,  'Franklin Ong',      'student58', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
-(90,  'Grace Lim',         'student59', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
-(91,  'Harold Co',         'student60', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
-(92,  'Ireneo Dizon',      'student61', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
-(93,  'Jasmine Villanueva','student62', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
-(94,  'Kyle Chan',         'student63', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
-(95,  'Lara Quimpo',       'student64', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
-(96,  'Marco Sison',       'student65', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
-(97,  'Nikki Ramos',       'student66', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
-(98,  'Omar Hassan',       'student67', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
-(99,  'Pauline Uy',        'student68', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
-(100, 'Quentin Alcantara', 'student69', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
-(101, 'Rhea Mendoza',      'student70', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
-(102, 'Santi Gonzalez',    'student71', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
-(103, 'Trixie Samonte',    'student72', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
-(104, 'Uriel Manalo',      'student73', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
-(105, 'Vina Trinidad',     'student74', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
-(106, 'Winston Lozano',    'student75', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
-(107, 'Xyra Macapagal',    'student76', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
-(108, 'Yves Panganiban',   'student77', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
-(109, 'Zia Salcedo',       'student78', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
-(110, 'Alejandro Guevarra','student79', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
-(111, 'Beatrix Sarmiento', 'student80', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
-(112, 'Carlito Jacinto',   'student81', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
-(113, 'Darlene Castillo',  'student82', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
-(114, 'Emilio Aguirre',    'student83', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
-(115, 'Floribel Cortez',   'student84', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
-(116, 'Gregorio Lozada',   'student85', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
-(117, 'Hazel Pineda',      'student86', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
-(118, 'Ivan Castro',       'student87', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
-(119, 'Jenalyn Cruz',      'student88', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
-(120, 'Kiko Alcantara',    'student89', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
-(121, 'Lea Bustamante',    'student90', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
-(122, 'Miguel Valdez',     'student91', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
-(123, 'Nathalie Rivera',   'student92', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
-(124, 'Orlando Mendoza',   'student93', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
-(125, 'Perla Dimagiba',    'student94', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
-(126, 'Rogelio Apostol',   'student95', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
-(127, 'Shiela Tecson',     'student96', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
-(128, 'Tyrone Basa',       'student97', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
-(129, 'Vilma Santos',      'student98', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
-(130, 'Wally Bayola',      'student99', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW());
+(32, 'Daphne Robles', 'student', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
+(33, 'Emmanuel Calderon', 'student02', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
+(34, 'Noel Catapang', 'student03', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
+(35, 'Samantha Robles', 'student04', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
+(36, 'Irene Ilagan', 'student05', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
+(37, 'Christian Nepomuceno', 'student06', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
+(38, 'Trisha Malonzo', 'student07', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
+(39, 'Marvin Alonzo', 'student08', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
+(40, 'Felix Pangilinan', 'student09', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
+(41, 'Darren Legaspi', 'student10', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
+(42, 'Charmaine Evangelista', 'student11', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
+(43, 'Winona Espiritu', 'student12', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
+(44, 'Hazel Enriquez', 'student13', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
+(45, 'Queenie Carpio', 'student14', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
+(46, 'Vincent Samonte', 'student15', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
+(47, 'Rhea Mangubat', 'student16', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
+(48, 'Gian Umali', 'student17', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
+(49, 'Denise Belmonte', 'student18', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
+(50, 'Alfonso Nepomuceno', 'student19', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
+(51, 'Felix Samonte', 'student20', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
+(52, 'Joaquin Cabrera', 'student21', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
+(53, 'Althea Lacson', 'student22', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
+(54, 'Katrina Villareal', 'student23', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
+(55, 'Althea Abad', 'student24', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
+(56, 'Aubrey Sarmiento', 'student25', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
+(57, 'Irene Umali', 'student26', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
+(58, 'Cedric Valenzuela', 'student27', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
+(59, 'Ulrich Robles', 'student28', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
+(60, 'Ysabel Dimaculangan', 'student29', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
+(61, 'Benjamin Concepcion', 'student30', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
+(62, 'Stephen Mangubat', 'student31', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
+(63, 'Vincent Lagman', 'student32', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
+(64, 'Sebastian Sarmiento', 'student33', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
+(65, 'Therese De Guzman', 'student34', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
+(66, 'Zara Quizon', 'student35', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
+(67, 'Matteo Samonte', 'student36', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
+(68, 'Lorraine Mangubat', 'student37', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
+(69, 'Oliver Umali', 'student38', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
+(70, 'Emmanuel Malonzo', 'student39', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
+(71, 'Charmaine Sarmiento', 'student40', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
+(72, 'Therese Dizon', 'student41', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
+(73, 'Victor Balagtas', 'student42', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
+(74, 'Christian Guevarra', 'student43', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
+(75, 'Erika Catapang', 'student44', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
+(76, 'Winona Pangilinan', 'student45', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
+(77, 'Ivan Balagtas', 'student46', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
+(78, 'Hans Estrada', 'student47', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
+(79, 'Ophelia Corpuz', 'student48', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
+(80, 'Maricar Dizon', 'student49', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
+(81, 'Gian Velasco', 'student50', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
+(82, 'Rhea Padilla', 'student51', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
+(83, 'Jerome Corpuz', 'student52', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
+(84, 'Ulrich Jimenez', 'student53', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
+(85, 'Katrina Dizon', 'student54', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
+(86, 'Oliver Dimaculangan', 'student55', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
+(87, 'Matteo Abad', 'student56', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
+(88, 'Precious Umali', 'student57', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
+(89, 'Alyssa Carpio', 'student58', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
+(90, 'Czarina Escobar', 'student59', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
+(91, 'Clarisse Buenaventura', 'student60', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
+(92, 'Sheena Ilagan', 'student61', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
+(93, 'Erika Ilagan', 'student62', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
+(94, 'Zara Corpuz', 'student63', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
+(95, 'Frances Quizon', 'student64', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
+(96, 'Noreen Abad', 'student65', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
+(97, 'Stephen De Guzman', 'student66', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
+(98, 'Odessa Robles', 'student67', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
+(99, 'Kenneth Dimaculangan', 'student68', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
+(100, 'Bianca Macaraeg', 'student69', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
+(101, 'Vincent Malonzo', 'student70', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
+(102, 'Therese Dimaculangan', 'student71', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
+(103, 'Felix Francisco', 'student72', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
+(104, 'Mikaela Abad', 'student73', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
+(105, 'Bianca De Guzman', 'student74', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
+(106, 'Ysabel Mangubat', 'student75', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
+(107, 'Joanna Andrada', 'student76', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
+(108, 'Zion Concepcion', 'student77', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
+(109, 'Isaac Pangilinan', 'student78', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
+(110, 'Rhea Lacson', 'student79', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
+(111, 'Gwen Zamora', 'student80', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
+(112, 'Vincent Villareal', 'student81', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
+(113, 'Faith Quiambao', 'student82', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
+(114, 'Lorraine Panganiban', 'student83', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
+(115, 'Ophelia Ilagan', 'student84', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
+(116, 'Margaux Gatchalian', 'student85', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
+(117, 'Margaux Buenaventura', 'student86', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
+(118, 'Mikaela De Leon', 'student87', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
+(119, 'Mikaela Magbanua', 'student88', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
+(120, 'Renz Quizon', 'student89', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
+(121, 'Quentin Galang', 'student90', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
+(122, 'Aubrey Zamora', 'student91', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
+(123, 'Joaquin Guevarra', 'student92', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
+(124, 'Karl Abad', 'student93', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
+(125, 'Liana Quiambao', 'student94', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
+(126, 'Ulrich Quiambao', 'student95', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
+(127, 'Marvin Sarmiento', 'student96', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
+(128, 'Karl Sarmiento', 'student97', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
+(129, 'Vanessa Zamora', 'student98', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW()),
+(130, 'Vincent Valenzuela', 'student99', @studentPw, 'STUDENT', 'ACTIVE', 1, NOW(), NOW());
 -- ============================================================
 -- SEED DATA PART 3a: Teachers & Sections
 -- Database: School_sms
@@ -270,36 +279,36 @@ INSERT INTO users (Id, name, username, password_hash, role, status, can_login, c
 
 -- 6. TEACHERS (30 teachers)
 INSERT INTO teachers (Id, user_id, employee_no, first_name, last_name, middle_name, email, contact_no, hire_date, status, specialization, employment_status, created_at, updated_at) VALUES
-(1, 2,  'EMP-001', 'Maria',    'Santos',     'Cruz',     'maria.santos@school.edu',    '09171234561', '2018-06-01', 'ACTIVE', 'English',           'PERMANENT', NOW(), NOW()),
-(2, 3,  'EMP-002', 'Juan',     'dela Cruz',  'Ramos',    'juan.delacruz@school.edu',   '09171234562', '2019-06-01', 'ACTIVE', 'Mathematics',       'PERMANENT', NOW(), NOW()),
-(3, 4,  'EMP-003', 'Ana',      'Gonzales',   'Lopez',    'ana.gonzales@school.edu',    '09171234563', '2019-06-01', 'ACTIVE', 'Science',           'PERMANENT', NOW(), NOW()),
-(4, 5,  'EMP-004', 'Pedro',    'Reyes',      'Tan',      'pedro.reyes@school.edu',     '09171234564', '2020-06-01', 'ACTIVE', 'Filipino',          'PERMANENT', NOW(), NOW()),
-(5, 6,  'EMP-005', 'Liza',     'Mercado',    'Villanueva','liza.mercado@school.edu',   '09171234565', '2020-06-01', 'ACTIVE', 'Araling Panlipunan','PERMANENT', NOW(), NOW()),
-(6, 7,  'EMP-006', 'Carlos',   'Villanueva', 'Cruz',     'carlos.villanueva@school.edu','09171234566','2020-06-01','ACTIVE', 'TLE',              'PERMANENT', NOW(), NOW()),
-(7, 8,  'EMP-007', 'Diana',    'Lopez',      'Garcia',   'diana.lopez@school.edu',     '09171234567', '2021-06-01', 'ACTIVE', 'MAPEH',             'PERMANENT', NOW(), NOW()),
-(8, 9,  'EMP-008', 'Eduardo',  'Ramos',      'Santos',   'eduardo.ramos@school.edu',   '09171234568', '2021-06-01', 'ACTIVE', 'ESP',               'PERMANENT', NOW(), NOW()),
-(9, 10, 'EMP-009', 'Fe',       'Bautista',   'Domingo',  'fe.bautista@school.edu',     '09171234569', '2022-06-01', 'ACTIVE', 'English',           'PROBATIONARY', NOW(), NOW()),
-(10, 11,'EMP-010', 'Gregorio', 'Tan',        'Sy',       'gregorio.tan@school.edu',    '09171234570', '2022-06-01', 'ACTIVE', 'Mathematics',       'PROBATIONARY', NOW(), NOW()),
-(11, 12,'EMP-011', 'Helen',    'Cruz',       'Mendoza',  'helen.cruz@school.edu',      '09171234571', '2022-06-01', 'ACTIVE', 'Science',           'PROBATIONARY', NOW(), NOW()),
-(12, 13,'EMP-012', 'Isidro',   'Garcia',     'Rivera',   'isidro.garcia@school.edu',   '09171234572', '2023-06-01', 'ACTIVE', 'Filipino',          'PROBATIONARY', NOW(), NOW()),
-(13, 14,'EMP-013', 'Julia',    'Fernandez',  'Lim',      'julia.fernandez@school.edu', '09171234573', '2023-06-01', 'ACTIVE', 'Araling Panlipunan','PROBATIONARY', NOW(), NOW()),
-(14, 15,'EMP-014', 'Kevin',    'Mendoza',    'Torres',   'kevin.mendoza@school.edu',   '09171234574', '2023-06-01', 'ACTIVE', 'TLE',              'PROBATIONARY', NOW(), NOW()),
-(15, 16,'EMP-015', 'Linda',    'Aquino',     'Reyes',    'linda.aquino@school.edu',    '09171234575', '2018-06-01', 'ACTIVE', 'MAPEH',             'PERMANENT', NOW(), NOW()),
-(16, 17,'EMP-016', 'Manuel',   'Roxas',      'Castro',   'manuel.roxas@school.edu',    '09171234576', '2019-06-01', 'ACTIVE', 'ESP',               'PERMANENT', NOW(), NOW()),
-(17, 18,'EMP-017', 'Nena',     'Alvarez',    'Sison',    'nena.alvarez@school.edu',    '09171234577', '2021-06-01', 'ACTIVE', 'English',           'PERMANENT', NOW(), NOW()),
-(18, 19,'EMP-018', 'Oscar',    'Torres',     'Uy',       'oscar.torres@school.edu',    '09171234578', '2020-06-01', 'ACTIVE', 'Mathematics',       'PERMANENT', NOW(), NOW()),
-(19, 20,'EMP-019', 'Patricia', 'Lim',        'Ong',      'patricia.lim@school.edu',    '09171234579', '2022-06-01', 'ACTIVE', 'Science',           'PROBATIONARY', NOW(), NOW()),
-(20, 21,'EMP-020', 'Quirino',  'Santos',     'Diaz',     'quirino.santos@school.edu',  '09171234580', '2022-06-01', 'ACTIVE', 'Filipino',          'PROBATIONARY', NOW(), NOW()),
-(21, 22,'EMP-021', 'Rosa',     'Villegas',   'Roque',    'rosa.villegas@school.edu',   '09171234581', '2023-06-01', 'ACTIVE', 'Araling Panlipunan','PROBATIONARY', NOW(), NOW()),
-(22, 23,'EMP-022', 'Samuel',   'Diaz',       'Luna',     'samuel.diaz@school.edu',     '09171234582', '2023-06-01', 'ACTIVE', 'TLE',              'PROBATIONARY', NOW(), NOW()),
-(23, 24,'EMP-023', 'Teresa',   'Flores',     'Magsaysay','teresa.flores@school.edu',   '09171234583', '2018-06-01', 'ACTIVE', 'MAPEH',             'PERMANENT', NOW(), NOW()),
-(24, 25,'EMP-024', 'Ulysses',  'Rivera',     'Lopez',    'ulysses.rivera@school.edu',  '09171234584', '2019-06-01', 'ACTIVE', 'ESP',               'PERMANENT', NOW(), NOW()),
-(25, 26,'EMP-025', 'Vivian',   'Castillo',   'Ngo',      'vivian.castillo@school.edu', '09171234585', '2020-06-01', 'ACTIVE', 'English',           'PERMANENT', NOW(), NOW()),
-(26, 27,'EMP-026', 'Wilfredo', 'Gomez',      'Yap',      'wilfredo.gomez@school.edu',  '09171234586', '2021-06-01', 'ACTIVE', 'Mathematics',       'PERMANENT', NOW(), NOW()),
-(27, 28,'EMP-027', 'Xenia',    'Navarro',    'Tan',      'xenia.navarro@school.edu',   '09171234587', '2022-06-01', 'ACTIVE', 'Science',           'PROBATIONARY', NOW(), NOW()),
-(28, 29,'EMP-028', 'Yolanda',  'Reyes',      'Tecson',   'yolanda.reyes@school.edu',   '09171234588', '2023-06-01', 'ACTIVE', 'Filipino',          'PROBATIONARY', NOW(), NOW()),
-(29, 30,'EMP-029', 'Zachary',  'Torres',     'Cruz',     'zachary.torres@school.edu',  '09171234589', '2023-06-01', 'ACTIVE', 'MAPEH',             'PROBATIONARY', NOW(), NOW()),
-(30, 31,'EMP-030', 'Aileen',   'Mendoza',    'Flores',   'aileen.mendoza@school.edu',  '09171234590', '2021-06-01', 'ACTIVE', 'TLE',               'PERMANENT', NOW(), NOW());
+(1, 2, 'EMP-001', 'Gerald', 'Dantes', 'Guevarra', 'gerald.dantes@school.edu', '09189655658', '2018-06-01', 'ACTIVE', 'English', 'PERMANENT', NOW(), NOW()),
+(2, 3, 'EMP-002', 'Marvin', 'Buenaventura', 'Ilagan', 'marvin.buenaventura@school.edu', '09187878193', '2019-06-01', 'ACTIVE', 'Mathematics', 'PERMANENT', NOW(), NOW()),
+(3, 4, 'EMP-003', 'Bryan', 'Francisco', 'Concepcion', 'bryan.francisco@school.edu', '09180815207', '2019-06-01', 'ACTIVE', 'Science', 'PERMANENT', NOW(), NOW()),
+(4, 5, 'EMP-004', 'Joanna', 'Dantes', 'De Leon', 'joanna.dantes@school.edu', '09186567111', '2020-06-01', 'ACTIVE', 'Filipino', 'PERMANENT', NOW(), NOW()),
+(5, 6, 'EMP-005', 'Charmaine', 'Ignacio', 'Agustin', 'charmaine.ignacio@school.edu', '09180656428', '2020-06-01', 'ACTIVE', 'Araling Panlipunan', 'PERMANENT', NOW(), NOW()),
+(6, 7, 'EMP-006', 'Frances', 'Malonzo', 'Umali', 'frances.malonzo@school.edu', '09183785719', '2020-06-01', 'ACTIVE', 'TLE', 'PERMANENT', NOW(), NOW()),
+(7, 8, 'EMP-007', 'Rico', 'Buenaventura', 'Francisco', 'rico.buenaventura@school.edu', '09188153208', '2021-06-01', 'ACTIVE', 'MAPEH', 'PERMANENT', NOW(), NOW()),
+(8, 9, 'EMP-008', 'Gian', 'Quiambao', 'Estrada', 'gian.quiambao@school.edu', '09181086312', '2021-06-01', 'ACTIVE', 'ESP', 'PERMANENT', NOW(), NOW()),
+(9, 10, 'EMP-009', 'Alfonso', 'Gatchalian', 'Escobar', 'alfonso.gatchalian@school.edu', '09180256937', '2022-06-01', 'ACTIVE', 'English', 'PROBATIONARY', NOW(), NOW()),
+(10, 11, 'EMP-010', 'Dominic', 'Hernandez', 'Vergara', 'dominic.hernandez@school.edu', '09182275734', '2022-06-01', 'ACTIVE', 'Mathematics', 'PROBATIONARY', NOW(), NOW()),
+(11, 12, 'EMP-011', 'Katrina', 'Ignacio', 'Arellano', 'katrina.ignacio@school.edu', '09188554698', '2022-06-01', 'ACTIVE', 'Science', 'PROBATIONARY', NOW(), NOW()),
+(12, 13, 'EMP-012', 'Rico', 'Samonte', 'Natividad', 'rico.samonte@school.edu', '09184208272', '2023-06-01', 'ACTIVE', 'Filipino', 'PROBATIONARY', NOW(), NOW()),
+(13, 14, 'EMP-013', 'Vincent', 'Panganiban', 'Hernandez', 'vincent.panganiban@school.edu', '09184547704', '2023-06-01', 'ACTIVE', 'Araling Panlipunan', 'PROBATIONARY', NOW(), NOW()),
+(14, 15, 'EMP-014', 'Odessa', 'Escobar', 'De Guzman', 'odessa.escobar@school.edu', '09189400838', '2023-06-01', 'ACTIVE', 'TLE', 'PROBATIONARY', NOW(), NOW()),
+(15, 16, 'EMP-015', 'Oliver', 'Catapang', 'Abad', 'oliver.catapang@school.edu', '09180856655', '2018-06-01', 'ACTIVE', 'MAPEH', 'PERMANENT', NOW(), NOW()),
+(16, 17, 'EMP-016', 'Joaquin', 'Mangubat', 'De Leon', 'joaquin.mangubat@school.edu', '09189427643', '2019-06-01', 'ACTIVE', 'ESP', 'PERMANENT', NOW(), NOW()),
+(17, 18, 'EMP-017', 'Eunice', 'Legaspi', 'Catapang', 'eunice.legaspi@school.edu', '09180419032', '2021-06-01', 'ACTIVE', 'English', 'PERMANENT', NOW(), NOW()),
+(18, 19, 'EMP-018', 'Bryan', 'Tolentino', 'Umali', 'bryan.tolentino@school.edu', '09185048272', '2020-06-01', 'ACTIVE', 'Mathematics', 'PERMANENT', NOW(), NOW()),
+(19, 20, 'EMP-019', 'Renz', 'Robles', 'Belmonte', 'renz.robles@school.edu', '09188676965', '2022-06-01', 'ACTIVE', 'Science', 'PROBATIONARY', NOW(), NOW()),
+(20, 21, 'EMP-020', 'Alfonso', 'Cabrera', 'Macaraeg', 'alfonso.cabrera@school.edu', '09185540365', '2022-06-01', 'ACTIVE', 'Filipino', 'PROBATIONARY', NOW(), NOW()),
+(21, 22, 'EMP-021', 'Patrick', 'Villareal', 'Sarmiento', 'patrick.villareal@school.edu', '09182567062', '2023-06-01', 'ACTIVE', 'Araling Panlipunan', 'PROBATIONARY', NOW(), NOW()),
+(22, 23, 'EMP-022', 'Aubrey', 'Concepcion', 'Ilagan', 'aubrey.concepcion@school.edu', '09180878090', '2023-06-01', 'ACTIVE', 'TLE', 'PROBATIONARY', NOW(), NOW()),
+(23, 24, 'EMP-023', 'Victor', 'Belmonte', 'Arellano', 'victor.belmonte@school.edu', '09185804860', '2018-06-01', 'ACTIVE', 'MAPEH', 'PERMANENT', NOW(), NOW()),
+(24, 25, 'EMP-024', 'Benjamin', 'De Leon', 'Francisco', 'benjamin.deleon@school.edu', '09187555328', '2019-06-01', 'ACTIVE', 'ESP', 'PERMANENT', NOW(), NOW()),
+(25, 26, 'EMP-025', 'Denise', 'Francisco', 'Calderon', 'denise.francisco@school.edu', '09187556839', '2020-06-01', 'ACTIVE', 'English', 'PERMANENT', NOW(), NOW()),
+(26, 27, 'EMP-026', 'Clarisse', 'Macaraeg', 'De Guzman', 'clarisse.macaraeg@school.edu', '09183482083', '2021-06-01', 'ACTIVE', 'Mathematics', 'PERMANENT', NOW(), NOW()),
+(27, 28, 'EMP-027', 'Hans', 'Robles', 'Villareal', 'hans.robles@school.edu', '09180706170', '2022-06-01', 'ACTIVE', 'Science', 'PROBATIONARY', NOW(), NOW()),
+(28, 29, 'EMP-028', 'Ivan', 'Natividad', 'Balagtas', 'ivan.natividad@school.edu', '09182580341', '2023-06-01', 'ACTIVE', 'Filipino', 'PROBATIONARY', NOW(), NOW()),
+(29, 30, 'EMP-029', 'Bernadette', 'Jimenez', 'Padilla', 'bernadette.jimenez@school.edu', '09185599862', '2023-06-01', 'ACTIVE', 'MAPEH', 'PROBATIONARY', NOW(), NOW()),
+(30, 31, 'EMP-030', 'Vanessa', 'Mangubat', 'Samonte', 'vanessa.mangubat@school.edu', '09188041091', '2021-06-01', 'ACTIVE', 'TLE', 'PERMANENT', NOW(), NOW());
 
 -- 7. SECTIONS (12 sections: 2 per grade level)
 INSERT INTO sections (Id, school_year_id, grade_level_id, name, capacity, adviser_teacher_id, created_at, updated_at, is_archived) VALUES
@@ -322,138 +331,138 @@ INSERT INTO sections (Id, school_year_id, grade_level_id, name, capacity, advise
 
 -- Section 1 (7-A): students 1-8
 INSERT INTO students (Id, user_id, lrn, student_number, first_name, last_name, middle_name, birthdate, sex, address, guardian_name, guardian_contact, status, age, contact_no, created_at, updated_at) VALUES
-(1,  32, '150001000001', 'student01', 'Abigail',    'Castro',     'Santos',    '2013-03-15', 'Female', 'Block 1 Lot 1, Brgy. San Juan', 'Marilou Castro',    '09170000001', 'ACTIVE', 12, '09170001001', NOW(), NOW()),
-(2,  33, '150001000002', 'student02', 'Benedict',   'Santos',     'Reyes',     '2012-11-20', 'Male',   '123 Rizal St.',                  'Roberto Santos',    '09170000002', 'ACTIVE', 13, '09170001002', NOW(), NOW()),
-(3,  34, '150001000003', 'student03', 'Cassandra',  'Lim',        'Tan',       '2013-07-08', 'Female', 'Unit 5, Sunshine Subd.',         'Grace Lim',         '09170000003', 'ACTIVE', 12, '09170001003', NOW(), NOW()),
-(4,  35, '150001000004', 'student04', 'Dante',      'Villanueva', 'Cruz',      '2013-01-30', 'Male',   '456 Mabini St.',                 'Dante Villanueva Sr.','09170000004', 'ACTIVE', 13, '09170001004', NOW(), NOW()),
-(5,  36, '150001000005', 'student05', 'Elena',      'Gomez',      'Lopez',     '2012-09-14', 'Female', '789 Bonifacio Ave.',              'Elena Gomez Sr.',   '09170000005', 'ACTIVE', 13, '09170001005', NOW(), NOW()),
-(6,  37, '150001000006', 'student06', 'Francisco',  'Reyes',      'Tan',       '2013-05-22', 'Male',   '10 Veterans Lane',               'Francisco Reyes Sr.','09170000006', 'ACTIVE', 12, '09170001006', NOW(), NOW()),
-(7,  38, '150001000007', 'student07', 'Gabriella',  'Lopez',      'Garcia',    '2012-12-03', 'Female', '22 Peace St.',                    'Gabriella Lopez Sr.','09170000007', 'ACTIVE', 13, '09170001007', NOW(), NOW()),
-(8,  39, '150001000008', 'student08', 'Hector',     'Mendoza',    'Rivera',    '2013-08-19', 'Male',   '88 Freedom Blvd.',                'Hector Mendoza Sr.', '09170000008', 'ACTIVE', 12, '09170001008', NOW(), NOW());
+(1, 32, '136220260001', '2025-0001', 'Daphne', 'Robles', 'Abrenica', '2013-01-07', 'Female', '161 Kalachuchi Ave., Brgy. San Isidro', 'Patrick Robles', '09171841868', 'ACTIVE', 12, '09194191893', NOW(), NOW()),
+(2, 33, '136220260002', '2025-0002', 'Emmanuel', 'Calderon', 'Tolentino', '2012-01-28', 'Male', '23 Kalachuchi Ave., Brgy. Santa Lucia', 'Timothy Calderon', '09171470899', 'ACTIVE', 13, '09192085936', NOW(), NOW()),
+(3, 34, '136220260003', '2025-0003', 'Noel', 'Catapang', 'Dizon', '2013-04-03', 'Male', '185 Kalachuchi Ave., Brgy. San Isidro', 'Irene Catapang', '09171233098', 'ACTIVE', 12, '09192237258', NOW(), NOW()),
+(4, 35, '136220260004', '2025-0004', 'Samantha', 'Robles', 'Francisco', '2013-03-17', 'Female', '138 Ilang-Ilang St., Brgy. Pag-asa', 'Noreen Robles', '09179627081', 'ACTIVE', 12, '09193550830', NOW(), NOW()),
+(5, 36, '136220260005', '2025-0005', 'Irene', 'Ilagan', 'Estrada', '2012-01-21', 'Female', '236 Molave Rd., Brgy. San Isidro', 'Karl Ilagan', '09177442617', 'ACTIVE', 13, '09191770344', NOW(), NOW()),
+(6, 37, '136220260006', '2025-0006', 'Christian', 'Nepomuceno', 'Abrenica', '2013-05-27', 'Male', '80 Lirio St., Brgy. Bagong Silang', 'Hans Nepomuceno', '09174117995', 'ACTIVE', 12, '09196780638', NOW(), NOW()),
+(7, 38, '136220260007', '2025-0007', 'Trisha', 'Malonzo', 'Pangilinan', '2012-07-01', 'Female', '182 Rosal St., Brgy. Bagong Silang', 'Kristine Malonzo', '09171290831', 'ACTIVE', 13, '09196903613', NOW(), NOW()),
+(8, 39, '136220260008', '2025-0008', 'Marvin', 'Alonzo', 'Tolentino', '2013-02-22', 'Male', '139 Dama de Noche St., Brgy. Maligaya', 'Janine Alonzo', '09179705385', 'ACTIVE', 12, '09196730442', NOW(), NOW());
 
 -- Section 2 (7-B): students 9-16
 INSERT INTO students (Id, user_id, lrn, student_number, first_name, last_name, middle_name, birthdate, sex, address, guardian_name, guardian_contact, status, age, contact_no, created_at, updated_at) VALUES
-(9,  40, '150001000009', 'student09', 'Isabella',   'Flores',     'Magsaysay', '2012-10-10', 'Female', '15 Orchid St.',                  'Isabella Flores Sr.', '09170000009', 'ACTIVE', 13, '09170001009', NOW(), NOW()),
-(10, 41, '150001000010', 'student10', 'Jacob',      'Rivera',     'Lopez',     '2013-04-25', 'Male',   '7A Dahlia Ave.',                  'Jacob Rivera Sr.',   '09170000010', 'ACTIVE', 12, '09170001010', NOW(), NOW()),
-(11, 42, '150001000011', 'student11', 'Katherine',  'Tan',        'Sy',        '2012-08-14', 'Female', '33 Sunflower Rd.',                'Katherine Tan Sr.',  '09170000011', 'ACTIVE', 13, '09170001011', NOW(), NOW()),
-(12, 43, '150001000012', 'student12', 'Leonardo',   'Cruz',       'Dela Cruz', '2013-02-28', 'Male',   '99 Sampaguita St.',               'Leonardo Cruz Sr.',  '09170000012', 'ACTIVE', 12, '09170001012', NOW(), NOW()),
-(13, 44, '150001000013', 'student13', 'Megan',      'Garcia',     'Co',        '2012-06-17', 'Female', '14 Rose Ave.',                    'Megan Garcia Sr.',   '09170000013', 'ACTIVE', 13, '09170001013', NOW(), NOW()),
-(14, 45, '150001000014', 'student14', 'Nathan',     'Diaz',       'Luna',      '2013-09-05', 'Male',   '55 Tulip Blvd.',                  'Nathan Diaz Sr.',    '09170000014', 'ACTIVE', 12, '09170001014', NOW(), NOW()),
-(15, 46, '150001000015', 'student15', 'Olivia',     'Bautista',   'Domingo',   '2012-11-30', 'Female', '21 Jasmin Way',                   'Olivia Bautista Sr.', '09170000015', 'ACTIVE', 13, '09170001015', NOW(), NOW()),
-(16, 47, '150001000016', 'student16', 'Patrick',    'Ramos',      'Santos',    '2013-01-12', 'Male',   '76 Camia St.',                    'Patrick Ramos Sr.',  '09170000016', 'ACTIVE', 12, '09170001016', NOW(), NOW());
+(9, 40, '136220260009', '2025-0009', 'Felix', 'Pangilinan', 'Galang', '2012-05-14', 'Male', '22 Everlasting St., Brgy. San Roque', 'Marvin Pangilinan', '09179269607', 'ACTIVE', 13, '09199402576', NOW(), NOW()),
+(10, 41, '136220260010', '2025-0010', 'Darren', 'Legaspi', 'Velasco', '2013-08-16', 'Male', '129 Kalachuchi Ave., Brgy. San Isidro', 'Noreen Legaspi', '09172658415', 'ACTIVE', 12, '09196556742', NOW(), NOW()),
+(11, 42, '136220260011', '2025-0011', 'Charmaine', 'Evangelista', 'Abrenica', '2012-06-17', 'Female', '56 Bayanihan Rd., Brgy. Poblacion', 'Pauline Evangelista', '09176100048', 'ACTIVE', 13, '09196746969', NOW(), NOW()),
+(12, 43, '136220260012', '2025-0012', 'Winona', 'Espiritu', 'Panganiban', '2013-05-25', 'Female', '224 Molave Rd., Brgy. San Roque', 'Oliver Espiritu', '09170502529', 'ACTIVE', 12, '09194284155', NOW(), NOW()),
+(13, 44, '136220260013', '2025-0013', 'Hazel', 'Enriquez', 'Sumulong', '2012-06-24', 'Female', '168 Acacia St., Brgy. Santa Lucia', 'Lorraine Enriquez', '09174251722', 'ACTIVE', 13, '09199162793', NOW(), NOW()),
+(14, 45, '136220260014', '2025-0014', 'Queenie', 'Carpio', 'Samonte', '2013-06-01', 'Female', '201 Ilang-Ilang St., Brgy. Pag-asa', 'Winona Carpio', '09176591876', 'ACTIVE', 12, '09198777836', NOW(), NOW()),
+(15, 46, '136220260015', '2025-0015', 'Vincent', 'Samonte', 'Tiongson', '2012-05-08', 'Male', '48 Mahogany Ave., Brgy. Mabuhay', 'Noreen Samonte', '09177468485', 'ACTIVE', 13, '09193865704', NOW(), NOW()),
+(16, 47, '136220260016', '2025-0016', 'Rhea', 'Mangubat', 'Dimaculangan', '2013-03-24', 'Female', '189 Molave Rd., Brgy. Santa Lucia', 'Jerome Mangubat', '09177694963', 'ACTIVE', 12, '09195940547', NOW(), NOW());
 
 -- Section 3 (8-A): students 17-24
 INSERT INTO students (Id, user_id, lrn, student_number, first_name, last_name, middle_name, birthdate, sex, address, guardian_name, guardian_contact, status, age, contact_no, created_at, updated_at) VALUES
-(17, 48, '150001000017', 'student17', 'Queenie',    'Aquino',     'Reyes',     '2011-05-12', 'Female', '44 Narra St.',                   'Queenie Aquino Sr.', '09170000017', 'ACTIVE', 14, '09170001017', NOW(), NOW()),
-(18, 49, '150001000018', 'student18', 'Ramon',      'Fernandez',  'Lim',       '2011-09-23', 'Male',   '17 Mahogany Ave.',                'Ramon Fernandez Sr.','09170000018', 'ACTIVE', 14, '09170001018', NOW(), NOW()),
-(19, 50, '150001000019', 'student19', 'Sofia',      'Mercado',    'Villanueva','2011-03-08', 'Female', '66 Acacia Blvd.',                 'Sofia Mercado Sr.',  '09170000019', 'ACTIVE', 14, '09170001019', NOW(), NOW()),
-(20, 51, '150001000020', 'student20', 'Tomas',      'Alvarez',    'Sison',     '2011-07-19', 'Male',   '8B Molave St.',                   'Tomas Alvarez Sr.',  '09170000020', 'ACTIVE', 14, '09170001020', NOW(), NOW()),
-(21, 52, '150001000021', 'student21', 'Uma',        'Gonzales',   'Lopez',     '2011-12-25', 'Female', '29 IPil-IPil Rd.',                'Uma Gonzales Sr.',   '09170000021', 'ACTIVE', 14, '09170001021', NOW(), NOW()),
-(22, 53, '150001000022', 'student22', 'Victor',     'Tan',        'Ong',       '2011-02-14', 'Male',   '50 Yakal St.',                    'Victor Tan Sr.',     '09170000022', 'ACTIVE', 14, '09170001022', NOW(), NOW()),
-(23, 54, '150001000023', 'student23', 'Wendy',      'Santos',     'Dela Cruz', '2011-08-30', 'Female', '12 Narra Ave.',                   'Wendy Santos Sr.',   '09170000023', 'ACTIVE', 14, '09170001023', NOW(), NOW()),
-(24, 55, '150001000024', 'student24', 'Xavier',     'Villena',    'Cruz',      '2011-04-17', 'Male',   '37 Mahogany St.',                 'Xavier Villena Sr.', '09170000024', 'ACTIVE', 14, '09170001024', NOW(), NOW());
+(17, 48, '136220260017', '2025-0017', 'Gian', 'Umali', 'Hernandez', '2011-08-16', 'Male', '78 Santan St., Brgy. Bagong Silang', 'Pauline Umali', '09172574029', 'ACTIVE', 14, '09197747164', NOW(), NOW()),
+(18, 49, '136220260018', '2025-0018', 'Denise', 'Belmonte', 'Dantes', '2011-06-19', 'Female', '45 Mahogany Ave., Brgy. Mabuhay', 'Arnel Belmonte', '09174234974', 'ACTIVE', 14, '09191467856', NOW(), NOW()),
+(19, 50, '136220260019', '2025-0019', 'Alfonso', 'Nepomuceno', 'Lacson', '2011-04-23', 'Male', '231 Santan St., Brgy. Maligaya', 'Trisha Nepomuceno', '09170254811', 'ACTIVE', 14, '09196704099', NOW(), NOW()),
+(20, 51, '136220260020', '2025-0020', 'Felix', 'Samonte', 'Andrada', '2011-03-17', 'Male', '213 Ilang-Ilang St., Brgy. Poblacion', 'Ivan Samonte', '09177880242', 'ACTIVE', 14, '09196905923', NOW(), NOW()),
+(21, 52, '136220260021', '2025-0021', 'Joaquin', 'Cabrera', 'Concepcion', '2011-03-12', 'Male', '176 Bayanihan Rd., Brgy. Poblacion', 'Kristine Cabrera', '09171626538', 'ACTIVE', 14, '09196170595', NOW(), NOW()),
+(22, 53, '136220260022', '2025-0022', 'Althea', 'Lacson', 'Ilagan', '2011-05-14', 'Female', '6 Ilang-Ilang St., Brgy. Santo Nino', 'Kenneth Lacson', '09173923325', 'ACTIVE', 14, '09199026872', NOW(), NOW()),
+(23, 54, '136220260023', '2025-0023', 'Katrina', 'Villareal', 'Vergara', '2011-03-07', 'Female', '115 Mahogany Ave., Brgy. Pag-asa', 'Maricar Villareal', '09178807134', 'ACTIVE', 14, '09197000116', NOW(), NOW()),
+(24, 55, '136220260024', '2025-0024', 'Althea', 'Abad', 'Samonte', '2011-04-22', 'Female', '141 Rosal St., Brgy. Malinis', 'Lorenzo Abad', '09175470508', 'ACTIVE', 14, '09194794211', NOW(), NOW());
 
 -- Section 4 (8-B): students 25-32
 INSERT INTO students (Id, user_id, lrn, student_number, first_name, last_name, middle_name, birthdate, sex, address, guardian_name, guardian_contact, status, age, contact_no, created_at, updated_at) VALUES
-(25, 56, '150001000025', 'student25', 'Yvonne',     'Ramirez',    'Torres',    '2011-06-11', 'Female', '88A Molave St.',                  'Yvonne Ramirez Sr.', '09170000025', 'ACTIVE', 14, '09170001025', NOW(), NOW()),
-(26, 57, '150001000026', 'student26', 'Zandro',     'Cruz',       'Mendoza',   '2011-10-05', 'Male',   '23 IPil-IPil St.',                'Zandro Cruz Sr.',    '09170000026', 'ACTIVE', 14, '09170001026', NOW(), NOW()),
-(27, 58, '150001000027', 'student27', 'Angela',     'Dela Cruz',  'Ramos',     '2011-01-29', 'Female', '34 Yakal Ave.',                   'Angela Dela Cruz Sr.', '09170000027','ACTIVE', 14, '09170001027', NOW(), NOW()),
-(28, 59, '150001000028', 'student28', 'Bernardo',   'Lopez',      'Garcia',    '2012-03-22', 'Male',   '67 Narra Blvd.',                  'Bernardo Lopez Sr.', '09170000028', 'ACTIVE', 14, '09170001028', NOW(), NOW()),
-(29, 60, '150001000029', 'student29', 'Catherine',  'Ramos',      'Santos',    '2011-09-15', 'Female', '9B Mahogany St.',                 'Catherine Ramos Sr.','09170000029', 'ACTIVE', 14, '09170001029', NOW(), NOW()),
-(30, 61, '150001000030', 'student30', 'Dominic',    'Torres',     'Uy',        '2011-11-08', 'Male',   '52 Acacia St.',                   'Dominic Torres Sr.', '09170000030', 'ACTIVE', 14, '09170001030', NOW(), NOW()),
-(31, 62, '150001000031', 'student31', 'Erica',      'Villanueva', 'Cruz',      '2011-07-02', 'Female', '41 Molave Blvd.',                 'Erica Villanueva Sr.','09170000031', 'ACTIVE', 14, '09170001031', NOW(), NOW()),
-(32, 63, '150001000032', 'student32', 'Ferdinand',  'Cruz',       'Rivera',    '2011-04-09', 'Male',   '18 IPil-IPil Ave.',               'Ferdinand Cruz Sr.', '09170000032', 'ACTIVE', 14, '09170001032', NOW(), NOW());
+(25, 56, '136220260025', '2025-0025', 'Aubrey', 'Sarmiento', 'Balagtas', '2011-12-20', 'Female', '87 Rosal St., Brgy. San Roque', 'Lorraine Sarmiento', '09173238692', 'ACTIVE', 14, '09195129293', NOW(), NOW()),
+(26, 57, '136220260026', '2025-0026', 'Irene', 'Umali', 'Malonzo', '2011-08-02', 'Female', '173 Acacia St., Brgy. Malinis', 'Rodel Umali', '09171161142', 'ACTIVE', 14, '09194294628', NOW(), NOW()),
+(27, 58, '136220260027', '2025-0027', 'Cedric', 'Valenzuela', 'Agustin', '2011-06-16', 'Male', '199 Everlasting St., Brgy. Mabuhay', 'Therese Valenzuela', '09171875677', 'ACTIVE', 14, '09195225201', NOW(), NOW()),
+(28, 59, '136220260028', '2025-0028', 'Ulrich', 'Robles', 'Zamora', '2012-11-04', 'Male', '108 Kalachuchi Ave., Brgy. Santo Nino', 'Gian Robles', '09178955183', 'ACTIVE', 13, '09190496566', NOW(), NOW()),
+(29, 60, '136220260029', '2025-0029', 'Ysabel', 'Dimaculangan', 'Magbanua', '2011-03-18', 'Female', '83 Yakal Rd., Brgy. Mabuhay', 'Pauline Dimaculangan', '09171423759', 'ACTIVE', 14, '09198616073', NOW(), NOW()),
+(30, 61, '136220260030', '2025-0030', 'Benjamin', 'Concepcion', 'Dizon', '2011-02-08', 'Male', '155 Camia St., Brgy. Pag-asa', 'Victor Concepcion', '09173246246', 'ACTIVE', 14, '09193393962', NOW(), NOW()),
+(31, 62, '136220260031', '2025-0031', 'Stephen', 'Mangubat', 'Calderon', '2011-02-11', 'Male', '179 Acacia St., Brgy. Maligaya', 'Marvin Mangubat', '09172664803', 'ACTIVE', 14, '09198979619', NOW(), NOW()),
+(32, 63, '136220260032', '2025-0032', 'Vincent', 'Lagman', 'Quizon', '2011-04-23', 'Male', '202 Ilang-Ilang St., Brgy. Maligaya', 'Margaux Lagman', '09174144988', 'ACTIVE', 14, '09196483528', NOW(), NOW());
 
 -- Section 5 (9-A): students 33-40
 INSERT INTO students (Id, user_id, lrn, student_number, first_name, last_name, middle_name, birthdate, sex, address, guardian_name, guardian_contact, status, age, contact_no, created_at, updated_at) VALUES
-(33, 64, '150001000033', 'student33', 'Giselle',    'Reyes',      'Tan',       '2010-03-18', 'Female', '11 Diamond St.',                  'Giselle Reyes Sr.',  '09170000033', 'ACTIVE', 15, '09170001033', NOW(), NOW()),
-(34, 65, '150001000034', 'student34', 'Henry',      'Navarro',    'Tan',       '2010-08-27', 'Male',   '63 Ruby Ave.',                    'Henry Navarro Sr.',  '09170000034', 'ACTIVE', 15, '09170001034', NOW(), NOW()),
-(35, 66, '150001000035', 'student35', 'Iris',       'Mendoza',    'Flores',    '2010-12-14', 'Female', '26 Emerald St.',                  'Iris Mendoza Sr.',   '09170000035', 'ACTIVE', 15, '09170001035', NOW(), NOW()),
-(36, 67, '150001000036', 'student36', 'Jeremy',     'Go',         'Chua',      '2010-06-30', 'Male',   '74 Sapphire Blvd.',               'Jeremy Go Sr.',      '09170000036', 'ACTIVE', 15, '09170001036', NOW(), NOW()),
-(37, 68, '150001000037', 'student37', 'Kristine',   'Uy',         'Lim',       '2010-02-09', 'Female', '19 Pearl Ave.',                   'Kristine Uy Sr.',    '09170000037', 'ACTIVE', 15, '09170001037', NOW(), NOW()),
-(38, 69, '150001000038', 'student38', 'Luis',       'Antonio',    'Cruz',      '2010-10-22', 'Male',   '82 Jade St.',                     'Luis Antonio Sr.',   '09170000038', 'ACTIVE', 15, '09170001038', NOW(), NOW()),
-(39, 70, '150001000039', 'student39', 'Monica',     'Reyes',      'Garcia',    '2010-05-05', 'Female', '5 Topaz Ave.',                    'Monica Reyes Sr.',   '09170000039', 'ACTIVE', 15, '09170001039', NOW(), NOW()),
-(40, 71, '150001000040', 'student40', 'Noel',       'Salvador',   'Dela Torre','2010-01-11', 'Male',   '39 Onyx St.',                     'Noel Salvador Sr.',  '09170000040', 'ACTIVE', 15, '09170001040', NOW(), NOW());
+(33, 64, '136220260033', '2025-0033', 'Sebastian', 'Sarmiento', 'Nepomuceno', '2010-05-22', 'Male', '167 Rosal St., Brgy. Poblacion', 'Samantha Sarmiento', '09170289251', 'ACTIVE', 15, '09199671970', NOW(), NOW()),
+(34, 65, '136220260034', '2025-0034', 'Therese', 'De Guzman', 'Evangelista', '2010-08-07', 'Female', '188 Camia St., Brgy. San Roque', 'Adrian De Guzman', '09179319086', 'ACTIVE', 15, '09199199352', NOW(), NOW()),
+(35, 66, '136220260035', '2025-0035', 'Zara', 'Quizon', 'Quiambao', '2010-04-02', 'Female', '120 Rosal St., Brgy. Malinis', 'Frances Quizon', '09177951778', 'ACTIVE', 15, '09191920409', NOW(), NOW()),
+(36, 67, '136220260036', '2025-0036', 'Matteo', 'Samonte', 'Tolentino', '2010-05-02', 'Male', '20 Molave Rd., Brgy. Bagong Silang', 'Cedric Samonte', '09173503745', 'ACTIVE', 15, '09199607117', NOW(), NOW()),
+(37, 68, '136220260037', '2025-0037', 'Lorraine', 'Mangubat', 'Villareal', '2010-09-07', 'Female', '182 Kamagong St., Brgy. Malinis', 'Wesley Mangubat', '09179954459', 'ACTIVE', 15, '09196160363', NOW(), NOW()),
+(38, 69, '136220260038', '2025-0038', 'Oliver', 'Umali', 'Sumulong', '2010-03-21', 'Male', '39 Kamagong St., Brgy. Poblacion', 'Mikaela Umali', '09170647616', 'ACTIVE', 15, '09192025205', NOW(), NOW()),
+(39, 70, '136220260039', '2025-0039', 'Emmanuel', 'Malonzo', 'Catapang', '2010-12-18', 'Male', '19 Acacia St., Brgy. Santa Lucia', 'Bernadette Malonzo', '09176911187', 'ACTIVE', 15, '09199350148', NOW(), NOW()),
+(40, 71, '136220260040', '2025-0040', 'Charmaine', 'Sarmiento', 'De Guzman', '2010-12-01', 'Female', '181 Rosal St., Brgy. Santa Lucia', 'Precious Sarmiento', '09172314763', 'ACTIVE', 15, '09190060363', NOW(), NOW());
 
 -- Section 6 (9-B): students 41-48
 INSERT INTO students (Id, user_id, lrn, student_number, first_name, last_name, middle_name, birthdate, sex, address, guardian_name, guardian_contact, status, age, contact_no, created_at, updated_at) VALUES
-(41, 72, '150001000041', 'student41', 'Odessa',     'Fernandez',  'Lim',       '2010-09-03', 'Female', '58 Garnet Rd.',                   'Odessa Fernandez Sr.','09170000041', 'ACTIVE', 15, '09170001041', NOW(), NOW()),
-(42, 73, '150001000042', 'student42', 'Paulo',      'Gamboa',     'Mendoza',   '2010-04-28', 'Male',   '16 Amethyst St.',                 'Paulo Gamboa Sr.',   '09170000042', 'ACTIVE', 15, '09170001042', NOW(), NOW()),
-(43, 74, '150001000043', 'student43', 'Quinciano',  'Lopez',      'Rivera',    '2010-11-15', 'Male',   '90 Coral Blvd.',                  'Quinciano Lopez Sr.','09170000043', 'ACTIVE', 15, '09170001043', NOW(), NOW()),
-(44, 75, '150001000044', 'student44', 'Rafaela',    'Sison',      'Cruz',      '2010-07-07', 'Female', '3 Pearl St.',                     'Rafaela Sison Sr.',  '09170000044', 'ACTIVE', 15, '09170001044', NOW(), NOW()),
-(45, 76, '150001000045', 'student45', 'Stephanie',  'Chua',       'Go',        '2010-01-26', 'Female', '47 Amber Ave.',                   'Stephanie Chua Sr.', '09170000045', 'ACTIVE', 15, '09170001045', NOW(), NOW()),
-(46, 77, '150001000046', 'student46', 'Timothy',    'Reyes',      'Santos',    '2010-12-19', 'Male',   '73 Quartz St.',                   'Timothy Reyes Sr.',  '09170000046', 'ACTIVE', 15, '09170001046', NOW(), NOW()),
-(47, 78, '150001000047', 'student47', 'Ursula',     'Tan',        'Sy',        '2010-08-01', 'Female', '12 Opal Blvd.',                   'Ursula Tan Sr.',     '09170000047', 'ACTIVE', 15, '09170001047', NOW(), NOW()),
-(48, 79, '150001000048', 'student48', 'Veronica',   'Ponce',      'Navarro',   '2010-06-13', 'Female', '65 Platinum St.',                 'Veronica Ponce Sr.', '09170000048', 'ACTIVE', 15, '09170001048', NOW(), NOW());
+(41, 72, '136220260041', '2025-0041', 'Therese', 'Dizon', 'Dimaculangan', '2010-06-10', 'Female', '209 Molave Rd., Brgy. Pag-asa', 'Venice Dizon', '09173696764', 'ACTIVE', 15, '09193795662', NOW(), NOW()),
+(42, 73, '136220260042', '2025-0042', 'Victor', 'Balagtas', 'Tolentino', '2010-02-04', 'Male', '114 Lirio St., Brgy. Malinis', 'Darren Balagtas', '09172361249', 'ACTIVE', 15, '09194735987', NOW(), NOW()),
+(43, 74, '136220260043', '2025-0043', 'Christian', 'Guevarra', 'Villareal', '2010-02-27', 'Male', '102 Rosal St., Brgy. San Roque', 'Kenneth Guevarra', '09179663334', 'ACTIVE', 15, '09198714958', NOW(), NOW()),
+(44, 75, '136220260044', '2025-0044', 'Erika', 'Catapang', 'Ilagan', '2010-12-07', 'Female', '109 Everlasting St., Brgy. Santa Lucia', 'Margaux Catapang', '09170168190', 'ACTIVE', 15, '09194086467', NOW(), NOW()),
+(45, 76, '136220260045', '2025-0045', 'Winona', 'Pangilinan', 'Dizon', '2010-06-12', 'Female', '57 Kamagong St., Brgy. Bagong Silang', 'Xander Pangilinan', '09179735820', 'ACTIVE', 15, '09195825700', NOW(), NOW()),
+(46, 77, '136220260046', '2025-0046', 'Ivan', 'Balagtas', 'Quizon', '2010-04-01', 'Male', '35 Camia St., Brgy. San Roque', 'Gwen Balagtas', '09173144450', 'ACTIVE', 15, '09199013257', NOW(), NOW()),
+(47, 78, '136220260047', '2025-0047', 'Hans', 'Estrada', 'Agustin', '2010-09-23', 'Male', '126 Gumamela St., Brgy. Pag-asa', 'Zion Estrada', '09177854887', 'ACTIVE', 15, '09198999773', NOW(), NOW()),
+(48, 79, '136220260048', '2025-0048', 'Ophelia', 'Corpuz', 'Galang', '2010-10-26', 'Female', '37 Rosal St., Brgy. Poblacion', 'Lorenzo Corpuz', '09178848398', 'ACTIVE', 15, '09196651822', NOW(), NOW());
 
 -- Section 7 (10-A): students 49-56
 INSERT INTO students (Id, user_id, lrn, student_number, first_name, last_name, middle_name, birthdate, sex, address, guardian_name, guardian_contact, status, age, contact_no, created_at, updated_at) VALUES
-(49, 80, '150001000049', 'student49', 'William',    'Sy',         'Co',        '2009-04-20', 'Male',   '28 Silver St.',                   'William Sy Sr.',     '09170000049', 'ACTIVE', 16, '09170001049', NOW(), NOW()),
-(50, 81, '150001000050', 'student50', 'Xena',       'Morales',    'Reyes',     '2009-09-15', 'Female', '54 Gold Ave.',                    'Xena Morales Sr.',   '09170000050', 'ACTIVE', 16, '09170001050', NOW(), NOW()),
-(51, 82, '150001000051', 'student51', 'Yuri',       'Yamamoto',   'Tanaka',    '2009-12-01', 'Male',   '86 Bronze Blvd.',                 'Yuri Yamamoto Sr.',  '09170000051', 'ACTIVE', 16, '09170001051', NOW(), NOW()),
-(52, 83, '150001000052', 'student52', 'Zion',       'Garcia',     'Lopez',     '2009-07-28', 'Male',   '13 Copper St.',                   'Zion Garcia Sr.',    '09170000052', 'ACTIVE', 16, '09170001052', NOW(), NOW()),
-(53, 84, '150001000053', 'student53', 'Alma',       'Dela Torre', 'Santos',    '2009-02-14', 'Female', '42 Nickel Ave.',                  'Alma Dela Torre Sr.','09170000053', 'ACTIVE', 16, '09170001053', NOW(), NOW()),
-(54, 85, '150001000054', 'student54', 'Brian',      'Uy',         'Lim',       '2009-10-09', 'Male',   '70 Zinc St.',                     'Brian Uy Sr.',       '09170000054', 'ACTIVE', 16, '09170001054', NOW(), NOW()),
-(55, 86, '150001000055', 'student55', 'Cindy',      'Tan',        'Ong',       '2009-05-22', 'Female', '36 Tin Rd.',                      'Cindy Tan Sr.',      '09170000055', 'ACTIVE', 16, '09170001055', NOW(), NOW()),
-(56, 87, '150001000056', 'student56', 'Darwin',     'Estrada',    'Cruz',      '2009-01-07', 'Male',   '61 Lead Blvd.',                   'Darwin Estrada Sr.', '09170000056', 'ACTIVE', 16, '09170001056', NOW(), NOW());
+(49, 80, '136220260049', '2025-0049', 'Maricar', 'Dizon', 'Cabrera', '2009-09-05', 'Female', '93 Molave Rd., Brgy. San Roque', 'Hannah Dizon', '09171907774', 'ACTIVE', 16, '09190124279', NOW(), NOW()),
+(50, 81, '136220260050', '2025-0050', 'Gian', 'Velasco', 'Alonzo', '2009-07-04', 'Male', '31 Banaba St., Brgy. Bagong Silang', 'Zara Velasco', '09173552319', 'ACTIVE', 16, '09190522045', NOW(), NOW()),
+(51, 82, '136220260051', '2025-0051', 'Rhea', 'Padilla', 'Dantes', '2009-05-01', 'Female', '5 Santan St., Brgy. Maligaya', 'Jericho Padilla', '09174866675', 'ACTIVE', 16, '09191591354', NOW(), NOW()),
+(52, 83, '136220260052', '2025-0052', 'Jerome', 'Corpuz', 'Hernandez', '2009-09-28', 'Male', '6 Kalachuchi Ave., Brgy. Santo Nino', 'Bryan Corpuz', '09175550851', 'ACTIVE', 16, '09190404784', NOW(), NOW()),
+(53, 84, '136220260053', '2025-0053', 'Ulrich', 'Jimenez', 'Quiambao', '2009-06-02', 'Male', '198 Banaba St., Brgy. Santo Nino', 'Nadine Jimenez', '09174711973', 'ACTIVE', 16, '09193166192', NOW(), NOW()),
+(54, 85, '136220260054', '2025-0054', 'Katrina', 'Dizon', 'Abad', '2009-06-03', 'Female', '54 Kamagong St., Brgy. Poblacion', 'Zara Dizon', '09170180615', 'ACTIVE', 16, '09197300717', NOW(), NOW()),
+(55, 86, '136220260055', '2025-0055', 'Oliver', 'Dimaculangan', 'Tiongson', '2009-10-23', 'Male', '29 Banaba St., Brgy. San Roque', 'Harold Dimaculangan', '09177166386', 'ACTIVE', 16, '09196647581', NOW(), NOW()),
+(56, 87, '136220260056', '2025-0056', 'Matteo', 'Abad', 'Magbanua', '2009-05-22', 'Male', '67 Yakal Rd., Brgy. San Roque', 'Matteo Abad', '09176981255', 'ACTIVE', 16, '09190117602', NOW(), NOW());
 
 -- Section 8 (10-B): students 57-64
 INSERT INTO students (Id, user_id, lrn, student_number, first_name, last_name, middle_name, birthdate, sex, address, guardian_name, guardian_contact, status, age, contact_no, created_at, updated_at) VALUES
-(57, 88, '150001000057', 'student57', 'Eden',       'Salvador',   'Cruz',      '2009-08-03', 'Female', '32 Mercury St.',                  'Eden Salvador Sr.',  '09170000057', 'ACTIVE', 16, '09170001057', NOW(), NOW()),
-(58, 89, '150001000058', 'student58', 'Franklin',   'Ong',        'Tan',       '2009-11-19', 'Male',   '78 Venus Ave.',                   'Franklin Ong Sr.',   '09170000058', 'ACTIVE', 16, '09170001058', NOW(), NOW()),
-(59, 90, '150001000059', 'student59', 'Grace',      'Lim',        'Chua',      '2009-03-31', 'Female', '25 Mars Blvd.',                   'Grace Lim Sr.',      '09170000059', 'ACTIVE', 16, '09170001059', NOW(), NOW()),
-(60, 91, '150001000060', 'student60', 'Harold',     'Co',         'Sy',        '2009-06-16', 'Male',   '49 Jupiter St.',                  'Harold Co Sr.',      '09170000060', 'ACTIVE', 16, '09170001060', NOW(), NOW()),
-(61, 92, '150001000061', 'student61', 'Ireneo',     'Dizon',      'Mendoza',   '2009-12-28', 'Male',   '83 Saturn Ave.',                  'Ireneo Dizon Sr.',   '09170000061', 'ACTIVE', 16, '09170001061', NOW(), NOW()),
-(62, 93, '150001000062', 'student62', 'Jasmine',    'Villanueva', 'Ramos',     '2009-10-11', 'Female', '15 Uranus Rd.',                   'Jasmine Villanueva Sr.','09170000062', 'ACTIVE', 16, '09170001062', NOW(), NOW()),
-(63, 94, '150001000063', 'student63', 'Kyle',       'Chan',       'Dy',        '2009-07-04', 'Male',   '59 Neptune St.',                  'Kyle Chan Sr.',      '09170000063', 'ACTIVE', 16, '09170001063', NOW(), NOW()),
-(64, 95, '150001000064', 'student64', 'Lara',       'Quimpo',     'Gonzales',  '2009-04-12', 'Female', '22 Pluto Blvd.',                  'Lara Quimpo Sr.',    '09170000064', 'ACTIVE', 16, '09170001064', NOW(), NOW());
+(57, 88, '136220260057', '2025-0057', 'Precious', 'Umali', 'Sumulong', '2009-06-17', 'Female', '157 Lirio St., Brgy. Maligaya', 'Lance Umali', '09178558084', 'ACTIVE', 16, '09196286455', NOW(), NOW()),
+(58, 89, '136220260058', '2025-0058', 'Alyssa', 'Carpio', 'Calderon', '2009-12-18', 'Female', '121 Everlasting St., Brgy. Malinis', 'Gian Carpio', '09171246558', 'ACTIVE', 16, '09190524649', NOW(), NOW()),
+(59, 90, '136220260059', '2025-0059', 'Czarina', 'Escobar', 'Abrenica', '2009-04-09', 'Female', '157 Lirio St., Brgy. Poblacion', 'Rochelle Escobar', '09171908583', 'ACTIVE', 16, '09199096905', NOW(), NOW()),
+(60, 91, '136220260060', '2025-0060', 'Clarisse', 'Buenaventura', 'Evangelista', '2009-03-16', 'Female', '155 Ilang-Ilang St., Brgy. Santa Lucia', 'Elijah Buenaventura', '09175049495', 'ACTIVE', 16, '09197593754', NOW(), NOW()),
+(61, 92, '136220260061', '2025-0061', 'Sheena', 'Ilagan', 'Quizon', '2009-06-28', 'Female', '148 Molave Rd., Brgy. Pag-asa', 'Noreen Ilagan', '09170652009', 'ACTIVE', 16, '09198142088', NOW(), NOW()),
+(62, 93, '136220260062', '2025-0062', 'Erika', 'Ilagan', 'Mangubat', '2009-07-17', 'Female', '99 Ilang-Ilang St., Brgy. Pag-asa', 'Odessa Ilagan', '09170403340', 'ACTIVE', 16, '09196962955', NOW(), NOW()),
+(63, 94, '136220260063', '2025-0063', 'Zara', 'Corpuz', 'Hernandez', '2009-01-10', 'Female', '208 Yakal Rd., Brgy. Bagong Silang', 'Ursula Corpuz', '09179418412', 'ACTIVE', 16, '09191299851', NOW(), NOW()),
+(64, 95, '136220260064', '2025-0064', 'Frances', 'Quizon', 'Carpio', '2009-01-27', 'Female', '164 Dama de Noche St., Brgy. San Isidro', 'Tristan Quizon', '09176489731', 'ACTIVE', 16, '09195597140', NOW(), NOW());
 
 -- Section 9 (11-STEM A): students 65-72
 INSERT INTO students (Id, user_id, lrn, student_number, first_name, last_name, middle_name, birthdate, sex, address, guardian_name, guardian_contact, status, age, contact_no, created_at, updated_at) VALUES
-(65, 96,  '150001000065', 'student65', 'Marco',      'Sison',       'Cruz',     '2008-05-10', 'Male',   '46 Proton St.',                   'Marco Sison Sr.',    '09170000065', 'ACTIVE', 17, '09170001065', NOW(), NOW()),
-(66, 97,  '150001000066', 'student66', 'Nikki',      'Ramos',       'Tan',      '2008-09-22', 'Female', '71 Neutron Ave.',                 'Nikki Ramos Sr.',    '09170000066', 'ACTIVE', 17, '09170001066', NOW(), NOW()),
-(67, 98,  '150001000067', 'student67', 'Omar',       'Hassan',      'Malik',    '2008-02-18', 'Male',   '38 Electron Blvd.',               'Omar Hassan Sr.',    '09170000067', 'ACTIVE', 17, '09170001067', NOW(), NOW()),
-(68, 99,  '150001000068', 'student68', 'Pauline',    'Uy',          'Lim',      '2008-08-07', 'Female', '64 Atom St.',                     'Pauline Uy Sr.',     '09170000068', 'ACTIVE', 17, '09170001068', NOW(), NOW()),
-(69, 100, '150001000069', 'student69', 'Quentin',    'Alcantara',   'Reyes',    '2008-12-13', 'Male',   '20 Mole Ave.',                    'Quentin Alcantara Sr.','09170000069','ACTIVE', 17, '09170001069', NOW(), NOW()),
-(70, 101, '150001000070', 'student70', 'Rhea',       'Mendoza',     'Garcia',   '2008-06-29', 'Female', '52 Cell St.',                     'Rhea Mendoza Sr.',   '09170000070', 'ACTIVE', 17, '09170001070', NOW(), NOW()),
-(71, 102, '150001000071', 'student71', 'Santi',      'Gonzalez',    'Castro',   '2008-03-25', 'Male',   '85 Nucleus Blvd.',                'Santi Gonzalez Sr.', '09170000071', 'ACTIVE', 17, '09170001071', NOW(), NOW()),
-(72, 103, '150001000072', 'student72', 'Trixie',     'Samonte',     'Dela Cruz','2008-10-01', 'Female', '40 Orbit Rd.',                    'Trixie Samonte Sr.', '09170000072', 'ACTIVE', 17, '09170001072', NOW(), NOW());
+(65, 96, '136220260065', '2025-0065', 'Noreen', 'Abad', 'Ignacio', '2008-08-21', 'Female', '168 Yakal Rd., Brgy. San Roque', 'Frances Abad', '09179994131', 'ACTIVE', 17, '09198144908', NOW(), NOW()),
+(66, 97, '136220260066', '2025-0066', 'Stephen', 'De Guzman', 'Corpuz', '2008-10-10', 'Male', '181 Kamagong St., Brgy. Poblacion', 'Venice De Guzman', '09176835957', 'ACTIVE', 17, '09194626161', NOW(), NOW()),
+(67, 98, '136220260067', '2025-0067', 'Odessa', 'Robles', 'Macaraeg', '2008-12-04', 'Female', '43 Dama de Noche St., Brgy. Bagong Silang', 'Czarina Robles', '09178441489', 'ACTIVE', 17, '09197794630', NOW(), NOW()),
+(68, 99, '136220260068', '2025-0068', 'Kenneth', 'Dimaculangan', 'Guevarra', '2008-04-11', 'Male', '82 Mahogany Ave., Brgy. Malinis', 'Queenie Dimaculangan', '09172605173', 'ACTIVE', 17, '09199400836', NOW(), NOW()),
+(69, 100, '136220260069', '2025-0069', 'Bianca', 'Macaraeg', 'Jimenez', '2008-09-21', 'Female', '12 Camia St., Brgy. Mabuhay', 'Emmanuel Macaraeg', '09177360851', 'ACTIVE', 17, '09193840385', NOW(), NOW()),
+(70, 101, '136220260070', '2025-0070', 'Vincent', 'Malonzo', 'Robles', '2008-09-09', 'Male', '157 Molave Rd., Brgy. Santa Lucia', 'Bryan Malonzo', '09177763590', 'ACTIVE', 17, '09199836191', NOW(), NOW()),
+(71, 102, '136220260071', '2025-0071', 'Therese', 'Dimaculangan', 'Alonzo', '2008-07-19', 'Female', '99 Rosal St., Brgy. Maligaya', 'Oliver Dimaculangan', '09172756103', 'ACTIVE', 17, '09192248794', NOW(), NOW()),
+(72, 103, '136220260072', '2025-0072', 'Felix', 'Francisco', 'Alonzo', '2008-11-22', 'Male', '100 Rosal St., Brgy. Santo Nino', 'Alfonso Francisco', '09176797788', 'ACTIVE', 17, '09199966762', NOW(), NOW());
 
 -- Section 10 (11-ABM B): students 73-80
 INSERT INTO students (Id, user_id, lrn, student_number, first_name, last_name, middle_name, birthdate, sex, address, guardian_name, guardian_contact, status, age, contact_no, created_at, updated_at) VALUES
-(73, 104, '150001000073', 'student73', 'Uriel',      'Manalo',      'Dizon',    '2008-04-14', 'Male',   '31 Asset St.',                    'Uriel Manalo Sr.',   '09170000073', 'ACTIVE', 17, '09170001073', NOW(), NOW()),
-(74, 105, '150001000074', 'student74', 'Vina',       'Trinidad',    'Sison',    '2008-11-26', 'Female', '68 Liability Ave.',               'Vina Trinidad Sr.',  '09170000074', 'ACTIVE', 17, '09170001074', NOW(), NOW()),
-(75, 106, '150001000075', 'student75', 'Winston',    'Lozano',      'Cruz',     '2008-07-09', 'Male',   '14 Equity Blvd.',                 'Winston Lozano Sr.', '09170000075', 'ACTIVE', 17, '09170001075', NOW(), NOW()),
-(76, 107, '150001000076', 'student76', 'Xyra',       'Macapagal',   'Ramos',    '2008-01-30', 'Female', '53 Capital St.',                  'Xyra Macapagal Sr.', '09170000076', 'ACTIVE', 17, '09170001076', NOW(), NOW()),
-(77, 108, '150001000077', 'student77', 'Yves',       'Panganiban',  'Lopez',    '2008-09-17', 'Male',   '7 Market Ave.',                   'Yves Panganiban Sr.','09170000077', 'ACTIVE', 17, '09170001077', NOW(), NOW()),
-(78, 109, '150001000078', 'student78', 'Zia',        'Salcedo',     'Tan',      '2008-02-22', 'Female', '91 Trade Blvd.',                  'Zia Salcedo Sr.',    '09170000078', 'ACTIVE', 17, '09170001078', NOW(), NOW()),
-(79, 110, '150001000079', 'student79', 'Alejandro',  'Guevarra',    'Santos',   '2008-08-11', 'Male',   '27 Finance St.',                  'Alejandro Guevarra Sr.','09170000079','ACTIVE', 17, '09170001079', NOW(), NOW()),
-(80, 111, '150001000080', 'student80', 'Beatrix',    'Sarmiento',   'Flores',   '2008-05-19', 'Female', '62 Budget Rd.',                   'Beatrix Sarmiento Sr.','09170000080','ACTIVE', 17, '09170001080', NOW(), NOW());
+(73, 104, '136220260073', '2025-0073', 'Mikaela', 'Abad', 'Enriquez', '2008-05-07', 'Female', '142 Acacia St., Brgy. Bagong Silang', 'Vanessa Abad', '09176321710', 'ACTIVE', 17, '09199453287', NOW(), NOW()),
+(74, 105, '136220260074', '2025-0074', 'Bianca', 'De Guzman', 'Agustin', '2008-08-09', 'Female', '56 Banaba St., Brgy. San Roque', 'Trisha De Guzman', '09174165123', 'ACTIVE', 17, '09199961992', NOW(), NOW()),
+(75, 106, '136220260075', '2025-0075', 'Ysabel', 'Mangubat', 'Villareal', '2008-04-04', 'Female', '130 Mahogany Ave., Brgy. Poblacion', 'Dominic Mangubat', '09176998817', 'ACTIVE', 17, '09196132288', NOW(), NOW()),
+(76, 107, '136220260076', '2025-0076', 'Joanna', 'Andrada', 'Villareal', '2008-04-06', 'Female', '167 Acacia St., Brgy. San Roque', 'Zara Andrada', '09173988359', 'ACTIVE', 17, '09195035942', NOW(), NOW()),
+(77, 108, '136220260077', '2025-0077', 'Zion', 'Concepcion', 'Dimaculangan', '2008-07-26', 'Male', '29 Banaba St., Brgy. San Isidro', 'Renz Concepcion', '09178914501', 'ACTIVE', 17, '09193263276', NOW(), NOW()),
+(78, 109, '136220260078', '2025-0078', 'Isaac', 'Pangilinan', 'Gatchalian', '2008-07-19', 'Male', '40 Yakal Rd., Brgy. San Isidro', 'Ophelia Pangilinan', '09178733705', 'ACTIVE', 17, '09191612849', NOW(), NOW()),
+(79, 110, '136220260079', '2025-0079', 'Rhea', 'Lacson', 'Nepomuceno', '2008-01-04', 'Female', '48 Molave Rd., Brgy. Bagong Silang', 'Vincent Lacson', '09170561002', 'ACTIVE', 17, '09199553181', NOW(), NOW()),
+(80, 111, '136220260080', '2025-0080', 'Gwen', 'Zamora', 'Andrada', '2008-09-14', 'Female', '9 Ilang-Ilang St., Brgy. Santa Lucia', 'Queenie Zamora', '09172098250', 'ACTIVE', 17, '09197751210', NOW(), NOW());
 
 -- Section 11 (12-STEM A): students 81-88
 INSERT INTO students (Id, user_id, lrn, student_number, first_name, last_name, middle_name, birthdate, sex, address, guardian_name, guardian_contact, status, age, contact_no, created_at, updated_at) VALUES
-(81, 112, '150001000081', 'student81', 'Carlito',    'Jacinto',     'Reyes',    '2007-06-05', 'Male',   '44 Thesis St.',                   'Carlito Jacinto Sr.','09170000081', 'ACTIVE', 18, '09170001081', NOW(), NOW()),
-(82, 113, '150001000082', 'student82', 'Darlene',    'Castillo',    'Mendoza',  '2007-10-21', 'Female', '77 Defense Ave.',                 'Darlene Castillo Sr.','09170000082','ACTIVE', 18, '09170001082', NOW(), NOW()),
-(83, 114, '150001000083', 'student83', 'Emilio',     'Aguirre',     'Cruz',     '2007-03-15', 'Male',   '19 Capstone Blvd.',               'Emilio Aguirre Sr.', '09170000083', 'ACTIVE', 18, '09170001083', NOW(), NOW()),
-(84, 115, '150001000084', 'student84', 'Floribel',   'Cortez',      'Lopez',    '2007-09-09', 'Female', '58 Research St.',                 'Floribel Cortez Sr.','09170000084', 'ACTIVE', 18, '09170001084', NOW(), NOW()),
-(85, 116, '150001000085', 'student85', 'Gregorio',   'Lozada',      'Tan',      '2007-01-28', 'Male',   '23 Practicum Ave.',               'Gregorio Lozada Sr.','09170000085', 'ACTIVE', 18, '09170001085', NOW(), NOW()),
-(86, 117, '150001000086', 'student86', 'Hazel',      'Pineda',      'Rivera',   '2007-07-13', 'Female', '35 Defense Blvd.',                'Hazel Pineda Sr.',   '09170000086', 'ACTIVE', 18, '09170001086', NOW(), NOW()),
-(87, 118, '150001000087', 'student87', 'Ivan',       'Castro',      'Garcia',   '2007-11-30', 'Male',   '81 Capstone St.',                 'Ivan Castro Sr.',    '09170000087', 'ACTIVE', 18, '09170001087', NOW(), NOW()),
-(88, 119, '150001000088', 'student88', 'Jenalyn',    'Cruz',        'Santos',   '2007-04-17', 'Female', '12 Thesis Ave.',                  'Jenalyn Cruz Sr.',   '09170000088', 'ACTIVE', 18, '09170001088', NOW(), NOW());
+(81, 112, '136220260081', '2025-0081', 'Vincent', 'Villareal', 'Lagman', '2007-11-11', 'Male', '159 Acacia St., Brgy. San Roque', 'Vincent Villareal', '09170331825', 'ACTIVE', 18, '09195603711', NOW(), NOW()),
+(82, 113, '136220260082', '2025-0082', 'Faith', 'Quiambao', 'Panganiban', '2007-06-26', 'Female', '157 Gumamela St., Brgy. San Isidro', 'Adrian Quiambao', '09175347521', 'ACTIVE', 18, '09196980121', NOW(), NOW()),
+(83, 114, '136220260083', '2025-0083', 'Lorraine', 'Panganiban', 'Francisco', '2007-08-22', 'Female', '98 Everlasting St., Brgy. Poblacion', 'Queenie Panganiban', '09171162657', 'ACTIVE', 18, '09196042993', NOW(), NOW()),
+(84, 115, '136220260084', '2025-0084', 'Ophelia', 'Ilagan', 'Francisco', '2007-01-06', 'Female', '111 Santan St., Brgy. Mabuhay', 'Gian Ilagan', '09178730269', 'ACTIVE', 18, '09199776322', NOW(), NOW()),
+(85, 116, '136220260085', '2025-0085', 'Margaux', 'Gatchalian', 'Catapang', '2007-09-16', 'Female', '85 Mahogany Ave., Brgy. San Isidro', 'Isaac Gatchalian', '09176239198', 'ACTIVE', 18, '09194241966', NOW(), NOW()),
+(86, 117, '136220260086', '2025-0086', 'Margaux', 'Buenaventura', 'Legaspi', '2007-12-18', 'Female', '190 Everlasting St., Brgy. Pag-asa', 'Pauline Buenaventura', '09177697921', 'ACTIVE', 18, '09192736490', NOW(), NOW()),
+(87, 118, '136220260087', '2025-0087', 'Mikaela', 'De Leon', 'Nepomuceno', '2007-09-13', 'Female', '214 Molave Rd., Brgy. Pag-asa', 'Hannah De Leon', '09179498734', 'ACTIVE', 18, '09196321388', NOW(), NOW()),
+(88, 119, '136220260088', '2025-0088', 'Mikaela', 'Magbanua', 'Mangubat', '2007-04-09', 'Female', '28 Yakal Rd., Brgy. Poblacion', 'Zion Magbanua', '09178079966', 'ACTIVE', 18, '09193640716', NOW(), NOW());
 
 -- Section 12 (12-ABM B): students 89-99 (11 students)
 INSERT INTO students (Id, user_id, lrn, student_number, first_name, last_name, middle_name, birthdate, sex, address, guardian_name, guardian_contact, status, age, contact_no, created_at, updated_at) VALUES
-(89, 120, '150001000089', 'student89', 'Kiko',       'Alcantara',   'Reyes',    '2007-08-02', 'Male',   '49 Business St.',                 'Kiko Alcantara Sr.', '09170000089', 'ACTIVE', 18, '09170001089', NOW(), NOW()),
-(90, 121, '150001000090', 'student90', 'Lea',        'Bustamante',  'Tan',      '2007-02-20', 'Female', '74 Management Ave.',              'Lea Bustamante Sr.', '09170000090', 'ACTIVE', 18, '09170001090', NOW(), NOW()),
-(91, 122, '150001000091', 'student91', 'Miguel',     'Valdez',      'Lim',      '2007-10-08', 'Male',   '16 Marketing Blvd.',              'Miguel Valdez Sr.',  '09170000091', 'ACTIVE', 18, '09170001091', NOW(), NOW()),
-(92, 123, '150001000092', 'student92', 'Nathalie',   'Rivera',      'Ong',      '2007-05-26', 'Female', '63 Accounting St.',               'Nathalie Rivera Sr.','09170000092', 'ACTIVE', 18, '09170001092', NOW(), NOW()),
-(93, 124, '150001000093', 'student93', 'Orlando',    'Mendoza',     'Sison',    '2007-12-14', 'Male',   '29 Economics Ave.',               'Orlando Mendoza Sr.','09170000093', 'ACTIVE', 18, '09170001093', NOW(), NOW()),
-(94, 125, '150001000094', 'student94', 'Perla',      'Dimagiba',    'Cruz',     '2007-06-30', 'Female', '55 Finance Blvd.',                'Perla Dimagiba Sr.', '09170000094', 'ACTIVE', 18, '09170001094', NOW(), NOW()),
-(95, 126, '150001000095', 'student95', 'Rogelio',    'Apostol',     'Ramos',    '2007-03-11', 'Male',   '8 Governance St.',                'Rogelio Apostol Sr.','09170000095', 'ACTIVE', 18, '09170001095', NOW(), NOW()),
-(96, 127, '150001000096', 'student96', 'Shiela',     'Tecson',      'Dela Cruz','2007-09-27', 'Female', '41 Tax Ave.',                     'Shiela Tecson Sr.',  '09170000096', 'ACTIVE', 18, '09170001096', NOW(), NOW()),
-(97, 128, '150001000097', 'student97', 'Tyrone',     'Basa',        'Villanueva','2007-01-05', 'Male',   '70 Law Blvd.',                    'Tyrone Basa Sr.',    '09170000097', 'ACTIVE', 18, '09170001097', NOW(), NOW()),
-(98, 129, '150001000098', 'student98', 'Vilma',      'Santos',      'Lopez',    '2007-11-19', 'Female', '33 Ethics St.',                   'Vilma Santos Sr.',   '09170000098', 'ACTIVE', 18, '09170001098', NOW(), NOW()),
-(99, 130, '150001000099', 'student99', 'Wally',      'Bayola',      'Cruz',     '2007-07-22', 'Male',   '86 Policy Ave.',                  'Wally Bayola Sr.',   '09170000099', 'ACTIVE', 18, '09170001099', NOW(), NOW());
+(89, 120, '136220260089', '2025-0089', 'Renz', 'Quizon', 'Sarmiento', '2007-11-14', 'Male', '30 Bayanihan Rd., Brgy. Pag-asa', 'Venice Quizon', '09171775156', 'ACTIVE', 18, '09197558019', NOW(), NOW()),
+(90, 121, '136220260090', '2025-0090', 'Quentin', 'Galang', 'Dantes', '2007-12-26', 'Male', '17 Molave Rd., Brgy. Bagong Silang', 'Eunice Galang', '09174292033', 'ACTIVE', 18, '09197119801', NOW(), NOW()),
+(91, 122, '136220260091', '2025-0091', 'Aubrey', 'Zamora', 'Alonzo', '2007-03-24', 'Female', '167 Camia St., Brgy. San Roque', 'Christian Zamora', '09179204334', 'ACTIVE', 18, '09192218979', NOW(), NOW()),
+(92, 123, '136220260092', '2025-0092', 'Joaquin', 'Guevarra', 'Natividad', '2007-02-09', 'Male', '82 Molave Rd., Brgy. Maligaya', 'Rochelle Guevarra', '09174163803', 'ACTIVE', 18, '09197136775', NOW(), NOW()),
+(93, 124, '136220260093', '2025-0093', 'Karl', 'Abad', 'Buenaventura', '2007-06-11', 'Male', '235 Camia St., Brgy. Pag-asa', 'Karl Abad', '09170992833', 'ACTIVE', 18, '09198344530', NOW(), NOW()),
+(94, 125, '136220260094', '2025-0094', 'Liana', 'Quiambao', 'De Leon', '2007-01-22', 'Female', '228 Kamagong St., Brgy. San Isidro', 'Erika Quiambao', '09173131780', 'ACTIVE', 18, '09195997802', NOW(), NOW()),
+(95, 126, '136220260095', '2025-0095', 'Ulrich', 'Quiambao', 'Villareal', '2007-01-07', 'Male', '36 Lirio St., Brgy. Bagong Silang', 'Arnel Quiambao', '09178794166', 'ACTIVE', 18, '09199058399', NOW(), NOW()),
+(96, 127, '136220260096', '2025-0096', 'Marvin', 'Sarmiento', 'Evangelista', '2007-11-20', 'Male', '202 Lirio St., Brgy. Maligaya', 'Faith Sarmiento', '09172615627', 'ACTIVE', 18, '09192179711', NOW(), NOW()),
+(97, 128, '136220260097', '2025-0097', 'Karl', 'Sarmiento', 'Malonzo', '2007-11-12', 'Male', '14 Lirio St., Brgy. San Isidro', 'Quentin Sarmiento', '09176864116', 'ACTIVE', 18, '09197001829', NOW(), NOW()),
+(98, 129, '136220260098', '2025-0098', 'Vanessa', 'Zamora', 'Ignacio', '2007-01-18', 'Female', '230 Bayanihan Rd., Brgy. Poblacion', 'Benjamin Zamora', '09179910918', 'ACTIVE', 18, '09197722109', NOW(), NOW()),
+(99, 130, '136220260099', '2025-0099', 'Vincent', 'Valenzuela', 'Lagman', '2007-04-05', 'Male', '160 Everlasting St., Brgy. San Roque', 'Adrian Valenzuela', '09175876472', 'ACTIVE', 18, '09194685908', NOW(), NOW());
 -- ============================================================
 -- SEED DATA PART 3c: Enrollments (99 records)
 -- Database: School_sms
@@ -953,3 +962,51 @@ INSERT INTO teacher_subject_tbl (idteacher_subject, teacher_id, subject_title, c
 (28, 28, 'Filipino',          NOW()),
 (29, 29, 'MAPEH',             NOW()),
 (30, 30, 'TLE',               NOW());
+
+-- ============================================================
+-- SEED DATA PART 5: Recent attendance
+-- Database: School_sms
+-- ============================================================
+-- One ended session for every scheduled class on each weekday of the last four weeks
+-- (up to yesterday), so the dashboards, reports and exports have something to show.
+-- Dates are relative to the day this script is run. Session times are stored in UTC
+-- (Philippine time minus 8 hours), as the app stores them.
+
+INSERT INTO attendance_sessions (class_offering_id, session_date, created_at, updated_at, status, room_id, section_name, subject_name)
+WITH RECURSIVE seed_days AS (
+    SELECT CURDATE() - INTERVAL 1 DAY AS d, 1 AS n
+    UNION ALL
+    SELECT d - INTERVAL 1 DAY, n + 1 FROM seed_days WHERE n < 28
+)
+SELECT cs.class_offering_id,
+       TIMESTAMP(sd.d, cs.start_time) - INTERVAL 8 HOUR,
+       TIMESTAMP(sd.d, cs.start_time) - INTERVAL 8 HOUR,
+       TIMESTAMP(sd.d, cs.end_time) - INTERVAL 8 HOUR,
+       'ENDED', cs.room_id, sec.name, sub.title
+FROM seed_days sd
+JOIN class_schedules cs ON cs.day_of_week = WEEKDAY(sd.d) + 1
+JOIN class_offerings co ON co.Id = cs.class_offering_id
+JOIN sections sec ON sec.Id = co.section_id
+JOIN subjects sub ON sub.Id = co.subject_id;
+
+-- One record per enrolled student per session (the table allows only one). Most are
+-- present; about one student in eleven has a noticeably worse record, so the at-risk
+-- list and the "attendance rate below" filters have matches.
+INSERT INTO attendance_records (attendance_session_id, student_id, marked_by_user_id, status, reason, created_at, updated_at, hash)
+SELECT x.session_id, x.student_id, x.user_id,
+       CASE WHEN x.roll < 82 THEN 'PRESENT'
+            WHEN x.roll < 91 THEN 'LATE'
+            WHEN x.roll BETWEEN 97 AND 99 THEN 'EXCUSED'
+            ELSE 'ABSENT' END,
+       CASE WHEN x.roll BETWEEN 97 AND 99 THEN 'Excused: medical appointment' END,
+       x.marked_at, x.marked_at,
+       SHA2(CONCAT(x.session_id, ':', x.student_id, ':', x.marked_at), 256)
+FROM (
+    SELECT s.Id AS session_id, e.student_id, t.user_id,
+           s.session_date + INTERVAL 5 MINUTE AS marked_at,
+           (CRC32(CONCAT(s.Id, '-', e.student_id)) % 100) + IF(e.student_id % 11 = 0, 22, 0) AS roll
+    FROM attendance_sessions s
+    JOIN class_offerings co ON co.Id = s.class_offering_id
+    JOIN teachers t ON t.Id = co.teacher_id
+    JOIN enrollments e ON e.section_id = co.section_id
+) x;

@@ -406,7 +406,6 @@ public class TeacherSessionService : ITeacherSessionService
         var isLate = await IsStudentLateAsync(context, session.ClassOfferingId, rules.LateGraceMinutes, cancellationToken);
 
         var status = isLate ? "LATE" : "PRESENT";
-        var hash = ComputeHash(sessionId, studentId, DateTime.UtcNow);
 
         var record = recent;
         if (record is null)
@@ -424,7 +423,6 @@ public class TeacherSessionService : ITeacherSessionService
         record.MarkedByUserId = userId;
         record.Status = status;
         record.Reason = null;
-        record.Hash = hash;
         record.UpdatedAt = DateTime.UtcNow;
 
         var student = await context.Students.FindAsync([studentId], cancellationToken);
@@ -546,7 +544,6 @@ public class TeacherSessionService : ITeacherSessionService
             {
                 AttendanceSessionId = sessionId,
                 StudentId = studentId,
-                Hash = ComputeHash(sessionId, studentId, now),
                 CreatedAt = now
             };
             context.AttendanceRecords.Add(record);
@@ -933,7 +930,6 @@ public class TeacherSessionService : ITeacherSessionService
                     StudentId = studentId,
                     Status = isExcused ? "EXCUSED" : "ABSENT",
                     Reason = isExcused ? excuseReason : "Not scanned before the session ended",
-                    Hash = ComputeHash(session.Id, studentId, now),
                     CreatedAt = now,
                     UpdatedAt = now
                 });
@@ -995,12 +991,5 @@ public class TeacherSessionService : ITeacherSessionService
         var now = TimeOnly.FromDateTime(today);
 
         return now > graceEnd;
-    }
-
-    private static string ComputeHash(long sessionId, long studentId, DateTime timestamp)
-    {
-        var input = $"{sessionId}:{studentId}:{timestamp:O}";
-        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(input));
-        return Convert.ToHexStringLower(bytes);
     }
 }

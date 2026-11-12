@@ -13,8 +13,22 @@ public record EncryptedCellSample(string Column, string StoredValue, string AppV
 
 public record EncryptedRowSample(long Id, string Label, IReadOnlyList<EncryptedCellSample> Cells);
 
+/// <summary>
+/// One account's stored password hash, split into its parts. The salt and hash are cut
+/// short on purpose: the page proves the format without putting crackable hashes on screen.
+/// </summary>
+public record PasswordHashSample(string Username, string Role, bool IsHashed, string Algorithm, int Iterations, string SaltPreview, string HashPreview);
+
+/// <param name="Hashed">Accounts whose password is stored as a PBKDF2 hash.</param>
+public record PasswordHashOverview(int Accounts, int Hashed, IReadOnlyList<PasswordHashSample> Samples);
+
 public interface IEncryptionDemoService
 {
+    /// <summary>
+    /// How account passwords are stored, for the newest <paramref name="limit"/> accounts. Read-only.
+    /// </summary>
+    Task<PasswordHashOverview> GetPasswordHashesAsync(int limit, CancellationToken ct = default);
+
     IReadOnlyList<EncryptedTableInfo> GetTables();
 
     /// <summary>
@@ -86,6 +100,37 @@ public class EncryptionDemoService(IDbContextFactory<SchoolDbContext> contextFac
             .ToList();
 
     private static string Quote(string identifier) => $"`{identifier}`";
+
+    private const string HashPrefix = "PBKDF2$";
+
+    public async Task<PasswordHashOverview> GetPasswordHashesAsync(int limit, CancellationToken ct = default)
+    {
+        limit = Math.Clamp(limit, 1, 100);
+
+        await using var context = await contextFactory.CreateDbContextAsync(ct);
+        var accounts = await context.Users.CountAsync(ct);
+        var hashed = await context.Users.CountAsync(u => u.PasswordHash.StartsWith(HashPrefix), ct);
+        var newest = await context.Users.AsNoTracking()
+            .OrderByDescending(u => u.Id)
+            .Take(limit)
+            .Select(u => new { u.Username, u.Role, u.PasswordHash })
+            .ToListAsync(ct);
+
+        var samples = newest.Select(u => DescribeHash(u.Username, u.Role.ToString(), u.PasswordHash)).ToList();
+        return new PasswordHashOverview(accounts, hashed, samples);
+    }
+
+    // Stored format (see PasswordHelper): PBKDF2$iterations$base64(salt)$base64(hash).
+    private static PasswordHashSample DescribeHash(string username, string role, string stored)
+    {
+        var parts = stored.Split('$');
+        if (parts.Length != 4 || parts[0] != "PBKDF2" || !int.TryParse(parts[1], out var iterations))
+            return new PasswordHashSample(username, role, false, "Unrecognised", 0, "", "");
+
+        return new PasswordHashSample(username, role, true, parts[0], iterations, Preview(parts[2]), Preview(parts[3]));
+    }
+
+    private static string Preview(string base64) => base64.Length <= 8 ? base64 : base64[..8] + "…";
 
     public async Task<IReadOnlyList<EncryptedRowSample>> GetSamplesAsync(string table, int limit, CancellationToken ct = default)
     {
